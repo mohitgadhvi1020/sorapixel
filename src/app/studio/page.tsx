@@ -157,7 +157,7 @@ export default function StudioPage() {
       <header className="glass border-b border-[#e8e5df] sticky top-0 z-50">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
           <a href="/" className="flex items-center gap-2 group">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-[#8b7355] to-[#6b5740] rounded-lg shadow-sm transition-transform duration-300 group-hover:scale-105" />
+            <img src="/logo.png" alt="SoraPixel" className="w-7 h-7 sm:w-8 sm:h-8 object-contain transition-transform duration-300 group-hover:scale-105" />
             <span className="font-semibold text-base sm:text-lg tracking-tight text-[#1b1b1f]">
               SoraPixel
             </span>

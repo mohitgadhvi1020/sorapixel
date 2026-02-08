@@ -7,7 +7,7 @@ export default function HomePage() {
       <header className="fixed top-0 left-0 right-0 z-50 glass border-b border-[#e8e5df]">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-[#8b7355] to-[#6b5740] rounded-lg shadow-sm" />
+            <img src="/logo.png" alt="SoraPixel" className="w-7 h-7 sm:w-8 sm:h-8 object-contain" />
             <span className="font-semibold text-base sm:text-lg tracking-tight text-[#1b1b1f]">
               SoraPixel
             </span>
@@ -199,7 +199,7 @@ export default function HomePage() {
       <footer className="border-t border-[#e8e5df] bg-white safe-bottom">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col sm:flex-row items-center justify-between gap-2 text-sm text-[#8c8c8c]">
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 bg-gradient-to-br from-[#8b7355] to-[#6b5740] rounded" />
+            <img src="/logo.png" alt="SoraPixel" className="w-5 h-5 object-contain" />
             <span className="font-medium">SoraPixel</span>
           </div>
           <span className="text-xs sm:text-sm">AI Product Photography for Kitchenware</span>
