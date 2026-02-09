@@ -20,6 +20,10 @@ export default function StudioPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
+  const [styleMode, setStyleMode] = useState<"preset" | "custom">("preset");
+  const [customRawPrompt, setCustomRawPrompt] = useState("");
+  const [customRefinedPrompt, setCustomRefinedPrompt] = useState<string | null>(null);
+  const [isRefining, setIsRefining] = useState(false);
   const [step, setStep] = useState<Step>("idle");
   const [packImages, setPackImages] = useState<ResultImage[]>([]);
   const [infoImages, setInfoImages] = useState<ResultImage[]>([]);
@@ -42,16 +46,48 @@ export default function StudioPage() {
     []
   );
 
+  const handleRefinePrompt = useCallback(async () => {
+    if (!customRawPrompt.trim() || isRefining) return;
+    setIsRefining(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/refine-prompt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rawPrompt: customRawPrompt }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || "Failed to refine prompt");
+      setCustomRefinedPrompt(data.refined);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to refine prompt");
+    } finally {
+      setIsRefining(false);
+    }
+  }, [customRawPrompt, isRefining]);
+
   const handleGeneratePack = useCallback(async () => {
-    if (!imageBase64 || !selectedStyle) return;
+    if (!imageBase64) return;
+
+    // Determine what to send
+    const isCustom = styleMode === "custom";
+    if (isCustom && !customRefinedPrompt) return;
+    if (!isCustom && !selectedStyle) return;
+
     setStep("generating-pack");
     setError(null);
     setPackImages([]);
     setInfoImages([]);
     setExpandedIndex(null);
     try {
-      const payload: Record<string, string> = { imageBase64, styleId: selectedStyle };
+      const payload: Record<string, string> = { imageBase64 };
+      if (isCustom) {
+        payload.customPrompt = customRefinedPrompt!;
+      } else {
+        payload.styleId = selectedStyle!;
+      }
       if (logoBase64) payload.logoBase64 = logoBase64;
+
       const response = await fetch("/api/generate-pack", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -71,7 +107,7 @@ export default function StudioPage() {
       setError(err instanceof Error ? err.message : "Something went wrong");
       setStep("idle");
     }
-  }, [imageBase64, selectedStyle, logoBase64]);
+  }, [imageBase64, selectedStyle, logoBase64, styleMode, customRefinedPrompt]);
 
   const handleGenerateInfo = useCallback(
     async (properties: string, dimensions: string) => {
@@ -377,10 +413,88 @@ export default function StudioPage() {
                   </div>
                   <h2 className="text-lg sm:text-xl font-bold text-[#1b1b1f]">Choose a style</h2>
                   <p className="text-xs sm:text-sm text-[#8c8c8c] mt-0.5 sm:mt-1">
-                    Select the scene for your product photography
+                    Select a preset or describe your own scene
                   </p>
                 </div>
-                <StylePresetGrid selectedId={selectedStyle} onSelect={setSelectedStyle} />
+
+                {/* Preset / Custom toggle */}
+                <div className="flex bg-[#f5f0e8] rounded-lg p-1 w-fit">
+                  <button
+                    onClick={() => { setStyleMode("preset"); setCustomRefinedPrompt(null); }}
+                    className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${
+                      styleMode === "preset"
+                        ? "bg-white text-[#1b1b1f] shadow-sm"
+                        : "text-[#8c8c8c] hover:text-[#1b1b1f]"
+                    }`}
+                  >
+                    Presets
+                  </button>
+                  <button
+                    onClick={() => { setStyleMode("custom"); setSelectedStyle(null); }}
+                    className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${
+                      styleMode === "custom"
+                        ? "bg-white text-[#1b1b1f] shadow-sm"
+                        : "text-[#8c8c8c] hover:text-[#1b1b1f]"
+                    }`}
+                  >
+                    Custom
+                  </button>
+                </div>
+
+                {styleMode === "preset" ? (
+                  <StylePresetGrid selectedId={selectedStyle} onSelect={setSelectedStyle} />
+                ) : (
+                  <div className="space-y-3">
+                    <div className="relative">
+                      <textarea
+                        value={customRawPrompt}
+                        onChange={(e) => {
+                          setCustomRawPrompt(e.target.value);
+                          setCustomRefinedPrompt(null);
+                        }}
+                        placeholder="Describe your scene... e.g. &quot;on a beach at sunset&quot; or &quot;make it look premium and luxurious&quot;"
+                        rows={3}
+                        disabled={isRefining}
+                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border border-[#e8e5df] bg-white text-[#1b1b1f] text-sm placeholder:text-[#c0bdb7] focus:outline-none focus:ring-2 focus:ring-[#8b7355]/30 focus:border-[#8b7355] resize-none disabled:opacity-50 transition-all duration-300"
+                      />
+                    </div>
+                    <button
+                      onClick={handleRefinePrompt}
+                      disabled={!customRawPrompt.trim() || isRefining}
+                      className={`
+                        px-5 py-2 rounded-lg text-sm font-medium transition-all duration-300
+                        ${customRawPrompt.trim() && !isRefining
+                          ? "bg-[#f5f0e8] text-[#8b7355] hover:bg-[#ede8df] active:scale-[0.98]"
+                          : "bg-[#f0f0ee] text-[#b0b0b0] cursor-not-allowed"
+                        }
+                      `}
+                    >
+                      {isRefining ? (
+                        <span className="inline-flex items-center gap-2">
+                          <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          Refining...
+                        </span>
+                      ) : (
+                        "Refine with AI"
+                      )}
+                    </button>
+
+                    {/* Show refined result */}
+                    {customRefinedPrompt && (
+                      <div className="p-3 sm:p-4 rounded-xl bg-[#f5f0e8]/50 border border-[#e8e5df] animate-slide-up-sm">
+                        <p className="text-[10px] sm:text-xs font-bold text-[#8b7355] uppercase tracking-widest mb-1.5">
+                          AI-Refined Scene
+                        </p>
+                        <p className="text-sm text-[#1b1b1f] leading-relaxed">
+                          {customRefinedPrompt}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </section>
             )}
 
@@ -392,7 +506,10 @@ export default function StudioPage() {
             )}
 
             {/* Generate */}
-            {imagePreview && selectedStyle && (
+            {imagePreview && (
+              (styleMode === "preset" && selectedStyle) ||
+              (styleMode === "custom" && customRefinedPrompt)
+            ) && (
               <div className="flex justify-center pt-2 sm:pt-4 animate-slide-up" style={{ animationDelay: "200ms" }}>
                 <button
                   onClick={handleGeneratePack}

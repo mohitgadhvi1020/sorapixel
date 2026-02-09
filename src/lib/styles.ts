@@ -72,6 +72,14 @@ export function getStyleById(id: string): StylePreset | undefined {
 }
 
 /**
+ * Wraps a refined custom scene description with the standard
+ * product isolation and preservation template.
+ */
+export function buildCustomPrompt(sceneDescription: string): string {
+  return `${PRODUCT_ISOLATION}Now ${sceneDescription} Professional product photography with studio-quality lighting and sharp focus on the product. ${PRESERVE}`;
+}
+
+/**
  * Builds 3 prompts for the Marketplace Pack:
  * - hero: front-facing styled shot (same as base style)
  * - angle: 3/4 perspective showing more of the product shape

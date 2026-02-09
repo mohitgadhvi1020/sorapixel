@@ -78,3 +78,39 @@ export async function generateStudioImage(
 
   return { resultBase64, resultMimeType, text };
 }
+
+/**
+ * Takes a raw/casual user prompt and refines it into a detailed
+ * product photography scene description using Gemini (text-only).
+ */
+export async function refinePrompt(rawPrompt: string): Promise<string> {
+  const ai = getClient();
+
+  const response = await ai.models.generateContent({
+    model: "gemini-2.5-flash",
+    contents: [
+      {
+        text: `You are a world-class product photography director. A user has described what they want in casual language. Convert their request into a detailed, professional product photography scene description.
+
+USER REQUEST: "${rawPrompt}"
+
+RULES:
+- Output ONLY the scene description (2-4 sentences max)
+- Describe: surface/background, lighting type & direction, mood/atmosphere, camera angle
+- Keep it realistic and achievable for product photography
+- Do NOT mention the product itself — focus only on the scene/environment
+- Do NOT include any preamble, explanation, or formatting — just the raw scene description
+
+EXAMPLE INPUT: "make it look premium and expensive"
+EXAMPLE OUTPUT: "Place on a deep black matte surface with warm golden rim lighting from behind. Soft overhead spotlight creates a dramatic pool of light on the product. The background fades to pure black with subtle warm bokeh. Luxury editorial photography style with high contrast and rich shadows."`,
+      },
+    ],
+  });
+
+  const text = response.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) {
+    throw new Error("Failed to refine prompt — no response from AI");
+  }
+
+  return text.trim();
+}

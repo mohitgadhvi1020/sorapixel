@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateStudioImage } from "@/lib/gemini";
-import { getStyleById, buildPackPrompts } from "@/lib/styles";
+import { getStyleById, buildPackPrompts, buildCustomPrompt } from "@/lib/styles";
 import { compositeLogoOnImage } from "@/lib/logo-overlay-server";
 
 export const maxDuration = 120;
@@ -23,7 +23,7 @@ export async function POST(
 ): Promise<NextResponse<GeneratePackResponse>> {
   try {
     const body = await req.json();
-    const { imageBase64, styleId, logoBase64 } = body;
+    const { imageBase64, styleId, customPrompt, logoBase64 } = body;
 
     if (!imageBase64) {
       return NextResponse.json(
@@ -32,19 +32,30 @@ export async function POST(
       );
     }
 
-    if (!styleId) {
+    if (!styleId && !customPrompt) {
       return NextResponse.json(
-        { success: false, error: "No style selected" },
+        { success: false, error: "No style or custom prompt provided" },
         { status: 400 }
       );
     }
 
-    const style = getStyleById(styleId);
-    if (!style) {
-      return NextResponse.json(
-        { success: false, error: "Invalid style selected" },
-        { status: 400 }
-      );
+    // Resolve the base prompt — either from a preset or custom
+    let basePrompt: string;
+    let styleName: string;
+
+    if (customPrompt) {
+      basePrompt = buildCustomPrompt(customPrompt);
+      styleName = "Custom Prompt";
+    } else {
+      const style = getStyleById(styleId);
+      if (!style) {
+        return NextResponse.json(
+          { success: false, error: "Invalid style selected" },
+          { status: 400 }
+        );
+      }
+      basePrompt = style.prompt;
+      styleName = style.name;
     }
 
     // Detect mime type from base64 data URI
@@ -52,10 +63,10 @@ export async function POST(
     const mimeType = mimeMatch ? mimeMatch[1] : "image/png";
 
     // Build 3 prompts
-    const prompts = buildPackPrompts(style.prompt);
+    const prompts = buildPackPrompts(basePrompt);
 
     console.log("Generating Marketplace Pack with Gemini...");
-    console.log("Style:", style.name);
+    console.log("Style:", styleName);
 
     // Fire all 3 in parallel
     const [heroResult, angleResult, closeupResult] = await Promise.all([
