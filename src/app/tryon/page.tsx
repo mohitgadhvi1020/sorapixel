@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import PasswordGate from "@/components/password-gate";
+import { safeFetch } from "@/lib/safe-fetch";
 
 type JewelryType = "necklace" | "earring" | "bracelet" | "ring";
 
@@ -36,13 +37,12 @@ export default function TryOnPage() {
     setError(null);
     setResultImage(null);
     try {
-      const res = await fetch("/api/generate-tryon", {
+      const data = await safeFetch<{ success: boolean; image?: { base64: string; mimeType: string }; error?: string }>("/api/generate-tryon", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jewelryBase64, personBase64, jewelryType }),
       });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || "Generation failed");
+      if (!data.success || !data.image) throw new Error(data.error || "Generation failed");
       setResultImage(`data:${data.image.mimeType};base64,${data.image.base64}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
+import { withRetry } from "@/lib/gemini";
 
 export const maxDuration = 120;
 
@@ -87,17 +88,19 @@ export async function POST(req: NextRequest) {
 
     const ai = getClient();
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-image",
-      contents: [
-        { text: prompt },
-        { inlineData: { mimeType: jewelryMime, data: jewelryData } },
-        { inlineData: { mimeType: personMime, data: personData } },
-      ],
-      config: {
-        responseModalities: ["IMAGE"],
-      },
-    });
+    const response = await withRetry(() =>
+      ai.models.generateContent({
+        model: "gemini-2.5-flash-image",
+        contents: [
+          { text: prompt },
+          { inlineData: { mimeType: jewelryMime, data: jewelryData } },
+          { inlineData: { mimeType: personMime, data: personData } },
+        ],
+        config: {
+          responseModalities: ["IMAGE"],
+        },
+      })
+    );
 
     const parts = response.candidates?.[0]?.content?.parts;
     if (!parts || parts.length === 0) {

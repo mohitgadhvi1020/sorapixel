@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import { safeFetch } from "@/lib/safe-fetch";
 
 const SESSION_KEY = "sorapixel_auth";
 
@@ -33,12 +34,11 @@ export default function PasswordGate({ children }: PasswordGateProps) {
       setError("");
 
       try {
-        const res = await fetch("/api/verify-password", {
+        const data = await safeFetch<{ success: boolean }>("/api/verify-password", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ password }),
         });
-        const data = await res.json();
 
         if (data.success) {
           sessionStorage.setItem(SESSION_KEY, "authenticated");

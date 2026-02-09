@@ -7,6 +7,7 @@ import BeforeAfterSlider from "@/components/before-after-slider";
 import InfoInputs from "@/components/info-inputs";
 import LogoUpload from "@/components/logo-upload";
 import PasswordGate from "@/components/password-gate";
+import { safeFetch } from "@/lib/safe-fetch";
 
 type Step = "idle" | "generating-pack" | "pack-done" | "generating-info";
 
@@ -23,6 +24,7 @@ export default function StudioPage() {
   const [styleMode, setStyleMode] = useState<"preset" | "custom">("preset");
   const [customRawPrompt, setCustomRawPrompt] = useState("");
   const [customRefinedPrompt, setCustomRefinedPrompt] = useState<string | null>(null);
+  const [customIsolate, setCustomIsolate] = useState(true);
   const [isRefining, setIsRefining] = useState(false);
   const [step, setStep] = useState<Step>("idle");
   const [packImages, setPackImages] = useState<ResultImage[]>([]);
@@ -51,14 +53,14 @@ export default function StudioPage() {
     setIsRefining(true);
     setError(null);
     try {
-      const res = await fetch("/api/refine-prompt", {
+      const data = await safeFetch<{ success: boolean; refined?: string; isolate?: boolean; error?: string }>("/api/refine-prompt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rawPrompt: customRawPrompt }),
       });
-      const data = await res.json();
       if (!data.success) throw new Error(data.error || "Failed to refine prompt");
-      setCustomRefinedPrompt(data.refined);
+      setCustomRefinedPrompt(data.refined ?? null);
+      setCustomIsolate(data.isolate !== false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to refine prompt");
     } finally {
@@ -80,23 +82,23 @@ export default function StudioPage() {
     setInfoImages([]);
     setExpandedIndex(null);
     try {
-      const payload: Record<string, string> = { imageBase64 };
+      const payload: Record<string, unknown> = { imageBase64 };
       if (isCustom) {
         payload.customPrompt = customRefinedPrompt!;
+        payload.customIsolate = customIsolate;
       } else {
         payload.styleId = selectedStyle!;
       }
       if (logoBase64) payload.logoBase64 = logoBase64;
 
-      const response = await fetch("/api/generate-pack", {
+      const data = await safeFetch<{ success: boolean; images?: { label: string; base64: string; mimeType: string }[]; error?: string }>("/api/generate-pack", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = await response.json();
       if (!data.success) throw new Error(data.error || "Generation failed");
-      const images: ResultImage[] = data.images.map(
-        (img: { label: string; base64: string; mimeType: string }) => ({
+      const images: ResultImage[] = (data.images ?? []).map(
+        (img) => ({
           label: img.label,
           dataUri: `data:${img.mimeType};base64,${img.base64}`,
         })
@@ -117,15 +119,14 @@ export default function StudioPage() {
       try {
         const payload: Record<string, string> = { imageBase64, properties, dimensions };
         if (logoBase64) payload.logoBase64 = logoBase64;
-        const response = await fetch("/api/generate-info", {
+        const data = await safeFetch<{ success: boolean; images?: { label: string; base64: string; mimeType: string }[]; error?: string }>("/api/generate-info", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
-        const data = await response.json();
         if (!data.success) throw new Error(data.error || "Generation failed");
-        const images: ResultImage[] = data.images.map(
-          (img: { label: string; base64: string; mimeType: string }) => ({
+        const images: ResultImage[] = (data.images ?? []).map(
+          (img) => ({
             label: img.label,
             dataUri: `data:${img.mimeType};base64,${img.base64}`,
           })
