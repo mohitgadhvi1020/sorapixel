@@ -200,14 +200,22 @@ export default function StudioPage() {
               SoraPixel
             </span>
           </a>
-          {(imageBase64 || hasResults) && (
-            <button
-              onClick={handleReset}
+          <div className="flex items-center gap-3 sm:gap-4">
+            <a
+              href="/tryon"
               className="text-sm text-[#8c8c8c] hover:text-[#1b1b1f] transition-colors duration-300"
             >
-              Start over
-            </button>
-          )}
+              Try-On
+            </a>
+            {(imageBase64 || hasResults) && (
+              <button
+                onClick={handleReset}
+                className="text-sm text-[#8c8c8c] hover:text-[#1b1b1f] transition-colors duration-300"
+              >
+                Start over
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
