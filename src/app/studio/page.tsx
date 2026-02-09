@@ -6,6 +6,7 @@ import StylePresetGrid from "@/components/style-preset-grid";
 import BeforeAfterSlider from "@/components/before-after-slider";
 import InfoInputs from "@/components/info-inputs";
 import LogoUpload from "@/components/logo-upload";
+import PasswordGate from "@/components/password-gate";
 
 type Step = "idle" | "generating-pack" | "pack-done" | "generating-info";
 
@@ -152,6 +153,7 @@ export default function StudioPage() {
   const hasResults = packImages.length > 0;
 
   return (
+    <PasswordGate>
     <div className="min-h-screen bg-[#fafaf8]">
       {/* Header */}
       <header className="glass border-b border-[#e8e5df] sticky top-0 z-50">
@@ -405,6 +407,7 @@ export default function StudioPage() {
         )}
       </main>
     </div>
+    </PasswordGate>
   );
 }
 
