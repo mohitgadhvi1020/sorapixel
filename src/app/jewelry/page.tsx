@@ -51,6 +51,10 @@ export default function JewelryPage() {
   const [personBase64, setPersonBase64] = useState<string | null>(null);
   const [tryonResult, setTryonResult] = useState<string | null>(null);
 
+  // Recolor
+  const [recolorTarget, setRecolorTarget] = useState("");
+  const [recoloringIndex, setRecoloringIndex] = useState<number | null>(null);
+
   const currentRatio = getRatioById(aspectRatio) || DEFAULT_RATIO;
   const personInputRef = useRef<HTMLInputElement>(null);
 
@@ -190,6 +194,48 @@ export default function JewelryPage() {
       setTimeout(() => downloadImage(img.dataUri, img.label), i * 300);
     });
   }, [packImages, downloadImage]);
+
+  const handleRecolor = useCallback(
+    async (index: number) => {
+      if (!recolorTarget.trim() || recoloringIndex !== null) return;
+      const img = packImages[index];
+      if (!img) return;
+
+      setRecoloringIndex(index);
+      setError(null);
+
+      try {
+        const data = await safeFetch<{
+          success: boolean;
+          image?: { base64: string; mimeType: string };
+          error?: string;
+        }>("/api/recolor-jewelry", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            imageBase64: img.dataUri,
+            targetColor: recolorTarget.trim(),
+            aspectRatioId: aspectRatio,
+          }),
+        });
+
+        if (!data.success || !data.image)
+          throw new Error(data.error || "Recolor failed");
+
+        const newImages = [...packImages];
+        newImages[index] = {
+          label: `${img.label} (${recolorTarget.trim()})`,
+          dataUri: `data:${data.image.mimeType};base64,${data.image.base64}`,
+        };
+        setPackImages(newImages);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Recolor failed");
+      } finally {
+        setRecoloringIndex(null);
+      }
+    },
+    [packImages, recolorTarget, recoloringIndex, aspectRatio]
+  );
 
   const expandedImage =
     expandedIndex !== null ? packImages[expandedIndex] : null;
@@ -357,6 +403,65 @@ export default function JewelryPage() {
                 >
                   Start over
                 </button>
+              </div>
+
+              {/* ── Recolor Section ── */}
+              <div className="space-y-4 border-t border-[#e8e5df] pt-6">
+                <div>
+                  <h2 className="text-lg sm:text-xl font-bold text-[#1b1b1f]">
+                    Recolor Metal
+                  </h2>
+                  <p className="text-xs sm:text-sm text-[#8c8c8c] mt-1">
+                    Change the metal color of any image — enter a hex code (e.g. #FFD700) or describe the color (e.g. &quot;rose gold&quot;, &quot;antique bronze&quot;)
+                  </p>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
+                  <div className="flex-1 w-full">
+                    <input
+                      type="text"
+                      value={recolorTarget}
+                      onChange={(e) => setRecolorTarget(e.target.value)}
+                      placeholder="#FFD700 or rose gold, matte black, antique silver..."
+                      className="w-full rounded-xl border border-[#e8e5df] bg-white px-4 py-3 text-sm text-[#1b1b1f] placeholder:text-[#b0b0b0] focus:outline-none focus:border-[#8b7355] transition-colors duration-300"
+                    />
+                  </div>
+                  {recolorTarget.trim() && (
+                    <div className="flex items-center gap-2">
+                      {/* Color preview if hex */}
+                      {/^#[0-9a-fA-F]{3,8}$/.test(recolorTarget.trim()) && (
+                        <div
+                          className="w-9 h-9 rounded-lg border border-[#e8e5df] flex-shrink-0"
+                          style={{ backgroundColor: recolorTarget.trim() }}
+                        />
+                      )}
+                    </div>
+                  )}
+                </div>
+                {recolorTarget.trim() && (
+                  <div className={`grid gap-3 ${packImages.length > 3 ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5" : "grid-cols-1 sm:grid-cols-3"}`}>
+                    {packImages.map((img, index) => (
+                      <button
+                        key={`recolor-${index}`}
+                        onClick={() => handleRecolor(index)}
+                        disabled={recoloringIndex !== null}
+                        className={`px-3 py-2.5 rounded-lg border text-xs sm:text-sm font-medium transition-all duration-200 active:scale-[0.97] text-center ${
+                          recoloringIndex === index
+                            ? "border-[#8b7355] bg-[#f5f0e8] text-[#8b7355]"
+                            : "border-[#e8e5df] bg-white text-[#8c8c8c] hover:border-[#c4a67d] hover:text-[#1b1b1f]"
+                        } disabled:opacity-50`}
+                      >
+                        {recoloringIndex === index ? (
+                          <span className="flex items-center justify-center gap-2">
+                            <span className="w-3.5 h-3.5 border-2 border-[#8b7355] border-t-transparent rounded-full animate-spin" />
+                            Recoloring...
+                          </span>
+                        ) : (
+                          `Recolor: ${img.label}`
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* ── Try-On Section ── */}
