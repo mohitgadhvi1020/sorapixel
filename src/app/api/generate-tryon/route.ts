@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 import { withRetry } from "@/lib/gemini";
+import { getRatioById, DEFAULT_RATIO } from "@/lib/aspect-ratios";
+import { cropToRatio } from "@/lib/crop-to-ratio";
 
 export const maxDuration = 120;
 
@@ -63,7 +65,10 @@ Generate a HYPER-REALISTIC photograph of this EXACT person wearing this EXACT ri
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { jewelryBase64, personBase64, jewelryType } = body;
+    const { jewelryBase64, personBase64, jewelryType, aspectRatioId } = body;
+
+    // Resolve aspect ratio
+    const ratio = getRatioById(aspectRatioId) || DEFAULT_RATIO;
 
     if (!jewelryBase64 || !personBase64) {
       return NextResponse.json(
@@ -73,7 +78,8 @@ export async function POST(req: NextRequest) {
     }
 
     const type = jewelryType || "necklace";
-    const prompt = JEWELRY_PROMPTS[type] || JEWELRY_PROMPTS.necklace;
+    const basePrompt = JEWELRY_PROMPTS[type] || JEWELRY_PROMPTS.necklace;
+    const prompt = `${basePrompt}\n\nCOMPOSITION: ${ratio.compositionHint}`;
 
     // Detect mime types
     const jewelryMime =
@@ -124,6 +130,15 @@ export async function POST(req: NextRequest) {
       throw new Error(
         "AI did not return an image. " + (textPart?.text || "Try again.")
       );
+    }
+
+    // Crop to exact aspect ratio
+    console.log(`Cropping try-on to ${ratio.width}x${ratio.height}...`);
+    try {
+      resultBase64 = await cropToRatio(resultBase64, ratio.width, ratio.height, !!ratio.circular);
+      resultMimeType = "image/png";
+    } catch (err) {
+      console.error("Crop failed for try-on:", err);
     }
 
     console.log("Virtual try-on complete!");

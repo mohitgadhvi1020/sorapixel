@@ -13,7 +13,15 @@ Analyze this image and identify the MAIN PRODUCT being showcased. The product mi
 
 `;
 
-const PRESERVE = "Keep the product EXACTLY as it is — do not change, distort, or modify the product in any way. Show ONLY the product, absolutely no hands or body parts.";
+const PRESERVE = `ABSOLUTE PRODUCT FIDELITY — THIS IS THE MOST CRITICAL RULE:
+The product in the output MUST be IDENTICAL to the product in the input image.
+- Do NOT re-imagine, re-draw, or reinterpret the product in any way
+- Do NOT change the shape, proportions, colors, logos, labels, buttons, text, or any visible detail
+- Do NOT simplify, stylize, or "improve" the product appearance
+- The product must look like it was PHOTOGRAPHICALLY CUT from the original photo and PLACED into the new scene
+- Preserve every scratch, reflection, sticker, seam, and imperfection exactly as they appear
+- If the product has a specific unusual shape, reproduce that EXACT shape — do not make it look more generic
+Show ONLY the product, absolutely no hands or body parts.`;
 
 export const STYLE_PRESETS: StylePreset[] = [
   {
@@ -92,7 +100,7 @@ export function buildPackPrompts(stylePrompt: string): {
 } {
   return {
     hero: stylePrompt,
-    angle: `${stylePrompt} Show the product from a different angle — a 3/4 perspective view, slightly rotated to reveal more of its shape, depth, and form. The viewer should see the product as if looking at it from a slightly elevated side angle. Professional product photography with consistent lighting matching the scene. ${PRESERVE}`,
-    closeup: `${stylePrompt} Create a close-up detail shot of this product. Zoom in to show the texture, material quality, surface finish, and craftsmanship of the product. Macro photography style with shallow depth of field. The background should be softly blurred while the product details are tack-sharp. ${PRESERVE}`,
+    angle: `${stylePrompt} For this second image, keep the EXACT same product (do NOT redraw it) but adjust the scene/background perspective slightly to suggest a different viewpoint — as if the camera moved to a 3/4 elevated side angle. The product itself must remain pixel-identical to the input; only the background and lighting angle should shift. ${PRESERVE}`,
+    closeup: `${stylePrompt} For this third image, create a tightly cropped view focusing on the center/most interesting area of the EXACT same product. Show existing surface texture, material finish, and craftsmanship details at closer magnification. The product must remain pixel-identical to the input — do NOT redraw or reinterpret any part of it. Shallow depth of field with softly blurred background. ${PRESERVE}`,
   };
 }

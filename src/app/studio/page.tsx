@@ -7,6 +7,8 @@ import BeforeAfterSlider from "@/components/before-after-slider";
 import InfoInputs from "@/components/info-inputs";
 import LogoUpload from "@/components/logo-upload";
 import PasswordGate from "@/components/password-gate";
+import AspectRatioSelector from "@/components/aspect-ratio-selector";
+import { getRatioById, DEFAULT_RATIO } from "@/lib/aspect-ratios";
 import { safeFetch } from "@/lib/safe-fetch";
 
 type Step = "idle" | "generating-pack" | "pack-done" | "generating-info";
@@ -32,7 +34,9 @@ export default function StudioPage() {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [expandedSource, setExpandedSource] = useState<"pack" | "info">("pack");
   const [error, setError] = useState<string | null>(null);
+  const [aspectRatio, setAspectRatio] = useState("square");
 
+  const currentRatio = getRatioById(aspectRatio) || DEFAULT_RATIO;
   const allImages = [...packImages, ...infoImages];
 
   const handleImageSelected = useCallback(
@@ -90,6 +94,7 @@ export default function StudioPage() {
         payload.styleId = selectedStyle!;
       }
       if (logoBase64) payload.logoBase64 = logoBase64;
+      payload.aspectRatioId = aspectRatio;
 
       const data = await safeFetch<{ success: boolean; images?: { label: string; base64: string; mimeType: string }[]; error?: string }>("/api/generate-pack", {
         method: "POST",
@@ -109,7 +114,7 @@ export default function StudioPage() {
       setError(err instanceof Error ? err.message : "Something went wrong");
       setStep("idle");
     }
-  }, [imageBase64, selectedStyle, logoBase64, styleMode, customRefinedPrompt]);
+  }, [imageBase64, selectedStyle, logoBase64, styleMode, customRefinedPrompt, aspectRatio]);
 
   const handleGenerateInfo = useCallback(
     async (properties: string, dimensions: string) => {
@@ -119,6 +124,7 @@ export default function StudioPage() {
       try {
         const payload: Record<string, string> = { imageBase64, properties, dimensions };
         if (logoBase64) payload.logoBase64 = logoBase64;
+        payload.aspectRatioId = aspectRatio;
         const data = await safeFetch<{ success: boolean; images?: { label: string; base64: string; mimeType: string }[]; error?: string }>("/api/generate-info", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -138,7 +144,7 @@ export default function StudioPage() {
         setStep("pack-done");
       }
     },
-    [imageBase64, logoBase64]
+    [imageBase64, logoBase64, aspectRatio]
   );
 
   const handleReset = useCallback(() => {
@@ -203,6 +209,12 @@ export default function StudioPage() {
           </a>
           <div className="flex items-center gap-3 sm:gap-4">
             <a
+              href="/jewelry"
+              className="text-sm text-[#8c8c8c] hover:text-[#1b1b1f] transition-colors duration-300"
+            >
+              Jewelry
+            </a>
+            <a
               href="/tryon"
               className="text-sm text-[#8c8c8c] hover:text-[#1b1b1f] transition-colors duration-300"
             >
@@ -239,13 +251,16 @@ export default function StudioPage() {
               <h3 className="text-xs font-bold text-[#8b7355] uppercase tracking-widest mb-3 sm:mb-4">
                 Product Photos
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5 stagger-children">
+              <div className={`grid gap-4 sm:gap-5 stagger-children ${currentRatio.ratio[1] > currentRatio.ratio[0] ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-3"}`}>
                 {packImages.map((img, index) => (
                   <ImageCard
                     key={`pack-${index}`}
                     img={img}
                     onExpand={() => handleExpandImage(index, "pack")}
                     onDownload={() => downloadImage(img.dataUri, img.label)}
+                    ratioW={currentRatio.ratio[0]}
+                    ratioH={currentRatio.ratio[1]}
+                    circular={currentRatio.circular}
                   />
                 ))}
               </div>
@@ -264,6 +279,9 @@ export default function StudioPage() {
                       img={img}
                       onExpand={() => handleExpandImage(index, "info")}
                       onDownload={() => downloadImage(img.dataUri, img.label)}
+                      ratioW={currentRatio.ratio[0]}
+                      ratioH={currentRatio.ratio[1]}
+                      circular={currentRatio.circular}
                     />
                   ))}
                 </div>
@@ -288,6 +306,7 @@ export default function StudioPage() {
                   <BeforeAfterSlider
                     beforeSrc={imagePreview}
                     afterSrc={expandedImage.dataUri}
+                    ratio={`${currentRatio.ratio[0]} / ${currentRatio.ratio[1]}`}
                   />
                 </div>
               </div>
@@ -514,6 +533,20 @@ export default function StudioPage() {
               </div>
             )}
 
+            {/* Aspect Ratio */}
+            {imagePreview && (
+              (styleMode === "preset" && selectedStyle) ||
+              (styleMode === "custom" && customRefinedPrompt)
+            ) && (
+              <section className="space-y-3 animate-slide-up" style={{ animationDelay: "150ms" }}>
+                <div>
+                  <h3 className="text-sm font-semibold text-[#1b1b1f] mb-1">Aspect Ratio</h3>
+                  <p className="text-xs text-[#8c8c8c]">Choose a format for your target platform</p>
+                </div>
+                <AspectRatioSelector selectedId={aspectRatio} onSelect={setAspectRatio} />
+              </section>
+            )}
+
             {/* Generate */}
             {imagePreview && (
               (styleMode === "preset" && selectedStyle) ||
@@ -537,15 +570,21 @@ export default function StudioPage() {
   );
 }
 
-/* Image card — touch-friendly on mobile */
+/* Image card — touch-friendly on mobile, respects aspect ratio */
 function ImageCard({
   img,
   onExpand,
   onDownload,
+  ratioW,
+  ratioH,
+  circular,
 }: {
   img: ResultImage;
   onExpand: () => void;
   onDownload: () => void;
+  ratioW: number;
+  ratioH: number;
+  circular?: boolean;
 }) {
   return (
     <div className="group">
@@ -553,11 +592,18 @@ function ImageCard({
         {img.label}
       </div>
       <div
-        className="relative rounded-xl overflow-hidden border border-[#e8e5df] bg-white cursor-pointer card-hover shadow-sm"
+        className={`relative overflow-hidden bg-white cursor-pointer card-hover shadow-sm ${circular ? "rounded-full border-2 border-[#e8e5df] mx-auto" : "rounded-xl border border-[#e8e5df]"}`}
+        style={circular ? { width: "100%", maxWidth: 280 } : undefined}
         onClick={onExpand}
       >
-        <img src={img.dataUri} alt={img.label} className="w-full aspect-square object-cover" />
-        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-all duration-300 flex items-end sm:items-center justify-center pb-3 sm:pb-0">
+        <div style={{ paddingBottom: `${(ratioH / ratioW) * 100}%` }} className="relative w-full">
+          <img
+            src={img.dataUri}
+            alt={img.label}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        </div>
+        <div className={`absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-all duration-300 flex items-end sm:items-center justify-center pb-3 sm:pb-0 ${circular ? "rounded-full" : ""}`}>
           <span className="sm:opacity-0 sm:group-hover:opacity-100 opacity-100 transition-all duration-300 bg-white/90 text-[#1b1b1f] text-xs font-medium px-3 sm:px-4 py-1.5 sm:py-2 rounded-full shadow-sm backdrop-blur-sm">
             Tap to compare
           </span>

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateStudioImage } from "@/lib/gemini";
 import { compositeLogoOnImage } from "@/lib/logo-overlay-server";
+import { getRatioById, DEFAULT_RATIO } from "@/lib/aspect-ratios";
+import { cropToRatio } from "@/lib/crop-to-ratio";
 
 export const maxDuration = 120;
 
@@ -111,7 +113,10 @@ export async function POST(
 ): Promise<NextResponse<GenerateInfoResponse>> {
   try {
     const body = await req.json();
-    const { imageBase64, properties, dimensions, logoBase64 } = body;
+    const { imageBase64, properties, dimensions, logoBase64, aspectRatioId } = body;
+
+    // Resolve aspect ratio
+    const ratio = getRatioById(aspectRatioId) || DEFAULT_RATIO;
 
     if (!imageBase64) {
       return NextResponse.json(
@@ -139,12 +144,14 @@ export async function POST(
       text?: string;
     }>[] = [];
 
+    const ratioHint = `\n\nCOMPOSITION: ${ratio.compositionHint}`;
+
     if (properties && properties.trim()) {
       promises.push(
         generateStudioImage(
           imageBase64,
           mimeType,
-          buildPropertiesPrompt(properties.trim())
+          buildPropertiesPrompt(properties.trim()) + ratioHint
         ).then((r) => ({ label: "Product Features", ...r }))
       );
     }
@@ -154,7 +161,7 @@ export async function POST(
         generateStudioImage(
           imageBase64,
           mimeType,
-          buildDimensionsPrompt(dimensions.trim())
+          buildDimensionsPrompt(dimensions.trim()) + ratioHint
         ).then((r) => ({ label: "Product Dimensions", ...r }))
       );
     }
@@ -187,6 +194,17 @@ export async function POST(
         },
         { status: 500 }
       );
+    }
+
+    // Crop to exact aspect ratio
+    console.log(`Cropping info images to ${ratio.width}x${ratio.height}...`);
+    for (let i = 0; i < images.length; i++) {
+      try {
+        images[i].base64 = await cropToRatio(images[i].base64, ratio.width, ratio.height, !!ratio.circular);
+        images[i].mimeType = "image/png";
+      } catch (err) {
+        console.error(`Crop failed for info image ${i}:`, err);
+      }
     }
 
     // Apply logo overlay if provided

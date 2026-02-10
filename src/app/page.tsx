@@ -14,6 +14,12 @@ export default function HomePage() {
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
             <Link
+              href="/jewelry"
+              className="px-3 py-2 sm:px-4 sm:py-2.5 text-[#8c8c8c] text-sm font-medium rounded-lg hover:text-[#1b1b1f] hover:bg-[#f5f0e8] transition-all duration-300 active:scale-[0.97]"
+            >
+              Jewelry
+            </Link>
+            <Link
               href="/tryon"
               className="px-3 py-2 sm:px-4 sm:py-2.5 text-[#8c8c8c] text-sm font-medium rounded-lg hover:text-[#1b1b1f] hover:bg-[#f5f0e8] transition-all duration-300 active:scale-[0.97]"
             >

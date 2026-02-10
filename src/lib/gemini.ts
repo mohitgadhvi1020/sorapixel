@@ -85,7 +85,7 @@ export async function generateStudioImage(
         },
       ],
       config: {
-        responseModalities: ["TEXT", "IMAGE"],
+        responseModalities: ["IMAGE"],
       },
     })
   );

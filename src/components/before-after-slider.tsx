@@ -7,6 +7,8 @@ interface BeforeAfterSliderProps {
   afterSrc: string;
   beforeLabel?: string;
   afterLabel?: string;
+  /** e.g. "4 / 5" or "9 / 16". Defaults to "1 / 1" */
+  ratio?: string;
 }
 
 export default function BeforeAfterSlider({
@@ -14,6 +16,7 @@ export default function BeforeAfterSlider({
   afterSrc,
   beforeLabel = "Original",
   afterLabel = "Studio",
+  ratio = "1 / 1",
 }: BeforeAfterSliderProps) {
   const [sliderPosition, setSliderPosition] = useState(50);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -52,7 +55,7 @@ export default function BeforeAfterSlider({
     <div
       ref={containerRef}
       className="relative w-full rounded-xl sm:rounded-2xl overflow-hidden select-none bg-[#1b1b1f] shadow-lg touch-none"
-      style={{ aspectRatio: "1 / 1" }}
+      style={{ aspectRatio: ratio }}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
     >

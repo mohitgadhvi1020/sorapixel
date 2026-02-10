@@ -12,9 +12,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const refined = await refinePrompt(rawPrompt.trim());
+    const { refined, isolate } = await refinePrompt(rawPrompt.trim());
 
-    return NextResponse.json({ success: true, refined });
+    return NextResponse.json({ success: true, refined, isolate });
   } catch (error) {
     console.error("Prompt refinement error:", error);
     return NextResponse.json(

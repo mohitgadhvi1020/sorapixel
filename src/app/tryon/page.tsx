@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import PasswordGate from "@/components/password-gate";
+import AspectRatioSelector from "@/components/aspect-ratio-selector";
 import { safeFetch } from "@/lib/safe-fetch";
 
 type JewelryType = "necklace" | "earring" | "bracelet" | "ring";
@@ -20,6 +21,7 @@ export default function TryOnPage() {
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [aspectRatio, setAspectRatio] = useState("square");
 
   const handleFileUpload = useCallback(
     (setter: (val: string) => void) => (file: File) => {
@@ -40,7 +42,7 @@ export default function TryOnPage() {
       const data = await safeFetch<{ success: boolean; image?: { base64: string; mimeType: string }; error?: string }>("/api/generate-tryon", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jewelryBase64, personBase64, jewelryType }),
+        body: JSON.stringify({ jewelryBase64, personBase64, jewelryType, aspectRatioId: aspectRatio }),
       });
       if (!data.success || !data.image) throw new Error(data.error || "Generation failed");
       setResultImage(`data:${data.image.mimeType};base64,${data.image.base64}`);
@@ -91,6 +93,12 @@ export default function TryOnPage() {
                 className="text-sm text-[#8c8c8c] hover:text-[#1b1b1f] transition-colors duration-300"
               >
                 Studio
+              </a>
+              <a
+                href="/jewelry"
+                className="text-sm text-[#8c8c8c] hover:text-[#1b1b1f] transition-colors duration-300"
+              >
+                Jewelry
               </a>
               {(jewelryBase64 || resultImage) && (
                 <button
@@ -311,6 +319,17 @@ export default function TryOnPage() {
                 <div className="p-3 sm:p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm animate-slide-up-sm">
                   <strong>Error:</strong> {error}
                 </div>
+              )}
+
+              {/* Aspect Ratio */}
+              {jewelryBase64 && personBase64 && (
+                <section className="space-y-3 animate-slide-up" style={{ animationDelay: "120ms" }}>
+                  <div>
+                    <h3 className="text-sm font-semibold text-[#1b1b1f] mb-1">Aspect Ratio</h3>
+                    <p className="text-xs text-[#8c8c8c]">Choose a format for your target platform</p>
+                  </div>
+                  <AspectRatioSelector selectedId={aspectRatio} onSelect={setAspectRatio} />
+                </section>
               )}
 
               {/* Generate */}
