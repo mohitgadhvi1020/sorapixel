@@ -5,6 +5,7 @@ import {
   buildJewelryPackPrompts,
 } from "@/lib/jewelry-styles";
 import { cropToRatio } from "@/lib/crop-to-ratio";
+import { addWatermark } from "@/lib/watermark";
 import sharp from "sharp";
 
 export const maxDuration = 180;
@@ -12,6 +13,7 @@ export const maxDuration = 180;
 interface PackImage {
   label: string;
   base64: string;
+  watermarkedBase64: string;
   mimeType: string;
   text?: string;
 }
@@ -185,6 +187,7 @@ export async function POST(
       images.push({
         label: "Hero Shot",
         base64: heroB64,
+        watermarkedBase64: "",
         mimeType: "image/png",
         text: heroResult.text,
       });
@@ -215,6 +218,7 @@ export async function POST(
         images.push({
           label: "Close-up Detail",
           base64: closeupB64,
+          watermarkedBase64: "",
           mimeType: "image/png",
         });
       }
@@ -229,6 +233,7 @@ export async function POST(
         images.push({
           label: "Alternate Angle",
           base64: angleB64,
+          watermarkedBase64: "",
           mimeType: "image/png",
           text: angleResult.text,
         });
@@ -257,6 +262,7 @@ export async function POST(
       images.push({
         label: "Hero Shot",
         base64: heroB64,
+        watermarkedBase64: "",
         mimeType: "image/png",
         text: heroResult.text,
       });
@@ -272,7 +278,7 @@ export async function POST(
       ]);
 
       if (closeupB64) {
-        images.push({ label: "Close-up Detail", base64: closeupB64, mimeType: "image/png" });
+        images.push({ label: "Close-up Detail", base64: closeupB64, watermarkedBase64: "", mimeType: "image/png" });
       }
       if (angleResult) {
         let angleB64 = angleResult.resultBase64;
@@ -281,7 +287,7 @@ export async function POST(
         } catch (err) {
           console.error("Angle resize failed:", err);
         }
-        images.push({ label: "Alternate Angle", base64: angleB64, mimeType: "image/png", text: angleResult.text });
+        images.push({ label: "Alternate Angle", base64: angleB64, watermarkedBase64: "", mimeType: "image/png", text: angleResult.text });
       }
 
       console.log(`Full pack complete: ${images.length}/3 images.`);
@@ -292,6 +298,17 @@ export async function POST(
         { success: false, error: "Generation failed. Please try again." },
         { status: 500 }
       );
+    }
+
+    // Add watermarks to all images for preview
+    console.log("Adding watermarks for preview...");
+    for (let i = 0; i < images.length; i++) {
+      try {
+        images[i].watermarkedBase64 = await addWatermark(images[i].base64);
+      } catch (err) {
+        console.error(`Watermark failed for image ${i}:`, err);
+        images[i].watermarkedBase64 = images[i].base64;
+      }
     }
 
     return NextResponse.json({ success: true, images });

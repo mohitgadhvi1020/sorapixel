@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateStudioImage } from "@/lib/gemini";
 import { getRatioById, DEFAULT_RATIO } from "@/lib/aspect-ratios";
 import { cropToRatio } from "@/lib/crop-to-ratio";
+import { addWatermark } from "@/lib/watermark";
 
 export const maxDuration = 120;
 
@@ -81,12 +82,21 @@ OUTPUT: The same image with ONLY the metal color changed. Everything else identi
       }
     }
 
+    // Add watermark for preview
+    let watermarkedBase64 = finalBase64;
+    try {
+      watermarkedBase64 = await addWatermark(finalBase64);
+    } catch (err) {
+      console.error("Watermark failed for recolor:", err);
+    }
+
     console.log("Jewelry recolor complete!");
 
     return NextResponse.json({
       success: true,
       image: {
         base64: finalBase64,
+        watermarkedBase64,
         mimeType: finalMimeType,
       },
     });

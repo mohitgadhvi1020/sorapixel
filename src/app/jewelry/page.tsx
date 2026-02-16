@@ -22,6 +22,7 @@ type Step =
 interface ResultImage {
   label: string;
   dataUri: string;
+  previewUri: string;
 }
 
 export default function JewelryPage() {
@@ -52,11 +53,19 @@ export default function JewelryPage() {
   const [listing, setListing] = useState<{
     title: string;
     description: string;
-    bulletPoints: string[];
-    tags: string[];
+    metaDescription: string;
+    altText: string;
+    attributes: {
+      material: string;
+      stone: string;
+      color: string;
+      collection: string;
+      occasion: string;
+      style: string;
+      productType: string;
+    };
   } | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
-  const [detailManifest, setDetailManifest] = useState<string>("");
 
   // Convenience
   const allImages: ResultImage[] = heroImage
@@ -89,7 +98,6 @@ export default function JewelryPage() {
     setListing(null);
     setRawTitle("");
     setRawDescription("");
-    setDetailManifest("");
   }, []);
 
   const buildPayload = useCallback((): Record<string, unknown> => ({
@@ -124,9 +132,12 @@ export default function JewelryPage() {
       });
 
       if (!data.success) throw new Error(data.error || "Generation failed");
-      const images = (data.images ?? []).map((img) => ({
+      const images = (data.images ?? []).map((img: { label: string; base64: string; watermarkedBase64?: string; mimeType: string }) => ({
         label: img.label,
         dataUri: `data:${img.mimeType};base64,${img.base64}`,
+        previewUri: img.watermarkedBase64
+          ? `data:${img.mimeType};base64,${img.watermarkedBase64}`
+          : `data:${img.mimeType};base64,${img.base64}`,
       }));
       if (images.length > 0) {
         setHeroImage(images[0]);
@@ -166,9 +177,12 @@ export default function JewelryPage() {
       });
 
       if (!data.success) throw new Error(data.error || "Generation failed");
-      const images = (data.images ?? []).map((img) => ({
+      const images = (data.images ?? []).map((img: { label: string; base64: string; watermarkedBase64?: string; mimeType: string }) => ({
         label: img.label,
         dataUri: `data:${img.mimeType};base64,${img.base64}`,
+        previewUri: img.watermarkedBase64
+          ? `data:${img.mimeType};base64,${img.watermarkedBase64}`
+          : `data:${img.mimeType};base64,${img.base64}`,
       }));
       setRestImages(images);
       setStep("all-done");
@@ -206,7 +220,7 @@ export default function JewelryPage() {
       try {
         const data = await safeFetch<{
           success: boolean;
-          image?: { base64: string; mimeType: string };
+          image?: { base64: string; watermarkedBase64?: string; mimeType: string };
           error?: string;
         }>("/api/recolor-jewelry", {
           method: "POST",
@@ -222,12 +236,15 @@ export default function JewelryPage() {
           throw new Error(data.error || "Recolor failed");
 
         const newUri = `data:${data.image.mimeType};base64,${data.image.base64}`;
+        const newPreview = data.image.watermarkedBase64
+          ? `data:${data.image.mimeType};base64,${data.image.watermarkedBase64}`
+          : newUri;
         const newLabel = `${img.label} (${recolorTarget.trim()})`;
         if (index === 0) {
-          setHeroImage({ label: newLabel, dataUri: newUri });
+          setHeroImage({ label: newLabel, dataUri: newUri, previewUri: newPreview });
         } else {
           setRestImages((prev) =>
-            prev.map((r, i) => (i === index - 1 ? { label: newLabel, dataUri: newUri } : r))
+            prev.map((r, i) => (i === index - 1 ? { label: newLabel, dataUri: newUri, previewUri: newPreview } : r))
           );
         }
       } catch (err) {
@@ -252,7 +269,7 @@ export default function JewelryPage() {
         allImages.map((img) =>
           safeFetch<{
             success: boolean;
-            image?: { base64: string; mimeType: string };
+            image?: { base64: string; watermarkedBase64?: string; mimeType: string };
             error?: string;
           }>("/api/recolor-jewelry", {
             method: "POST",
@@ -270,12 +287,15 @@ export default function JewelryPage() {
       results.forEach((data, i) => {
         if (data.success && data.image) {
           const newUri = `data:${data.image.mimeType};base64,${data.image.base64}`;
+          const newPreview = data.image.watermarkedBase64
+            ? `data:${data.image.mimeType};base64,${data.image.watermarkedBase64}`
+            : newUri;
           const newLabel = `${allImages[i].label.replace(/ \(.*\)$/, "")} (${colorLabel})`;
           if (i === 0) {
-            setHeroImage({ label: newLabel, dataUri: newUri });
+            setHeroImage({ label: newLabel, dataUri: newUri, previewUri: newPreview });
           } else {
             setRestImages((prev) =>
-              prev.map((r, idx) => (idx === i - 1 ? { label: newLabel, dataUri: newUri } : r))
+              prev.map((r, idx) => (idx === i - 1 ? { label: newLabel, dataUri: newUri, previewUri: newPreview } : r))
             );
           }
         }
@@ -304,7 +324,8 @@ export default function JewelryPage() {
         mode,
       };
 
-      if (detailManifest) payload.detailManifest = detailManifest;
+      // Send the product image for image-aware listing generation
+      if (imageBase64) payload.imageBase64 = imageBase64;
 
       if (mode === "refine" && listing) {
         payload.rawTitle = listing.title;
@@ -316,10 +337,21 @@ export default function JewelryPage() {
 
       const data = await safeFetch<{
         success: boolean;
-        title?: string;
-        description?: string;
-        bulletPoints?: string[];
-        tags?: string[];
+        listing?: {
+          title: string;
+          description: string;
+          metaDescription: string;
+          altText: string;
+          attributes: {
+            material: string;
+            stone: string;
+            color: string;
+            collection: string;
+            occasion: string;
+            style: string;
+            productType: string;
+          };
+        };
         error?: string;
       }>("/api/rewrite-listing", {
         method: "POST",
@@ -327,20 +359,14 @@ export default function JewelryPage() {
         body: JSON.stringify(payload),
       });
 
-      if (!data.success) throw new Error(data.error || "Listing generation failed");
-      const newListing = {
-        title: data.title || rawTitle || "",
-        description: data.description || rawDescription || "",
-        bulletPoints: data.bulletPoints || [],
-        tags: data.tags || [],
-      };
-      setListing(newListing);
+      if (!data.success || !data.listing) throw new Error(data.error || "Listing generation failed");
+      setListing(data.listing);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Listing generation failed");
     } finally {
       setListingLoading(false);
     }
-  }, [rawTitle, rawDescription, jewelryType, detailManifest, listing]);
+  }, [rawTitle, rawDescription, jewelryType, imageBase64, listing]);
 
   const copyToClipboard = useCallback((text: string, field: string) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -438,7 +464,7 @@ export default function JewelryPage() {
                     </button>
                   </div>
                   <div className="w-full max-w-2xl mx-auto">
-                    <BeforeAfterSlider beforeSrc={imageBase64} afterSrc={expandedImage.dataUri} />
+                    <BeforeAfterSlider beforeSrc={imageBase64} afterSrc={expandedImage.previewUri} />
                   </div>
                 </div>
               )}
@@ -641,7 +667,7 @@ export default function JewelryPage() {
                       {/* Editable Title */}
                       <div className="bg-white rounded-xl border border-[#e8e5df] p-4">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-bold text-[#8b7355] uppercase tracking-wider">Optimized Title</span>
+                          <span className="text-xs font-bold text-[#8b7355] uppercase tracking-wider">Product Title</span>
                           <button
                             onClick={() => copyToClipboard(listing.title, "title")}
                             className={`text-xs font-medium px-2.5 py-1 rounded-md transition-all duration-200 ${
@@ -659,12 +685,13 @@ export default function JewelryPage() {
                           onChange={(e) => setListing({ ...listing, title: e.target.value })}
                           className="w-full rounded-lg border border-[#e8e5df] bg-[#fafaf8] px-3 py-2.5 text-sm sm:text-base font-medium text-[#1b1b1f] focus:outline-none focus:border-[#8b7355] transition-colors duration-300"
                         />
+                        <p className="text-[10px] text-[#b0b0b0] mt-1">{listing.title.length} / 65 characters</p>
                       </div>
 
-                      {/* Editable Description */}
+                      {/* HTML Description (editable source + live preview) */}
                       <div className="bg-white rounded-xl border border-[#e8e5df] p-4">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-bold text-[#8b7355] uppercase tracking-wider">Product Description</span>
+                          <span className="text-xs font-bold text-[#8b7355] uppercase tracking-wider">Product Description (HTML)</span>
                           <button
                             onClick={() => copyToClipboard(listing.description, "description")}
                             className={`text-xs font-medium px-2.5 py-1 rounded-md transition-all duration-200 ${
@@ -673,78 +700,120 @@ export default function JewelryPage() {
                                 : "text-[#8c8c8c] hover:text-[#8b7355] hover:bg-[#f5f0e8]"
                             }`}
                           >
-                            {copiedField === "description" ? "Copied!" : "Copy"}
+                            {copiedField === "description" ? "Copied!" : "Copy HTML"}
+                          </button>
+                        </div>
+                        {/* Live preview */}
+                        <div
+                          className="rounded-lg border border-[#e8e5df] bg-[#fafaf8] px-4 py-3 text-sm text-[#1b1b1f] leading-relaxed mb-2 prose prose-sm max-w-none prose-li:text-[#1b1b1f] prose-p:text-[#1b1b1f]"
+                          dangerouslySetInnerHTML={{ __html: listing.description }}
+                        />
+                        {/* Raw HTML editor (collapsed by default) */}
+                        <details className="group">
+                          <summary className="text-xs text-[#8c8c8c] cursor-pointer hover:text-[#8b7355] transition-colors">
+                            Edit HTML source
+                          </summary>
+                          <textarea
+                            value={listing.description}
+                            onChange={(e) => setListing({ ...listing, description: e.target.value })}
+                            rows={8}
+                            className="w-full mt-2 rounded-lg border border-[#e8e5df] bg-[#fafaf8] px-3 py-2.5 text-xs font-mono text-[#1b1b1f] leading-relaxed focus:outline-none focus:border-[#8b7355] transition-colors duration-300 resize-y"
+                          />
+                        </details>
+                      </div>
+
+                      {/* Meta Description */}
+                      <div className="bg-white rounded-xl border border-[#e8e5df] p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-bold text-[#8b7355] uppercase tracking-wider">Meta Description</span>
+                          <button
+                            onClick={() => copyToClipboard(listing.metaDescription, "meta")}
+                            className={`text-xs font-medium px-2.5 py-1 rounded-md transition-all duration-200 ${
+                              copiedField === "meta"
+                                ? "bg-green-50 text-green-600"
+                                : "text-[#8c8c8c] hover:text-[#8b7355] hover:bg-[#f5f0e8]"
+                            }`}
+                          >
+                            {copiedField === "meta" ? "Copied!" : "Copy"}
                           </button>
                         </div>
                         <textarea
-                          value={listing.description}
-                          onChange={(e) => setListing({ ...listing, description: e.target.value })}
-                          rows={5}
+                          value={listing.metaDescription}
+                          onChange={(e) => setListing({ ...listing, metaDescription: e.target.value })}
+                          rows={2}
                           className="w-full rounded-lg border border-[#e8e5df] bg-[#fafaf8] px-3 py-2.5 text-sm text-[#1b1b1f] leading-relaxed focus:outline-none focus:border-[#8b7355] transition-colors duration-300 resize-none"
                         />
+                        <p className="text-[10px] text-[#b0b0b0] mt-1">{listing.metaDescription.length} / 155 characters</p>
                       </div>
 
-                      {/* Bullet Points */}
-                      {listing.bulletPoints.length > 0 && (
-                        <div className="bg-white rounded-xl border border-[#e8e5df] p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs font-bold text-[#8b7355] uppercase tracking-wider">Key Features</span>
-                            <button
-                              onClick={() => copyToClipboard(listing.bulletPoints.map((b) => `• ${b}`).join("\n"), "bullets")}
-                              className={`text-xs font-medium px-2.5 py-1 rounded-md transition-all duration-200 ${
-                                copiedField === "bullets"
-                                  ? "bg-green-50 text-green-600"
-                                  : "text-[#8c8c8c] hover:text-[#8b7355] hover:bg-[#f5f0e8]"
-                              }`}
-                            >
-                              {copiedField === "bullets" ? "Copied!" : "Copy"}
-                            </button>
-                          </div>
-                          <ul className="space-y-2">
-                            {listing.bulletPoints.map((bp, i) => (
-                              <li key={i} className="flex items-start gap-2">
-                                <span className="text-[#8b7355] mt-2.5 flex-shrink-0">•</span>
-                                <input
-                                  type="text"
-                                  value={bp}
-                                  onChange={(e) => {
-                                    const updated = [...listing.bulletPoints];
-                                    updated[i] = e.target.value;
-                                    setListing({ ...listing, bulletPoints: updated });
-                                  }}
-                                  className="flex-1 rounded-lg border border-[#e8e5df] bg-[#fafaf8] px-3 py-2 text-sm text-[#1b1b1f] focus:outline-none focus:border-[#8b7355] transition-colors duration-300"
-                                />
-                              </li>
-                            ))}
-                          </ul>
+                      {/* Alt Text */}
+                      <div className="bg-white rounded-xl border border-[#e8e5df] p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-bold text-[#8b7355] uppercase tracking-wider">Image Alt Text</span>
+                          <button
+                            onClick={() => copyToClipboard(listing.altText, "alt")}
+                            className={`text-xs font-medium px-2.5 py-1 rounded-md transition-all duration-200 ${
+                              copiedField === "alt"
+                                ? "bg-green-50 text-green-600"
+                                : "text-[#8c8c8c] hover:text-[#8b7355] hover:bg-[#f5f0e8]"
+                            }`}
+                          >
+                            {copiedField === "alt" ? "Copied!" : "Copy"}
+                          </button>
                         </div>
-                      )}
+                        <input
+                          type="text"
+                          value={listing.altText}
+                          onChange={(e) => setListing({ ...listing, altText: e.target.value })}
+                          className="w-full rounded-lg border border-[#e8e5df] bg-[#fafaf8] px-3 py-2.5 text-sm text-[#1b1b1f] focus:outline-none focus:border-[#8b7355] transition-colors duration-300"
+                        />
+                        <p className="text-[10px] text-[#b0b0b0] mt-1">{listing.altText.length} / 125 characters</p>
+                      </div>
 
-                      {/* Tags */}
-                      {listing.tags.length > 0 && (
-                        <div className="bg-white rounded-xl border border-[#e8e5df] p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs font-bold text-[#8b7355] uppercase tracking-wider">SEO Tags</span>
-                            <button
-                              onClick={() => copyToClipboard(listing.tags.join(", "), "tags")}
-                              className={`text-xs font-medium px-2.5 py-1 rounded-md transition-all duration-200 ${
-                                copiedField === "tags"
-                                  ? "bg-green-50 text-green-600"
-                                  : "text-[#8c8c8c] hover:text-[#8b7355] hover:bg-[#f5f0e8]"
-                              }`}
-                            >
-                              {copiedField === "tags" ? "Copied!" : "Copy"}
-                            </button>
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            {listing.tags.map((tag, i) => (
-                              <span key={i} className="px-2.5 py-1 bg-[#f5f0e8] text-[#8b7355] text-xs font-medium rounded-full border border-[#e8e5df]">
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
+                      {/* Product Attributes */}
+                      <div className="bg-white rounded-xl border border-[#e8e5df] p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-xs font-bold text-[#8b7355] uppercase tracking-wider">Product Attributes</span>
+                          <button
+                            onClick={() => {
+                              const a = listing.attributes;
+                              const text = Object.entries(a).map(([k, v]) => `${k}: ${v}`).join("\n");
+                              copyToClipboard(text, "attrs");
+                            }}
+                            className={`text-xs font-medium px-2.5 py-1 rounded-md transition-all duration-200 ${
+                              copiedField === "attrs"
+                                ? "bg-green-50 text-green-600"
+                                : "text-[#8c8c8c] hover:text-[#8b7355] hover:bg-[#f5f0e8]"
+                            }`}
+                          >
+                            {copiedField === "attrs" ? "Copied!" : "Copy All"}
+                          </button>
                         </div>
-                      )}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {([
+                            ["material", "Material"],
+                            ["stone", "Stones"],
+                            ["color", "Finish Color"],
+                            ["collection", "Collection"],
+                            ["occasion", "Occasion"],
+                            ["style", "Style"],
+                            ["productType", "Product Type"],
+                          ] as [keyof typeof listing.attributes, string][]).map(([key, label]) => (
+                            <div key={key}>
+                              <label className="block text-[10px] font-medium text-[#8c8c8c] uppercase tracking-wider mb-1">{label}</label>
+                              <input
+                                type="text"
+                                value={listing.attributes[key]}
+                                onChange={(e) => setListing({
+                                  ...listing,
+                                  attributes: { ...listing.attributes, [key]: e.target.value },
+                                })}
+                                className="w-full rounded-lg border border-[#e8e5df] bg-[#fafaf8] px-3 py-2 text-sm text-[#1b1b1f] focus:outline-none focus:border-[#8b7355] transition-colors duration-300"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
 
                       {/* Action buttons: Refine, Regenerate, Copy All */}
                       <div className="flex flex-col sm:flex-row gap-2.5">
@@ -774,14 +843,25 @@ export default function JewelryPage() {
                       {/* Copy All */}
                       <button
                         onClick={() => {
+                          const a = listing.attributes;
                           const full = [
                             `Title: ${listing.title}`,
                             "",
-                            `Description:\n${listing.description}`,
+                            `Description (HTML):`,
+                            listing.description,
                             "",
-                            `Key Features:\n${listing.bulletPoints.map((b) => `• ${b}`).join("\n")}`,
+                            `Meta Description: ${listing.metaDescription}`,
                             "",
-                            `Tags: ${listing.tags.join(", ")}`,
+                            `Alt Text: ${listing.altText}`,
+                            "",
+                            `Attributes:`,
+                            `  Material: ${a.material}`,
+                            `  Stones: ${a.stone}`,
+                            `  Finish Color: ${a.color}`,
+                            `  Collection: ${a.collection}`,
+                            `  Occasion: ${a.occasion}`,
+                            `  Style: ${a.style}`,
+                            `  Product Type: ${a.productType}`,
                           ].join("\n");
                           copyToClipboard(full, "all");
                         }}
@@ -948,7 +1028,7 @@ function ImageCard({
         onClick={onExpand}
       >
         <div style={{ paddingBottom: "100%" }} className="relative w-full">
-          <img src={img.dataUri} alt={img.label} className="absolute inset-0 w-full h-full object-cover" />
+          <img src={img.previewUri} alt={img.label} className="absolute inset-0 w-full h-full object-cover" />
         </div>
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-all duration-300 flex items-end sm:items-center justify-center pb-3 sm:pb-0">
           <span className="sm:opacity-0 sm:group-hover:opacity-100 opacity-100 transition-all duration-300 bg-white/90 text-[#1b1b1f] text-xs font-medium px-3 sm:px-4 py-1.5 sm:py-2 rounded-full shadow-sm backdrop-blur-sm">

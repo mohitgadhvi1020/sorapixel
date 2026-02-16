@@ -1,0 +1,315 @@
+Guidelines
+1. About Stylika
+Stylika is an Indian fashion jewelry brand with a 30-year manufacturing
+legacy, launching its Shopify e-commerce store at www.stylika.com.
+What we sell: Fashion jewellery — plated, coated, alloy-based pieces. NOT
+precious metals. This distinction is legally and commercially critical.
+Who we sell to: Urban Indian women, 22–45, who mix ethnic and western
+wardrobes. They buy jewelry for self-reward, micro-occasions (kitty parties,
+office events, pre-wedding shoots), and gifting. They're Instagram-native,
+style-conscious, and prefer variety over "investment pieces."
+Brand positioning: Bridges ethnic and western aesthetics. Not a new-age
+startup — established manufacturing trust. Think Lovisa's clean aesthetic, but
+for the Indian context.
+Launch scope: Western jewellery first. Ethnic jewellery added later.
+2. Brand Voice Rules
+The AI must internalize these — they define what "sounds like Stylika":
+Tone: Confident, modern, accessible. Like a stylish friend who knows her
+jewellery — not a salesperson, not a poet.
+DO:
+Write in clear, direct sentences
+Focus on how the piece looks, feels, and what to wear it with
+Use active voice
+Mention versatility (ethnic + western pairing potential)
+Keep it warm but not gushy
+DON'T:
+Use flowery/aspirational language ("exquisite radiance," "timeless
+elegance," "celestial beauty")
+Over-promise ("waterproof," "sterile jewelry," "never fades," "lasts
+forever")
+Use precious metal terms without qualifiers (see Material Language
+section)
+Sound generic or template-y
+Add filler ("This beautiful piece is perfect for those who…")
+Use words like "luxurious," "opulent," "dazzling," "mesmerizing"
+3. CRITICAL: Material Language Rules
+This is a legal and trust requirement. Non-negotiable.
+Fashion jewellery is plated/coated — it is NOT solid gold, silver, or platinum.
+The content must never imply otherwise.
+❌ NEVER Write ✅ ALWAYS Write
+Gold earrings Gold-tone earrings
+Silver ring Silver-tone ring
+Gold necklace Gold-plated brass necklace
+Rose gold bracelet Rose-gold-tone bracelet
+Platinum finish Rhodium-plated finish
+Diamond studs CZ Diamond studs
+Pearl necklace Pearl / Pearl necklace
+Emerald drops Green stone drops
+Acceptable material descriptions for bullet points:
+"Material: Brass with gold plating"
+"Material: Alloy with rhodium finish"
+"Material: Brass with rose-gold-tone plating"
+"Stones: Cubic Zirconia (CZ)"
+"Stones: Faux pearls"
+"Stones: Glass crystals"
+Rule of thumb: If a customer could misunderstand the piece as containing
+precious metals or real gemstones, the language is wrong.
+4. Product Taxonomy
+The system must assign products to the correct category, collection, and
+occasion. Here is the full taxonomy:
+4a. Categories (by product type + subcategory)
+Necklaces: Choker Necklaces, Pendant Necklaces, Statement Necklaces,
+Lariat Necklaces, Pendant Set Necklaces, Charm Necklaces, Pearl
+Necklaces
+Earrings: Hoops, Drops/Danglers, Studs, Huggies, Statement Earrings, Clip-
+on, Pearl Earrings, Ear Cuffs
+Rings: Statement Rings, Minimal Rings, Pearl Rings, Diamond (CZ) Rings,
+Stackable Rings
+Wristwear: Kadas, Bracelets, Chain, Cuffs, Tennis, Charm, Statement,
+Beaded
+4b. Collections (applies to ALL product types)
+Collection What It Means
+Minimal Clean lines, understated, everyday pieces
+Bold Chunky, oversized, attention-grabbing
+Glam Sparkle-forward, CZ-heavy, party-ready
+Romance Soft, feminine, florals, pearls, delicate
+4c. Occasions (applies to ALL product types)
+Occasion Context
+Everyday Wear Office, casual outings, daily use
+Occasion Context
+Festive Wear Office Wear Party Wear Diwali, Navratri, Eid, Pongal, Holi
+Subtle, professional, not distracting
+Cocktails, birthdays, night out
+Wedding Wear Bridal, bridesmaid, mehendi, sangeet
+4d. Category Assignment Logic
+The AI should assign:
+1. One primary category (e.g., "Earrings > Hoops")
+2. One collection (e.g., "Minimal")
+3. One or two occasions (e.g., "Everyday Wear, Office Wear")
+4. Style tag: "Western" or "Ethnic" (launch phase = Western only, but
+system should support both)
+5. Output Specification
+For each product image, the system must generate ALL of the following:
+5a. Product Title
+Length: 50–65 characters (Shopify truncates longer titles in search
+results)
+Format: `[Descriptive Name] [Key Detail]| Stylika
+Front-load the most searchable/descriptive terms
+Natural language — no pipes or separators mid-title
+Always end with | Stylika
+Good examples:
+CZ Hoop Earrings with Pearl Drop | Stylika
+Stackable Minimal Band Ring Set of 3 | Stylika
+Chunky Chain Link Bracelet Gold-Tone | Stylika
+Crystal Drop Statement Earrings | Stylika
+Bad examples:
+Beautiful Golden Earrings | Stylika
+(vague, "golden" is
+misleading)
+CZ | Hoop | Pearl | Earring | Stylika
+(fragmented, unreadable)
+Earrings (no detail)
+The Most Gorgeous Pearl Drop Earrings You'll Ever Own |
+Stylika
+(too long, too salesy)
+Gold-Tone CZ Hoop Earrings with Pearl Drop | Stylika(no
+tones/colours in the description)
+5b. Product Description (HTML-ready)
+Structure — two paragraphs + bullet list:
+Paragraph 1 (2-3 sentences): What the piece IS + its defining visual feature.
+If the piece has design inspiration (Kundan work, Art Deco geometry, etc.),
+weave it in naturally here. Do not create a separate "story" section.
+Paragraph 2 (2-3 sentences): How to WEAR it — versatility, pairing
+suggestions, occasion fit. This is where you sell the styling potential.
+Bullet List (product specs):
+• Material: [Base metal] with [plating type]
+• Stones: [Stone types, if any]
+• Collection: [Minimal / Bold / Glam / Romance]
+• Style: [Western / Ethnic]
+• Closure: [Post-back / Lobster clasp / Adjustable / etc.] (if
+relevant)
+Include a "Care" bullet ONLY for pieces that genuinely need it (heavy
+plating, delicate stones). Don't add generic care instructions to every product.
+Total word count: 100–140 words. Can extend to 160 ONLY for genuinely
+complex multi-element pieces. Simpler pieces (studs, minimal rings) should
+be closer to 100.
+HTML formatting:
+Wrap paragraphs in
+<p>
+tags
+Use
+<ul><li>
+for bullet specs
+No
+<h1>
+or
+<h2>
+inside descriptions (Shopify handles headings)
+No inline styles
+Example output:
+<p>Clean geometric lines meet subtle sparkle in these gold-
+tone hoop earrings. A single row of CZ stones traces the outer
+edge, adding just enough light without overwhelming the
+design.</p>
+<p>Sized to sit close to the ear, they work equally well with
+a crisp white shirt at work or a kurta set for weekend
+brunches. Light enough for all-day wear.</p>
+<ul>
+</ul>
+<li>Material: Brass with gold plating</li>
+<li>Stones: Cubic Zirconia (CZ)</li>
+<li>Collection: Minimal</li>
+<li>Style: Western</li>
+<li>Closure: Hinged post</li>
+5c. Meta Description
+Length: 140–155 characters (hard limit — Google truncates beyond this)
+Format: Action-oriented, includes product type + one key differentiator +
+brand name
+Must include a natural keyword for SEO
+No quotes, no special characters
+Good examples:
+Shop gold-tone CZ hoop earrings at Stylika. Lightweight,
+everyday sparkle designed for the modern Indian woman.
+(142
+chars)
+Stackable minimal rings in gold-tone finish. Mix, match, and
+layer your way. Shop Stylika fashion jewellery. (135 chars)
+Bad examples:
+Buy earrings online at Stylika. Best earrings in India. Gold
+earrings for women. (keyword-stuffed, "gold" without qualifier)
+These beautiful earrings are perfect for every occasion and
+will make you feel confident and stylish. (generic, no product
+detail)
+5d. Alt Text (for images)
+Length: Under 125 characters
+Descriptive, not salesy
+Include: product type, material/finish, key visual element
+No brand name needed (it's on the page)
+Format: [Finish] [product type] with [key visual detail]
+Examples:
+Gold-tone hoop earrings with single row of CZ stones
+Chunky silver-tone chain bracelet with toggle clasp
+Minimal stackable ring set in rose-gold-tone finish
+5e. Structured Attributes (for Shopify tags/filters)
+Output as a clean key-value block:
+Material: Brass + Gold Plating
+Stone: CZ
+Color: Gold
+Collection: Minimal
+Occasion: Everyday, Office
+Style: Western
+Product Type: Earrings > Hoops
+These map directly to Shopify's filter/tag system.
+6. Input Specification
+Required Input
+Product image(s): At minimum one clear product photo
+Product type: Necklaces / Earrings / Rings / Wristwear
+Optional Input (AI should infer from image if missing)
+Stone type (CZ, Mother-of-Pearl, Multi-stone, None)
+Plating/finish (gold-tone, silver-tone, rose-gold-tone, rhodium)
+Collection (Minimal, Bold, Glam, Romance)
+Style (Western / Ethnic)
+Any special notes (e.g., "this is part of a set," "adjustable sizing")
+When data is missing: The AI should infer from the image and state its
+assumption. Use "[TBD]" for attributes it genuinely cannot determine.
+7. Edge Cases & Conditional Logic
+Simple/Minimal pieces (studs, thin bands, basic chains)
+Skip cultural/design inspiration language
+Focus on versatility and wearability
+Target 100–110 words
+Don't over-describe — if it's a simple gold-tone stud, say so plainly
+Complex/Ornate pieces (statement necklaces, multi-
+stone sets)
+Include brief design reference in Paragraph 1 (Kundan work, Art Deco,
+Victorian)
+Detail craftsmanship specifics
+Can extend to 150–160 words
+More pairing/occasion suggestions in Paragraph 2
+Sets (necklace + earring sets, stackable ring sets)
+Title should mention "Set" clearly
+Description should note what's included
+Alt text: describe the complete set
+Products with multiple finishes/variants
+Generate base content once
+Note variant in title and attributes (e.g., "Available in Gold-Tone and Silver-
+Tone")
+Pieces that cross Ethnic/Western boundary
+Tag as the PRIMARY style, note crossover in description
+Example: A Kundan-inspired piece with modern silhouette → Ethnic
+primary, mention western pairing
+8. SEO & AI Discoverability Guidelines
+For Search Engines (Google)
+Title: Front-load primary keywords (product type first, then details)
+Meta description: Include one natural long-tail keyword
+Description: Use the product type name at least once naturally
+Alt text: Descriptive and specific
+Shopify meta title format: [Product Name] | Stylika
+For AI Shopping Assistants (ChatGPT, Gemini,
+Perplexity)
+AI shopping assistants parse structured product data. The output should be
+machine-readable:
+Keep bullet specs consistent in format across all products
+Use standardized attribute names (always "Material:" not sometimes
+"Made of:")
+Include occasion context (AI assistants answer queries like "earrings for
+office wear")
+Mention style pairing (AI assistants answer "what jewelry goes with a
+blazer")
+Keywords to Naturally Include (where relevant)
+Fashion jewellery, Indian jewelry online, gold-tone, [product type], [occasion]
+jewelry, Stylika
+Never keyword-stuff. If a keyword doesn't fit naturally, skip it.
+9. Quality Validation Checklist
+Before the output is considered final, it must pass ALL of these:
+No use of "gold," "silver," "platinum," "diamond," "pearl" without proper
+qualifiers
+Title is 50–65 characters and ends with | Stylika
+Meta description is 140–155 characters
+Description is 100–160 words (based on complexity)
+Alt text is under 125 characters
+No flowery/aspirational language
+No over-promises (waterproof, lifetime, never tarnish)
+Category + Collection + Occasion assigned
+HTML formatting is clean (p tags, ul/li, no inline styles)
+Stone/material info is consistent between description bullets and attributes
+No follow-up questions, conversational fluff, or "Would you like…" endings
+10. Full Example — End to End
+Input:
+Image: Gold-tone hoop earrings with small CZ stones along the outer
+edge
+Product type: Earrings
+Optional data: None provided
+Output:
+TITLE:
+CZ Hoop Earrings Everyday Minimal | Stylika (52 chars)
+DESCRIPTION:
+<p>Clean-lined hoop earrings with a single row of CZ stones
+set along the outer curve. The gold-tone finish keeps them
+versatile — polished enough to catch light, understated enough
+for daily wear.</p>
+<p>Pair with a blazer for meetings or a cotton kurta for
+weekend plans. The hinged closure clicks securely, so they
+stay put through a full day.</p>
+<ul>
+</ul>
+<li>Material: Brass with gold plating</li>
+<li>Stones: Cubic Zirconia (CZ)</li>
+<li>Collection: Minimal</li>
+<li>Style: Western</li>
+<li>Closure: Hinged post</li>
+META DESCRIPTION:
+Shop gold-tone CZ hoop earrings at Stylika. Minimal, lightweight
+hoops for everyday wear. Fashion jewellery for the modern Indian
+woman. (139 chars)
+CATEGORY: Earrings > Hoops
+ATTRIBUTES:
+Material: Brass + Gold Plating
+Stone: CZ
+Color: Gold
+Collection: Minimal
+Occasion: Everyday, Office
+Style: Western
+Product Type: Earrings > Hoops
+ALT TEXT:
+Gold-tone hoop earrings with CZ stones along outer edge
+(56 chars)
