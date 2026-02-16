@@ -60,7 +60,7 @@ export default function BeforeAfterSlider({
       onPointerUp={handlePointerUp}
     >
       {/* After image */}
-      <img src={afterSrc} alt="After" className="absolute inset-0 w-full h-full object-cover" draggable={false} />
+      <img src={afterSrc} alt="After" className="absolute inset-0 w-full h-full object-contain" draggable={false} />
 
       {/* Before image (clipped) — white bg so transparency doesn't bleed through */}
       <div
@@ -70,7 +70,7 @@ export default function BeforeAfterSlider({
         <img
           src={beforeSrc}
           alt="Before"
-          className="w-full h-full object-cover"
+          className="w-full h-full object-contain"
           draggable={false}
         />
       </div>
