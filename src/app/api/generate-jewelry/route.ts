@@ -109,6 +109,7 @@ export async function POST(
       onlyHero,
       onlyRest,
       heroBase64,
+      regenerateSingle,
     } = body;
 
     if (!imageBase64) {
@@ -122,7 +123,7 @@ export async function POST(
     const mimeMatch = imageBase64.match(/^data:(image\/\w+);base64,/);
     const inputMimeType = mimeMatch ? mimeMatch[1] : "image/png";
 
-    console.log(`Jewelry generation | onlyHero=${!!onlyHero} onlyRest=${!!onlyRest}`);
+    console.log(`Jewelry generation | onlyHero=${!!onlyHero} onlyRest=${!!onlyRest} regenerateSingle=${regenerateSingle || "none"}`);
 
     const targetSize = 1080;
 
@@ -167,7 +168,64 @@ export async function POST(
 
     const images: PackImage[] = [];
 
-    if (onlyHero) {
+    if (regenerateSingle) {
+      // ── Regenerate a single image ──
+      if (regenerateSingle === "hero") {
+        console.log("Regenerating Hero Shot...");
+        const heroResult = await generateStudioImage(
+          cleanDataUri,
+          cleanMime,
+          prompts.hero + compositionHint,
+          "1:1"
+        );
+        let heroB64 = heroResult.resultBase64;
+        try {
+          heroB64 = await cropToRatio(heroB64, targetSize, targetSize, false, true);
+        } catch (err) {
+          console.error("Hero resize failed:", err);
+        }
+        images.push({
+          label: "Hero Shot",
+          base64: heroB64,
+          watermarkedBase64: "",
+          mimeType: "image/png",
+          text: heroResult.text,
+        });
+      } else if (regenerateSingle === "closeup") {
+        console.log("Regenerating Close-up Detail...");
+        const heroSource = heroBase64 || cleanDataUri;
+        const closeupB64 = await createCloseupCrop(heroSource, targetSize);
+        images.push({
+          label: "Close-up Detail",
+          base64: closeupB64,
+          watermarkedBase64: "",
+          mimeType: "image/png",
+        });
+      } else if (regenerateSingle === "angle") {
+        console.log("Regenerating Alternate Angle...");
+        const angleResult = await generateStudioImage(
+          cleanDataUri,
+          cleanMime,
+          prompts.angle + compositionHint,
+          "1:1"
+        );
+        let angleB64 = angleResult.resultBase64;
+        try {
+          angleB64 = await cropToRatio(angleB64, targetSize, targetSize, false, true);
+        } catch (err) {
+          console.error("Angle resize failed:", err);
+        }
+        images.push({
+          label: "Alternate Angle",
+          base64: angleB64,
+          watermarkedBase64: "",
+          mimeType: "image/png",
+          text: angleResult.text,
+        });
+      }
+      console.log(`Single regeneration complete: ${regenerateSingle}`);
+
+    } else if (onlyHero) {
       // ── Step 1: Hero Shot ──
       console.log("Generating Hero Shot from cleaned image...");
       const heroResult = await generateStudioImage(

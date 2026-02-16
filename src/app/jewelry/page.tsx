@@ -41,6 +41,9 @@ export default function JewelryPage() {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Regenerate single
+  const [regeneratingIndex, setRegeneratingIndex] = useState<number | null>(null);
+
   // Recolor
   const [recolorTarget, setRecolorTarget] = useState("");
   const [recoloringIndex, setRecoloringIndex] = useState<number | null>(null);
@@ -206,6 +209,66 @@ export default function JewelryPage() {
       setTimeout(() => downloadImage(img.dataUri, img.label), i * 300);
     });
   }, [allImages, downloadImage]);
+
+  // Regenerate a single image
+  const handleRegenerateSingle = useCallback(async (index: number) => {
+    if (!imageBase64 || !backgroundId || regeneratingIndex !== null) return;
+
+    // Map index to regenerateSingle key
+    const labelMap: Record<number, string> = {};
+    allImages.forEach((img, i) => {
+      if (img.label.startsWith("Hero")) labelMap[i] = "hero";
+      else if (img.label.startsWith("Close")) labelMap[i] = "closeup";
+      else if (img.label.startsWith("Alternate")) labelMap[i] = "angle";
+    });
+
+    const singleKey = labelMap[index];
+    if (!singleKey) return;
+
+    setRegeneratingIndex(index);
+    setError(null);
+
+    try {
+      const payload = buildPayload();
+      payload.regenerateSingle = singleKey;
+      if (heroImage) {
+        payload.heroBase64 = heroImage.dataUri;
+      }
+
+      const data = await safeFetch<{
+        success: boolean;
+        images?: { label: string; base64: string; watermarkedBase64?: string; mimeType: string }[];
+        error?: string;
+      }>("/api/generate-jewelry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!data.success || !data.images?.length) throw new Error(data.error || "Regeneration failed");
+
+      const newImg = data.images[0];
+      const updated: ResultImage = {
+        label: newImg.label,
+        dataUri: `data:${newImg.mimeType};base64,${newImg.base64}`,
+        previewUri: newImg.watermarkedBase64
+          ? `data:${newImg.mimeType};base64,${newImg.watermarkedBase64}`
+          : `data:${newImg.mimeType};base64,${newImg.base64}`,
+      };
+
+      if (index === 0) {
+        setHeroImage(updated);
+      } else {
+        setRestImages((prev) =>
+          prev.map((r, i) => (i === index - 1 ? updated : r))
+        );
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Regeneration failed");
+    } finally {
+      setRegeneratingIndex(null);
+    }
+  }, [imageBase64, backgroundId, heroImage, allImages, regeneratingIndex, buildPayload]);
 
   // Recolor a single image
   const handleRecolor = useCallback(
@@ -447,10 +510,25 @@ export default function JewelryPage() {
                       img={img}
                       onExpand={() => setExpandedIndex(expandedIndex === index ? null : index)}
                       onDownload={() => downloadImage(img.dataUri, img.label)}
+                      onRegenerate={() => handleRegenerateSingle(index)}
+                      isRegenerating={regeneratingIndex === index}
                     />
                   ))}
                 </div>
               </div>
+
+              {/* Hero comparison — always visible in hero-done state */}
+              {step === "hero-done" && heroImage && imageBase64 && expandedIndex === null && (
+                <div className="animate-slide-up">
+                  <button
+                    onClick={() => setExpandedIndex(0)}
+                    className="w-full sm:w-auto mx-auto flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium text-[#8b7355] bg-[#f5f0e8] border border-[#e0d5c3] rounded-xl hover:bg-[#ece3d3] transition-all duration-300 active:scale-[0.98]"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12M8 12h12M8 17h12M4 7h.01M4 12h.01M4 17h.01" /></svg>
+                    Compare with Original
+                  </button>
+                </div>
+              )}
 
               {/* Expanded slider */}
               {expandedImage && imageBase64 && (
@@ -1013,10 +1091,14 @@ function ImageCard({
   img,
   onExpand,
   onDownload,
+  onRegenerate,
+  isRegenerating,
 }: {
   img: ResultImage;
   onExpand: () => void;
   onDownload: () => void;
+  onRegenerate?: () => void;
+  isRegenerating?: boolean;
 }) {
   return (
     <div className="group">
@@ -1024,24 +1106,45 @@ function ImageCard({
         {img.label}
       </div>
       <div
-        className="relative overflow-hidden bg-white cursor-pointer card-hover shadow-sm rounded-xl border border-[#e8e5df]"
+        className={`relative overflow-hidden bg-white cursor-pointer card-hover shadow-sm rounded-xl border border-[#e8e5df] ${isRegenerating ? "opacity-50 pointer-events-none" : ""}`}
         onClick={onExpand}
       >
         <div style={{ paddingBottom: "100%" }} className="relative w-full">
-          <img src={img.previewUri} alt={img.label} className="absolute inset-0 w-full h-full object-cover" />
+          {isRegenerating ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-[#fafaf8]">
+              <span className="w-6 h-6 border-2 border-[#8b7355] border-t-transparent rounded-full animate-spin" />
+              <span className="text-xs text-[#8c8c8c]">Regenerating...</span>
+            </div>
+          ) : (
+            <img src={img.previewUri} alt={img.label} className="absolute inset-0 w-full h-full object-cover" />
+          )}
         </div>
-        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-all duration-300 flex items-end sm:items-center justify-center pb-3 sm:pb-0">
-          <span className="sm:opacity-0 sm:group-hover:opacity-100 opacity-100 transition-all duration-300 bg-white/90 text-[#1b1b1f] text-xs font-medium px-3 sm:px-4 py-1.5 sm:py-2 rounded-full shadow-sm backdrop-blur-sm">
-            Tap to compare
-          </span>
-        </div>
+        {!isRegenerating && (
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-all duration-300 flex items-end sm:items-center justify-center pb-3 sm:pb-0">
+            <span className="sm:opacity-0 sm:group-hover:opacity-100 opacity-100 transition-all duration-300 bg-white/90 text-[#1b1b1f] text-xs font-medium px-3 sm:px-4 py-1.5 sm:py-2 rounded-full shadow-sm backdrop-blur-sm">
+              Tap to compare
+            </span>
+          </div>
+        )}
       </div>
-      <button
-        onClick={(e) => { e.stopPropagation(); onDownload(); }}
-        className="mt-2 sm:mt-2.5 w-full py-2.5 sm:py-2 text-sm font-medium text-[#8c8c8c] bg-white border border-[#e8e5df] rounded-lg hover:bg-[#f5f0e8] hover:text-[#8b7355] transition-all duration-300 active:scale-[0.98]"
-      >
-        Download
-      </button>
+      <div className="mt-2 sm:mt-2.5 flex gap-2">
+        <button
+          onClick={(e) => { e.stopPropagation(); onDownload(); }}
+          className="flex-1 py-2.5 sm:py-2 text-sm font-medium text-[#8c8c8c] bg-white border border-[#e8e5df] rounded-lg hover:bg-[#f5f0e8] hover:text-[#8b7355] transition-all duration-300 active:scale-[0.98]"
+        >
+          Download
+        </button>
+        {onRegenerate && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onRegenerate(); }}
+            disabled={isRegenerating}
+            className="px-3 py-2.5 sm:py-2 text-sm font-medium text-[#8c8c8c] bg-white border border-[#e8e5df] rounded-lg hover:bg-[#f5f0e8] hover:text-[#8b7355] transition-all duration-300 active:scale-[0.98] disabled:opacity-50"
+            title="Regenerate this image"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+          </button>
+        )}
+      </div>
     </div>
   );
 }
