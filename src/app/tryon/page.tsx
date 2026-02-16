@@ -88,12 +88,7 @@ export default function TryOnPage() {
               </span>
             </a>
             <div className="flex items-center gap-3 sm:gap-4">
-              <a
-                href="/studio"
-                className="text-sm text-[#8c8c8c] hover:text-[#1b1b1f] transition-colors duration-300"
-              >
-                Studio
-              </a>
+              {/* Studio disabled for now */}
               <a
                 href="/jewelry"
                 className="text-sm text-[#8c8c8c] hover:text-[#1b1b1f] transition-colors duration-300"

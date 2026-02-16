@@ -20,7 +20,7 @@ export const ASPECT_RATIOS: AspectRatio[] = [
     width: 1080,
     height: 1080,
     compositionHint:
-      "Compose for a SQUARE (1:1) frame. Center the product with equal space on all sides. The composition must work perfectly as a square image.",
+      "OUTPUT IMAGE DIMENSIONS: The output image MUST be SQUARE (1:1 aspect ratio — equal width and height). Center the product with equal space on all sides. The composition must work perfectly as a square image.",
   },
   {
     id: "circle",
@@ -31,7 +31,7 @@ export const ASPECT_RATIOS: AspectRatio[] = [
     height: 1080,
     circular: true,
     compositionHint:
-      "Compose for a CIRCULAR crop. The product MUST be perfectly centered in a square frame with generous padding on all sides. Keep the product well within the center 70% of the frame so nothing gets clipped when a circular mask is applied. Use a clean, uncluttered background.",
+      "OUTPUT IMAGE DIMENSIONS: The output image MUST be SQUARE (1:1 aspect ratio). The product MUST be perfectly centered with generous padding on all sides — keep the product well within the center 70% of the frame. Use a clean, uncluttered background.",
   },
   {
     id: "portrait-4-5",
@@ -41,7 +41,7 @@ export const ASPECT_RATIOS: AspectRatio[] = [
     width: 1080,
     height: 1350,
     compositionHint:
-      "Compose for a VERTICAL PORTRAIT (4:5) frame. Leave slightly more space above and below the product than on the sides. The product should be centered in a tall frame.",
+      "OUTPUT IMAGE DIMENSIONS: The output image MUST be a TALL VERTICAL rectangle with 4:5 aspect ratio (width is 80% of height). The image must be noticeably taller than it is wide. Place the product centered vertically with generous space above and below. Extend the background/scene vertically to fill the tall frame.",
   },
   {
     id: "story-9-16",
@@ -51,7 +51,7 @@ export const ASPECT_RATIOS: AspectRatio[] = [
     width: 1080,
     height: 1920,
     compositionHint:
-      "Compose for a TALL VERTICAL (9:16) frame like a phone screen. Place the product in the center-lower area with generous background space above. The scene should fill a tall narrow frame.",
+      "OUTPUT IMAGE DIMENSIONS: The output image MUST be a VERY TALL, NARROW VERTICAL rectangle with 9:16 aspect ratio (like a phone screen held upright — the height must be almost TWICE the width). This is critical: the image must be dramatically taller than wide. Place the product in the center with EXTENSIVE background space above and below the product. The background/scene must extend significantly in the vertical direction to fill the entire tall narrow frame. Think full-screen phone wallpaper proportions.",
   },
   {
     id: "landscape-16-9",
@@ -61,7 +61,7 @@ export const ASPECT_RATIOS: AspectRatio[] = [
     width: 1280,
     height: 720,
     compositionHint:
-      "Compose for a WIDE LANDSCAPE (16:9) frame. Place the product slightly off-center with the scene extending horizontally. Leave ample space on both sides for a cinematic wide composition.",
+      "OUTPUT IMAGE DIMENSIONS: The output image MUST be a VERY WIDE, SHORT HORIZONTAL rectangle with 16:9 aspect ratio (like a cinema/TV screen — the width must be almost TWICE the height). This is critical: the image must be dramatically wider than tall. Place the product centered with EXTENSIVE background space to the left and right. The background/scene must extend significantly in the horizontal direction to fill the entire wide frame. Think widescreen cinematic proportions.",
   },
   {
     id: "fb-post",
@@ -71,7 +71,7 @@ export const ASPECT_RATIOS: AspectRatio[] = [
     width: 1200,
     height: 628,
     compositionHint:
-      "Compose for a WIDE LANDSCAPE (1.91:1) frame. The product should be centered in a wide horizontal composition with the background extending to both sides.",
+      "OUTPUT IMAGE DIMENSIONS: The output image MUST be a WIDE HORIZONTAL rectangle with approximately 1.91:1 aspect ratio (width is nearly double the height). The image must be noticeably wider than tall. Center the product with generous background space extending to both sides.",
   },
   {
     id: "pinterest",
@@ -81,7 +81,7 @@ export const ASPECT_RATIOS: AspectRatio[] = [
     width: 1000,
     height: 1500,
     compositionHint:
-      "Compose for a TALL (2:3) frame. The product should be in the center with generous vertical space above and below. The scene should feel elongated vertically.",
+      "OUTPUT IMAGE DIMENSIONS: The output image MUST be a TALL VERTICAL rectangle with 2:3 aspect ratio (height is 1.5x the width). The image must be noticeably taller than wide. Place the product centered with generous vertical space above and below. Extend the background/scene vertically to fill the tall frame.",
   },
 ];
 

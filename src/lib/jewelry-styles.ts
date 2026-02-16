@@ -4,29 +4,6 @@
  *  product styles in styles.ts.
  * ================================================================ */
 
-// ─── Jewelry Isolation ───────────────────────────────────────────
-export const JEWELRY_ISOLATION = `CRITICAL FIRST STEP — Jewelry Identification & Isolation:
-Analyze this image and identify the JEWELRY PIECE being showcased. It may be worn on a body, held in a hand, placed on a display stand, inside a box, or on any surface. You MUST:
-1. Identify the exact type of jewelry (ring, necklace, earring, bracelet, bangle, pendant, brooch, anklet, chain, or set)
-2. Carefully note EVERY micro-detail: stone cuts, facet count, prong positions, metal color/finish (yellow gold, white gold, rose gold, platinum, silver), engravings, hallmarks, chain link pattern, clasp style, surface textures, diamond brilliance pattern
-3. Mentally extract ONLY the jewelry itself — remove any hands, fingers, neck, ears, wrists, skin, display stands, ring boxes, velvet pads, and the original background
-4. The extracted jewelry must retain every single visual detail exactly as photographed
-
-`;
-
-// ─── Jewelry Preserve ────────────────────────────────────────────
-export const JEWELRY_PRESERVE = `ABSOLUTE JEWELRY FIDELITY — THE MOST CRITICAL RULE:
-The jewelry in the output MUST be a PIXEL-PERFECT reproduction of the input jewelry.
-- Do NOT re-imagine, re-draw, re-interpret, simplify, or stylize ANY part of the jewelry
-- Do NOT alter stone colors, diamond brilliance, sparkle patterns, or light refraction — reproduce them EXACTLY
-- Do NOT change the metal color: yellow gold stays yellow gold, white gold stays white gold, rose gold stays rose gold, silver stays silver
-- Do NOT modify prong count, prong positions, stone settings, bezels, channel settings, or pave patterns
-- Do NOT simplify filigree, engravings, hallmarks, milgrain edges, or any surface texture
-- Every facet of every stone, every link of every chain, every curve of the design MUST match the input exactly
-- The jewelry should look like it was PHOTOGRAPHICALLY CUT from the original photo and PLACED into the new scene
-- If in doubt, keep every scratch, reflection, and imperfection from the original photograph
-Show ONLY the jewelry piece — no hands, skin, body parts, display stands, or boxes.`;
-
 // ─── Jewelry Types ───────────────────────────────────────────────
 export interface JewelryTypeOption {
   id: string;
@@ -61,71 +38,36 @@ export const JEWELRY_BACKGROUNDS: JewelryBackground[] = [
     id: "black-velvet",
     label: "Black Velvet",
     prompt:
-      "Place the jewelry on a luxurious deep black velvet fabric surface with soft, even folds. The velvet should have a rich, plush texture that catches subtle light. Dark, moody ambiance with focused spotlight on the jewelry.",
+      "Place the jewelry on a luxurious deep black velvet fabric surface. The velvet should have a rich, plush texture that is UNIFORM and CONSISTENT across the entire image — same color and tone from edge to edge. Use soft, EVEN studio lighting from above — NO spotlight falloff, NO dark vignette, NO shadow borders at the edges. The entire background must be evenly lit black velvet filling the full frame.",
     swatch: "#1a1a1a",
-  },
-  {
-    id: "navy-velvet",
-    label: "Navy Velvet",
-    prompt:
-      "Place the jewelry on a rich navy blue velvet fabric surface with elegant soft folds. Deep royal blue tones that make gold and silver jewelry pop. Sophisticated, premium ambiance with gentle directional lighting.",
-    swatch: "#1b2a4a",
-  },
-  {
-    id: "burgundy-velvet",
-    label: "Burgundy Velvet",
-    prompt:
-      "Place the jewelry on a deep burgundy/wine red velvet surface with luxurious soft folds. Rich, warm tones that complement both gold and silver jewelry. Classic jewelry store display feel with warm spotlight.",
-    swatch: "#5a1a2a",
   },
   {
     id: "white-marble",
     label: "White Marble",
     prompt:
-      "Place the jewelry on a pristine white marble surface with subtle grey veining. Clean, bright, high-end aesthetic. Soft diffused overhead lighting with gentle reflections on the marble. Luxury catalog photography style.",
+      "Place the jewelry on a pristine white marble surface with subtle grey veining. Clean, bright, high-end aesthetic. Use soft, EVEN diffused overhead lighting across the entire frame — NO vignette, NO dark edges, NO shadow borders. The marble surface and lighting must be UNIFORM from edge to edge, filling the entire image evenly. Luxury catalog photography style.",
     swatch: "#f0ece6",
-  },
-  {
-    id: "cream-marble",
-    label: "Cream Marble",
-    prompt:
-      "Place the jewelry on an elegant cream/beige marble surface with warm golden veining. Soft warm lighting creating a welcoming premium feel. High-end jewelry boutique aesthetic.",
-    swatch: "#e8ddd0",
   },
   {
     id: "pure-white",
     label: "Pure White",
     prompt:
-      "Place the jewelry on a pure clean white background with professional studio lighting. Soft even illumination with gentle shadow underneath. Clean e-commerce product listing style — minimal and premium.",
+      "Place the jewelry on a pure clean white background with professional studio lighting. Soft EVEN illumination across the entire image — NO vignette, NO dark edges, NO shadow borders. The white background must be UNIFORM and CONSISTENT from edge to edge, filling the full frame. Only a gentle shadow directly under the jewelry. Clean e-commerce product listing style.",
     swatch: "#ffffff",
   },
   {
-    id: "pure-black",
-    label: "Pure Black",
+    id: "burgundy-velvet",
+    label: "Burgundy Velvet",
     prompt:
-      "Place the jewelry against a solid pure black background. Dramatic spotlight from above creating brilliant reflections on metal and stones. High contrast luxury jewelry advertising style.",
-    swatch: "#000000",
+      "Place the jewelry on a deep burgundy/wine red velvet surface. Rich, warm tones that complement both gold and silver jewelry. The velvet color must be UNIFORM and CONSISTENT across the entire image — same burgundy tone from edge to edge. Use soft, EVEN studio lighting — NO spotlight falloff, NO dark vignette, NO shadow borders at the edges. The entire background must be evenly lit burgundy velvet filling the full frame.",
+    swatch: "#5a1a2a",
   },
   {
     id: "gold-gradient",
     label: "Gold Gradient",
     prompt:
-      "Place the jewelry on a soft warm golden gradient background — transitioning from deep warm gold at the edges to lighter champagne gold in the center. Luxurious, royal, premium feel. Soft focused lighting that enhances metal shine.",
+      "Place the jewelry on a soft warm golden gradient background — a SMOOTH, EVEN gradient across the full image. The gradient must extend UNIFORMLY to all edges with NO dark borders, NO vignette, NO shadow at the edges. Use soft, even lighting that enhances metal shine. Luxurious, royal, premium feel. The gradient fills the entire frame evenly.",
     swatch: "#c9a961",
-  },
-  {
-    id: "rose-gradient",
-    label: "Rose Gradient",
-    prompt:
-      "Place the jewelry on a soft rose pink to blush gradient background. Romantic, elegant, feminine feel. Delicate soft lighting that flatters both the jewelry and the pastel backdrop.",
-    swatch: "#d4a0a0",
-  },
-  {
-    id: "styled-props",
-    label: "Styled with Props",
-    prompt:
-      "Place the jewelry on an elegant styled surface with complementary props: soft silk or satin fabric, fresh flower petals (roses or peonies), a small decorative mirror, and perhaps a touch of greenery. The props should frame the jewelry without competing for attention. Warm editorial photography with shallow depth of field.",
-    swatch: "#c8b8a8",
   },
 ];
 
@@ -137,34 +79,21 @@ export function getJewelryBackgroundById(
 
 // ─── Pack Prompt Builder ─────────────────────────────────────────
 /**
- * Builds 5 prompts for the Jewelry Pack:
- * hero, angle, closeup, lifestyle, setDisplay
+ * Builds 2 prompts for the Jewelry Pack:
+ * hero (background replace) and angle (slight perspective shift).
+ * Close-up is handled via Sharp crop — no AI needed.
  */
 export function buildJewelryPackPrompts(backgroundPrompt: string): {
   hero: string;
   angle: string;
-  closeup: string;
-  lifestyle: string;
-  setDisplay: string;
 } {
-  const base = `${JEWELRY_ISOLATION}${backgroundPrompt} ${JEWELRY_PRESERVE}`;
+  const removeExtras = "Remove any hands, fingers, skin, body parts, display stands, boxes, or props — show ONLY the jewelry piece itself.";
 
   return {
-    hero: `${base} Front-facing hero beauty shot. The jewelry should be the clear star of the image — perfectly centered, brilliantly lit, with the background setting it off beautifully. Professional jewelry catalog photography.`,
+    hero: `Edit this jewelry photograph. ${removeExtras} Replace ONLY the background. ${backgroundPrompt} Add soft, professional studio lighting that enhances the jewelry's natural brilliance, sparkle, and metal luster. The background must be uniform edge-to-edge — no dark corners, no vignette. CRITICAL: Do NOT modify the jewelry itself — every stone, facet, prong, metal finish, engraving, and design element must remain exactly as in the original photo. Only remove non-jewelry elements and change the background and lighting.`,
 
-    angle: `${base} For this image, keep the EXACT same jewelry piece (do NOT redraw it) but adjust the scene perspective slightly to suggest a different viewpoint — as if the camera shifted to a gentle 3/4 elevated angle. The jewelry itself must remain pixel-identical to the input; only the background, shadows, and lighting angle should shift subtly. Professional jewelry photography.`,
-
-    closeup: `${base} Create a tightly cropped MACRO close-up of the most detailed area of this EXACT jewelry piece — focusing on the stones, settings, metalwork, or design details. Show the brilliance, facets, and craftsmanship at extreme magnification. The jewelry must remain pixel-identical to the input — do NOT redraw or reinterpret any element. Extreme shallow depth of field with creamy bokeh background.`,
-
-    lifestyle: `${JEWELRY_ISOLATION}Place the jewelry on an elegantly styled surface — think soft silk or satin fabric draped artfully, with fresh flower petals, a touch of greenery, or a small decorative mirror nearby. Warm, editorial photography feel with shallow depth of field. The props should frame and complement the jewelry without competing for attention. Golden-hour warmth. ${JEWELRY_PRESERVE} Professional lifestyle jewelry photography.`,
-
-    setDisplay: `${JEWELRY_ISOLATION}Arrange the jewelry as if it is the centerpiece of an exclusive collection display. Place it on a premium surface (dark velvet or marble) with subtle accent lighting that highlights the piece from multiple angles. The composition should feel like a luxury jewelry brand lookbook — editorial, aspirational, and immaculate. ${JEWELRY_PRESERVE} Premium collection display photography.`,
+    angle: `Edit this jewelry photograph. ${removeExtras} Replace the background. ${backgroundPrompt} Subtly shift the camera perspective to a gentle 3/4 elevated angle. Add professional studio lighting with soft reflections on the metal. The background must be uniform edge-to-edge — no dark corners, no vignette. IMPORTANT: The jewelry design must stay identical to the original — same stones, same metal color, same proportions, same details. Only remove non-jewelry elements and change the viewing angle, background, and lighting.`,
   };
-}
-
-// ─── Custom Background ───────────────────────────────────────────
-export function buildCustomJewelryPrompt(customDescription: string): string {
-  return `${JEWELRY_ISOLATION}${customDescription} Professional jewelry photography with studio-quality lighting that enhances the brilliance and details of the jewelry. ${JEWELRY_PRESERVE}`;
 }
 
 // ─── Shared Try-On Preamble ──────────────────────────────────────
@@ -335,3 +264,54 @@ PLACEMENT — JEWELRY SET (MULTIPLE PIECES):
 - Add shadows and reflections for each piece individually, matching the scene's lighting
 FRAMING: For a set, use a slightly wider crop that shows neck, ears, and hands/wrists — enough to showcase all pieces. Each piece must be tack-sharp while the model's skin and clothing have editorial softness. The overall composition should feel like a luxury bridal/formal jewelry campaign.`,
 };
+
+// ─── Video Theme Presets ────────────────────────────────────────
+export interface VideoTheme {
+  id: string;
+  label: string;
+  icon: string;
+  /** Prompt template — {product} is replaced with context */
+  prompt: string;
+}
+
+export const VIDEO_THEMES: VideoTheme[] = [
+  {
+    id: "rotation-sparkle",
+    label: "360° Rotation Sparkle",
+    icon: "💫",
+    prompt:
+      "Slow 360° orbit around this jewelry piece, diamonds and stones subtly twinkling with light reflections, soft studio lighting from multiple angles, luxury jewelry advertisement style, smooth cinematic camera movement, 8s seamless loop, hyper-realistic, 4K quality.",
+  },
+  {
+    id: "sway-pan",
+    label: "Sway & Pan",
+    icon: "🎬",
+    prompt:
+      "Camera gently pans left to right across this jewelry piece while any chain or dangling elements sway naturally with subtle breeze, gem facets catching and refracting light beautifully, premium e-commerce showcase style, cinematic depth of field, smooth motion, 4K quality.",
+  },
+  {
+    id: "hover-zoom",
+    label: "Hover Zoom Reveal",
+    icon: "🔍",
+    prompt:
+      "Subtle upward float and slow zoom into this jewelry piece, metal gleaming with micro-sparkles, clean elegant background, high-end product reveal style, slow motion, shallow depth of field transitioning from full piece to intricate close-up details, luxury brand advertisement, 4K quality.",
+  },
+  {
+    id: "dramatic-light",
+    label: "Dramatic Light Play",
+    icon: "✨",
+    prompt:
+      "Dramatic studio lighting sweeping across this jewelry piece from left to right, creating moving highlights and shadows that reveal the brilliance of every stone and the luster of the metal, dark moody background, luxury editorial style, slow cinematic movement, 4K quality.",
+  },
+  {
+    id: "lifestyle-motion",
+    label: "Lifestyle Motion",
+    icon: "🌸",
+    prompt:
+      "This jewelry piece in an elegant lifestyle setting — soft silk fabric gently rippling underneath, flower petals drifting slowly in background, warm golden-hour light with subtle lens flare, aspirational luxury brand commercial style, smooth slow-motion, dreamy shallow depth of field, 4K quality.",
+  },
+];
+
+export function getVideoThemeById(id: string): VideoTheme | undefined {
+  return VIDEO_THEMES.find((t) => t.id === id);
+}

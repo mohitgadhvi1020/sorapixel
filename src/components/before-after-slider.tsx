@@ -54,7 +54,7 @@ export default function BeforeAfterSlider({
   return (
     <div
       ref={containerRef}
-      className="relative w-full rounded-xl sm:rounded-2xl overflow-hidden select-none bg-[#1b1b1f] shadow-lg touch-none"
+      className="relative w-full rounded-xl sm:rounded-2xl overflow-hidden select-none bg-white shadow-lg touch-none"
       style={{ aspectRatio: ratio }}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -62,14 +62,18 @@ export default function BeforeAfterSlider({
       {/* After image */}
       <img src={afterSrc} alt="After" className="absolute inset-0 w-full h-full object-cover" draggable={false} />
 
-      {/* Before image (clipped) */}
-      <img
-        src={beforeSrc}
-        alt="Before"
-        className="absolute inset-0 w-full h-full object-cover"
+      {/* Before image (clipped) — white bg so transparency doesn't bleed through */}
+      <div
+        className="absolute inset-0 bg-white"
         style={{ clipPath: `inset(0 ${100 - sliderPosition}% 0 0)` }}
-        draggable={false}
-      />
+      >
+        <img
+          src={beforeSrc}
+          alt="Before"
+          className="w-full h-full object-cover"
+          draggable={false}
+        />
+      </div>
 
       {/* Slider line + handle */}
       <div

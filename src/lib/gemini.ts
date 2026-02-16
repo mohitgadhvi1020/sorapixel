@@ -63,12 +63,20 @@ export async function withRetry<T>(
 export async function generateStudioImage(
   imageBase64: string,
   mimeType: string,
-  prompt: string
+  prompt: string,
+  aspectRatio?: string
 ): Promise<{ resultBase64: string; resultMimeType: string; text?: string }> {
   const ai = getClient();
 
   // Strip data URI prefix if present
   const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+
+  const config: Record<string, unknown> = {
+    responseModalities: ["TEXT", "IMAGE"],
+  };
+  if (aspectRatio) {
+    config.imageConfig = { aspectRatio };
+  }
 
   const response = await withRetry(() =>
     ai.models.generateContent({
@@ -84,9 +92,7 @@ export async function generateStudioImage(
           },
         },
       ],
-      config: {
-        responseModalities: ["IMAGE"],
-      },
+      config,
     })
   );
 
@@ -118,6 +124,160 @@ export async function generateStudioImage(
   }
 
   return { resultBase64, resultMimeType, text };
+}
+
+/**
+ * Same as generateStudioImage but accepts MULTIPLE reference images.
+ * Used for jewelry where extra angles help Gemini preserve every detail.
+ *
+ * The images array should contain objects with { base64, mimeType }.
+ * The first image is treated as the "primary" reference; additional
+ * images provide supplementary angles/details.
+ */
+export async function generateStudioImageMultiRef(
+  images: { base64: string; mimeType: string }[],
+  prompt: string,
+  aspectRatio?: string
+): Promise<{ resultBase64: string; resultMimeType: string; text?: string }> {
+  const ai = getClient();
+
+  // Build content parts: prompt text first, then all images
+  const contents: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [
+    { text: prompt },
+  ];
+
+  for (const img of images) {
+    const data = img.base64.replace(/^data:image\/\w+;base64,/, "");
+    contents.push({
+      inlineData: {
+        mimeType: img.mimeType,
+        data,
+      },
+    });
+  }
+
+  const config: Record<string, unknown> = {
+    responseModalities: ["IMAGE"],
+  };
+  if (aspectRatio) {
+    config.imageConfig = { aspectRatio };
+  }
+
+  const response = await withRetry(() =>
+    ai.models.generateContent({
+      model: "gemini-2.5-flash-image",
+      contents,
+      config,
+    })
+  );
+
+  // Extract image and text from response
+  let resultBase64 = "";
+  let resultMimeType = "image/png";
+  let text: string | undefined;
+
+  const parts = response.candidates?.[0]?.content?.parts;
+  if (!parts || parts.length === 0) {
+    throw new Error(
+      "Gemini returned no content. The image may have been blocked by safety filters. Try a different image or style."
+    );
+  }
+
+  for (const part of parts) {
+    if (part.text) {
+      text = part.text;
+    } else if (part.inlineData) {
+      resultBase64 = part.inlineData.data!;
+      resultMimeType = part.inlineData.mimeType || "image/png";
+    }
+  }
+
+  if (!resultBase64) {
+    throw new Error(
+      "Gemini did not return an image. Response: " + (text || "empty")
+    );
+  }
+
+  return { resultBase64, resultMimeType, text };
+}
+
+/**
+ * Analyzes one or more reference images of the SAME jewelry piece
+ * and returns a detailed written inventory of every visual detail.
+ *
+ * This "detail manifest" is injected into generation prompts so the
+ * model has a concrete checklist of what to reproduce — no guessing.
+ */
+export async function extractJewelryDetails(
+  images: { base64: string; mimeType: string }[],
+  jewelryType?: string
+): Promise<string> {
+  const ai = getClient();
+
+  const contents: Array<
+    { text: string } | { inlineData: { mimeType: string; data: string } }
+  > = [
+    {
+      text: `You are a world-class gemologist and jewelry photographer. You are given ${images.length} reference image(s) of the SAME jewelry piece${jewelryType ? ` (${jewelryType})` : ""} from different angles.
+
+YOUR TASK: Produce a DETAILED VISUAL INVENTORY of this exact jewelry piece. This inventory will be used to ensure pixel-perfect reproduction in generated images.
+
+Analyze ALL images and describe EVERY visible detail in this exact format:
+
+JEWELRY TYPE: [exact type]
+OVERALL SHAPE: [precise shape description]
+DIMENSIONS ESTIMATE: [relative proportions]
+
+METAL:
+- Color/finish: [exact color — yellow gold, rose gold, white gold, silver, platinum, etc.]
+- Texture: [polished, brushed, hammered, matte, etc.]
+- Visible features: [filigree, milgrain, engraving text, hallmarks, wire work, etc.]
+
+STONES (for each stone or group of stones):
+- Type: [diamond, ruby, emerald, pearl, etc. or "appears to be..."]
+- Cut: [round brilliant, princess, oval, marquise, pear, cushion, cabochon, etc.]
+- Color: [exact color as seen]
+- Setting: [prong, bezel, channel, pave, tension, etc.]
+- Count: [exact number if countable, or "approximately X"]
+- Arrangement: [center stone + halo, three-stone, cluster, line, etc.]
+
+STRUCTURAL DETAILS:
+- Band/chain: [width, pattern, link style if chain]
+- Clasp: [type if visible — lobster, spring ring, toggle, etc.]
+- Back/underside: [any visible details from alternate angles]
+- Unique features: [anything distinctive — asymmetry, mixed metals, movable parts, etc.]
+
+SURFACE CONDITION:
+- [Any scratches, patina, wear marks, reflections that should be preserved]
+
+Be EXHAUSTIVE. If you can see it in ANY of the ${images.length} image(s), document it. Do NOT guess or assume — only describe what is CLEARLY VISIBLE. This is critical for accurate reproduction.`,
+    },
+  ];
+
+  for (const img of images) {
+    const data = img.base64.replace(/^data:image\/\w+;base64,/, "");
+    contents.push({
+      inlineData: {
+        mimeType: img.mimeType,
+        data,
+      },
+    });
+  }
+
+  const response = await withRetry(() =>
+    ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents,
+    })
+  );
+
+  const text = response.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) {
+    console.warn("Detail extraction returned no text — skipping");
+    return "";
+  }
+
+  return text.trim();
 }
 
 /**

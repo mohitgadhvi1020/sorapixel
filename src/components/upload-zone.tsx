@@ -4,11 +4,14 @@ import { useCallback, useRef, useState } from "react";
 
 interface UploadZoneProps {
   onImageSelected: (base64: string, preview: string) => void;
+  /** If true, file inputs accept multiple files and onImageSelected is called once per file */
+  multiple?: boolean;
   disabled?: boolean;
 }
 
 export default function UploadZone({
   onImageSelected,
+  multiple,
   disabled,
 }: UploadZoneProps) {
   const [isDragging, setIsDragging] = useState(false);
@@ -28,14 +31,24 @@ export default function UploadZone({
     [onImageSelected]
   );
 
+  const handleFiles = useCallback(
+    (files: FileList | null) => {
+      if (!files) return;
+      const limit = multiple ? Math.min(files.length, 5) : 1;
+      for (let i = 0; i < limit; i++) {
+        handleFile(files[i]);
+      }
+    },
+    [handleFile, multiple]
+  );
+
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
       setIsDragging(false);
-      const file = e.dataTransfer.files[0];
-      if (file) handleFile(file);
+      handleFiles(e.dataTransfer.files);
     },
-    [handleFile]
+    [handleFiles]
   );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -49,10 +62,10 @@ export default function UploadZone({
 
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) handleFile(file);
+      handleFiles(e.target.files);
+      e.target.value = "";
     },
-    [handleFile]
+    [handleFiles]
   );
 
   return (
@@ -77,6 +90,7 @@ export default function UploadZone({
           ref={fileRef}
           type="file"
           accept="image/*"
+          multiple={multiple}
           onChange={handleInputChange}
           className="hidden"
           disabled={disabled}
@@ -103,12 +117,20 @@ export default function UploadZone({
           </div>
           <div>
             <p className="text-sm sm:text-base font-semibold text-[#1b1b1f]">
-              <span className="hidden sm:inline">Drop your product image here</span>
-              <span className="sm:hidden">Tap to upload product image</span>
+              <span className="hidden sm:inline">
+                {multiple ? "Drop your product images here" : "Drop your product image here"}
+              </span>
+              <span className="sm:hidden">
+                {multiple ? "Tap to upload product images" : "Tap to upload product image"}
+              </span>
             </p>
             <p className="text-xs sm:text-sm text-[#8c8c8c] mt-1">
-              <span className="hidden sm:inline">or click to browse — PNG, JPG up to 10MB</span>
-              <span className="sm:hidden">PNG, JPG up to 10MB</span>
+              <span className="hidden sm:inline">
+                {multiple ? "or click to browse — select up to 5 images" : "or click to browse — PNG, JPG up to 10MB"}
+              </span>
+              <span className="sm:hidden">
+                {multiple ? "Select up to 5 images at once" : "PNG, JPG up to 10MB"}
+              </span>
             </p>
           </div>
         </div>

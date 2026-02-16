@@ -25,12 +25,7 @@ export default function HomePage() {
             >
               Try-On
             </Link>
-            <Link
-              href="/studio"
-              className="px-3 py-2 sm:px-5 sm:py-2.5 bg-[#1b1b1f] text-white text-sm font-medium rounded-lg hover:bg-[#2d2d33] transition-all duration-300 active:scale-[0.97]"
-            >
-              Studio
-            </Link>
+            {/* Studio disabled for now */}
           </div>
         </div>
       </header>
@@ -69,7 +64,7 @@ export default function HomePage() {
           style={{ animationDelay: "300ms" }}
         >
           <Link
-            href="/studio"
+            href="/jewelry"
             className="w-full sm:w-auto px-8 py-3.5 sm:py-4 bg-gradient-to-r from-[#8b7355] to-[#6b5740] text-white rounded-xl font-semibold text-base sm:text-lg transition-all duration-300 shadow-lg shadow-[#8b7355]/20 hover:shadow-[#8b7355]/35 active:scale-[0.98] text-center"
           >
             Try It Free
@@ -201,7 +196,7 @@ export default function HomePage() {
             Stop paying for expensive studio shoots. Get studio-quality images for a fraction of the cost.
           </p>
           <Link
-            href="/studio"
+            href="/jewelry"
             className="inline-block w-full sm:w-auto px-8 py-3.5 sm:py-4 bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-white rounded-xl font-semibold text-base sm:text-lg transition-all duration-300 shadow-lg active:scale-[0.98] text-center"
           >
             Get Started Free

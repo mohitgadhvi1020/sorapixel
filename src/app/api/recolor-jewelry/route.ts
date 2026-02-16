@@ -55,7 +55,7 @@ OUTPUT: The same image with ONLY the metal color changed. Everything else identi
 
     console.log(`Recoloring jewelry metal to: "${colorDesc}"`);
 
-    const result = await generateStudioImage(imageBase64, mimeType, prompt);
+    const result = await generateStudioImage(imageBase64, mimeType, prompt, "1:1");
 
     if (!result.resultBase64) {
       throw new Error("Recolor failed — no image returned");
@@ -72,7 +72,8 @@ OUTPUT: The same image with ONLY the metal color changed. Everything else identi
           finalBase64,
           ratio.width,
           ratio.height,
-          !!ratio.circular
+          !!ratio.circular,
+          true // forceContain — never crop jewelry
         );
         finalMimeType = "image/png";
       } catch (err) {

@@ -3,13 +3,11 @@ import { generateStudioImage } from "@/lib/gemini";
 import {
   getJewelryBackgroundById,
   buildJewelryPackPrompts,
-  buildCustomJewelryPrompt,
 } from "@/lib/jewelry-styles";
-import { compositeLogoOnImage } from "@/lib/logo-overlay-server";
-import { getRatioById, DEFAULT_RATIO } from "@/lib/aspect-ratios";
 import { cropToRatio } from "@/lib/crop-to-ratio";
+import sharp from "sharp";
 
-export const maxDuration = 180; // 5 images → needs more time
+export const maxDuration = 180;
 
 interface PackImage {
   label: string;
@@ -24,6 +22,80 @@ interface GenerateJewelryResponse {
   error?: string;
 }
 
+/**
+ * Flatten any transparency to white background using Sharp.
+ * Returns base64 PNG (no data URI prefix).
+ */
+async function flattenToWhite(imageBase64: string): Promise<string> {
+  const raw = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+  const buf = Buffer.from(raw, "base64");
+
+  const meta = await sharp(buf).metadata();
+  if (!meta.hasAlpha) return raw;
+
+  const flatBuf = await sharp(buf)
+    .flatten({ background: { r: 255, g: 255, b: 255 } })
+    .png({ compressionLevel: 6 })
+    .toBuffer();
+
+  return flatBuf.toString("base64");
+}
+
+/**
+ * Step 0: Use Gemini to remove background and isolate jewelry on plain white.
+ * Short, focused prompt — minimal change = minimal hallucination.
+ */
+async function removeBackground(
+  imageBase64: string,
+  mimeType: string
+): Promise<{ base64: string; mimeType: string }> {
+  const BG_REMOVAL_PROMPT = `Remove the background from this jewelry photo. Place the jewelry on a plain white background. Do NOT modify the jewelry in any way — keep every stone, metal detail, engraving, and design element exactly as-is. Only the background changes to white.`;
+
+  const result = await generateStudioImage(
+    imageBase64,
+    mimeType,
+    BG_REMOVAL_PROMPT,
+    "1:1"
+  );
+
+  return {
+    base64: result.resultBase64,
+    mimeType: result.resultMimeType,
+  };
+}
+
+/**
+ * Creates a center-crop close-up from an existing image using Sharp.
+ * Crops to the center 60% of the image, then resizes to target dimensions.
+ * 100% original pixels — zero AI hallucination.
+ */
+async function createCloseupCrop(
+  imageBase64: string,
+  targetSize: number
+): Promise<string> {
+  const raw = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+  const inputBuffer = Buffer.from(raw, "base64");
+
+  const metadata = await sharp(inputBuffer).metadata();
+  const w = metadata.width || targetSize;
+  const h = metadata.height || targetSize;
+
+  const cropRatio = 0.6;
+  const cropW = Math.round(w * cropRatio);
+  const cropH = Math.round(h * cropRatio);
+  const left = Math.round((w - cropW) / 2);
+  const top = Math.round((h - cropH) / 2);
+
+  const croppedBuffer = await sharp(inputBuffer)
+    .extract({ left, top, width: cropW, height: cropH })
+    .resize(targetSize, targetSize, { fit: "cover", kernel: "lanczos3" })
+    .sharpen({ sigma: 0.8 })
+    .png({ compressionLevel: 6 })
+    .toBuffer();
+
+  return croppedBuffer.toString("base64");
+}
+
 export async function POST(
   req: NextRequest
 ): Promise<NextResponse<GenerateJewelryResponse>> {
@@ -32,9 +104,9 @@ export async function POST(
     const {
       imageBase64,
       backgroundId,
-      customBackground,
-      logoBase64,
-      aspectRatioId,
+      onlyHero,
+      onlyRest,
+      heroBase64,
     } = body;
 
     if (!imageBase64) {
@@ -44,142 +116,183 @@ export async function POST(
       );
     }
 
-    // Resolve aspect ratio
-    const ratio = getRatioById(aspectRatioId) || DEFAULT_RATIO;
+    // Parse the input image
+    const mimeMatch = imageBase64.match(/^data:(image\/\w+);base64,/);
+    const inputMimeType = mimeMatch ? mimeMatch[1] : "image/png";
 
-    // Resolve background prompt
-    let backgroundPrompt: string;
+    console.log(`Jewelry generation | onlyHero=${!!onlyHero} onlyRest=${!!onlyRest}`);
 
-    if (customBackground && customBackground.trim()) {
-      backgroundPrompt = buildCustomJewelryPrompt(customBackground.trim())
-        // buildCustomJewelryPrompt already includes isolation + preserve,
-        // so we use it directly as the base for the hero prompt only.
-        // For the pack we need just the background sentence.
-        ;
-      // Actually we need to feed buildJewelryPackPrompts the raw bg sentence.
-      // Let's use the custom text as the background, and pack builder wraps it.
-    } else if (backgroundId) {
-      const bg = getJewelryBackgroundById(backgroundId);
-      if (!bg) {
-        return NextResponse.json(
-          { success: false, error: "Invalid background selected" },
-          { status: 400 }
-        );
-      }
-      backgroundPrompt = bg.prompt;
-    } else {
+    const targetSize = 1080;
+
+    // Resolve background
+    if (!backgroundId) {
       return NextResponse.json(
         { success: false, error: "No background selected" },
         { status: 400 }
       );
     }
-
-    // Append aspect-ratio composition hint
-    const ratioHint = `\n\nCOMPOSITION: ${ratio.compositionHint}`;
-
-    // Build 5 prompts
-    let prompts;
-    if (customBackground && customBackground.trim()) {
-      // For custom background, build a one-off base prompt then fan out
-      const customBase = `${customBackground.trim()} Professional jewelry photography with studio-quality lighting that enhances the brilliance and details of the jewelry.`;
-      prompts = buildJewelryPackPrompts(customBase);
-    } else {
-      prompts = buildJewelryPackPrompts(backgroundPrompt);
-    }
-
-    // Append ratio hint to every prompt
-    const promptEntries: { label: string; prompt: string }[] = [
-      { label: "Hero Shot", prompt: prompts.hero + ratioHint },
-      { label: "Alternate Angle", prompt: prompts.angle + ratioHint },
-      { label: "Macro Close-up", prompt: prompts.closeup + ratioHint },
-      { label: "Lifestyle", prompt: prompts.lifestyle + ratioHint },
-      { label: "Collection Display", prompt: prompts.setDisplay + ratioHint },
-    ];
-
-    // Detect mime type
-    const mimeMatch = imageBase64.match(/^data:(image\/\w+);base64,/);
-    const mimeType = mimeMatch ? mimeMatch[1] : "image/png";
-
-    console.log(
-      `Generating Jewelry Pack (5 images) | BG: ${backgroundId || "custom"} | Ratio: ${ratio.label}`
-    );
-
-    // Fire all 5 in parallel
-    const results = await Promise.all(
-      promptEntries.map(({ label, prompt }) =>
-        generateStudioImage(imageBase64, mimeType, prompt)
-          .then((r) => ({
-            label,
-            base64: r.resultBase64,
-            mimeType: r.resultMimeType,
-            text: r.text,
-            error: false,
-          }))
-          .catch((e) => ({
-            label,
-            base64: "",
-            mimeType: "image/png",
-            text: `${label} failed: ${e.message}`,
-            error: true,
-          }))
-      )
-    );
-
-    const images: PackImage[] = results
-      .filter((r) => r.base64)
-      .map((r) => ({
-        label: r.label,
-        base64: r.base64,
-        mimeType: r.mimeType,
-        text: r.text,
-      }));
-
-    if (images.length === 0) {
+    const bg = getJewelryBackgroundById(backgroundId);
+    if (!bg) {
       return NextResponse.json(
-        {
-          success: false,
-          error: "All 5 generations failed. Please try again.",
-        },
-        { status: 500 }
+        { success: false, error: "Invalid background selected" },
+        { status: 400 }
       );
     }
 
-    // Crop to exact aspect ratio (+ circular mask if needed)
-    console.log(
-      `Cropping to ${ratio.width}x${ratio.height}${ratio.circular ? " (circular)" : ""}...`
-    );
-    for (let i = 0; i < images.length; i++) {
+    // ── Step 0: Flatten transparency + AI background removal ──
+    // This gives all subsequent steps a clean jewelry-on-white input
+    console.log("Step 0: Flattening transparency & removing background...");
+
+    const flatBase64 = await flattenToWhite(imageBase64);
+    const flatDataUri = `data:image/png;base64,${flatBase64}`;
+
+    let cleanImage: { base64: string; mimeType: string };
+    try {
+      cleanImage = await removeBackground(flatDataUri, "image/png");
+      console.log("Background removal complete — clean white-bg image ready.");
+    } catch (err) {
+      console.warn("Background removal failed, using flattened original:", err);
+      cleanImage = { base64: flatBase64, mimeType: "image/png" };
+    }
+
+    // Use the cleaned image for all generation steps
+    const cleanDataUri = `data:${cleanImage.mimeType};base64,${cleanImage.base64}`;
+    const cleanMime = cleanImage.mimeType;
+
+    // Build prompts
+    const prompts = buildJewelryPackPrompts(bg.prompt);
+    const compositionHint = "\n\nOutput a perfect 1:1 square image. Jewelry centered with balanced space on all sides.";
+
+    const images: PackImage[] = [];
+
+    if (onlyHero) {
+      // ── Step 1: Hero Shot ──
+      console.log("Generating Hero Shot from cleaned image...");
+      const heroResult = await generateStudioImage(
+        cleanDataUri,
+        cleanMime,
+        prompts.hero + compositionHint,
+        "1:1"
+      );
+
+      let heroB64 = heroResult.resultBase64;
       try {
-        images[i].base64 = await cropToRatio(
-          images[i].base64,
-          ratio.width,
-          ratio.height,
-          !!ratio.circular
-        );
-        images[i].mimeType = "image/png";
+        heroB64 = await cropToRatio(heroB64, targetSize, targetSize, false, true);
       } catch (err) {
-        console.error(`Crop failed for jewelry image ${i}:`, err);
+        console.error("Hero resize failed:", err);
       }
-    }
 
-    // Apply logo overlay if provided (after crop so logo is in final frame)
-    if (logoBase64) {
-      const rawLogo = logoBase64.replace(/^data:image\/\w+;base64,/, "");
-      console.log("Applying brand logo overlay...");
-      for (let i = 0; i < images.length; i++) {
+      images.push({
+        label: "Hero Shot",
+        base64: heroB64,
+        mimeType: "image/png",
+        text: heroResult.text,
+      });
+
+      console.log("Hero Shot complete.");
+
+    } else if (onlyRest) {
+      // ── Step 2: Close-up (Sharp crop) + Alternate Angle (AI) ──
+      const heroSource = heroBase64 || cleanDataUri;
+
+      const [closeupB64, angleResult] = await Promise.all([
+        createCloseupCrop(heroSource, targetSize).catch((err) => {
+          console.error("Close-up crop failed:", err);
+          return null;
+        }),
+        generateStudioImage(
+          cleanDataUri,
+          cleanMime,
+          prompts.angle + compositionHint,
+          "1:1"
+        ).catch((err) => {
+          console.error("Alternate angle failed:", err);
+          return null;
+        }),
+      ]);
+
+      if (closeupB64) {
+        images.push({
+          label: "Close-up Detail",
+          base64: closeupB64,
+          mimeType: "image/png",
+        });
+      }
+
+      if (angleResult) {
+        let angleB64 = angleResult.resultBase64;
         try {
-          images[i].base64 = await compositeLogoOnImage(
-            images[i].base64,
-            rawLogo
-          );
-          images[i].mimeType = "image/png";
+          angleB64 = await cropToRatio(angleB64, targetSize, targetSize, false, true);
         } catch (err) {
-          console.error(`Logo overlay failed for jewelry image ${i}:`, err);
+          console.error("Angle resize failed:", err);
         }
+        images.push({
+          label: "Alternate Angle",
+          base64: angleB64,
+          mimeType: "image/png",
+          text: angleResult.text,
+        });
       }
+
+      console.log(`Rest complete: ${images.length} images generated.`);
+
+    } else {
+      // Full pack fallback
+      console.log("Generating full pack (3 images)...");
+
+      const heroResult = await generateStudioImage(
+        cleanDataUri,
+        cleanMime,
+        prompts.hero + compositionHint,
+        "1:1"
+      );
+
+      let heroB64 = heroResult.resultBase64;
+      try {
+        heroB64 = await cropToRatio(heroB64, targetSize, targetSize, false, true);
+      } catch (err) {
+        console.error("Hero resize failed:", err);
+      }
+
+      images.push({
+        label: "Hero Shot",
+        base64: heroB64,
+        mimeType: "image/png",
+        text: heroResult.text,
+      });
+
+      const [closeupB64, angleResult] = await Promise.all([
+        createCloseupCrop(`data:image/png;base64,${heroB64}`, targetSize).catch(() => null),
+        generateStudioImage(
+          cleanDataUri,
+          cleanMime,
+          prompts.angle + compositionHint,
+          "1:1"
+        ).catch(() => null),
+      ]);
+
+      if (closeupB64) {
+        images.push({ label: "Close-up Detail", base64: closeupB64, mimeType: "image/png" });
+      }
+      if (angleResult) {
+        let angleB64 = angleResult.resultBase64;
+        try {
+          angleB64 = await cropToRatio(angleB64, targetSize, targetSize, false, true);
+        } catch (err) {
+          console.error("Angle resize failed:", err);
+        }
+        images.push({ label: "Alternate Angle", base64: angleB64, mimeType: "image/png", text: angleResult.text });
+      }
+
+      console.log(`Full pack complete: ${images.length}/3 images.`);
     }
 
-    console.log(`Jewelry pack complete! ${images.length}/5 images generated.`);
+    if (images.length === 0) {
+      return NextResponse.json(
+        { success: false, error: "Generation failed. Please try again." },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ success: true, images });
   } catch (error) {
@@ -187,10 +300,7 @@ export async function POST(
     return NextResponse.json(
       {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "An unexpected error occurred",
+        error: error instanceof Error ? error.message : "An unexpected error occurred",
       },
       { status: 500 }
     );
