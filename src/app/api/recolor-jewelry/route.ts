@@ -3,6 +3,7 @@ import { generateStudioImage } from "@/lib/gemini";
 import { getRatioById, DEFAULT_RATIO } from "@/lib/aspect-ratios";
 import { cropToRatio } from "@/lib/crop-to-ratio";
 import { addWatermark } from "@/lib/watermark";
+import { getClientId, trackGeneration, trackImage, uploadImage } from "@/lib/track-usage";
 
 export const maxDuration = 120;
 
@@ -91,6 +92,33 @@ OUTPUT: The same image with ONLY the metal color changed. Everything else identi
     }
 
     console.log("Jewelry recolor complete!");
+
+    // Track usage (non-blocking)
+    const clientId = await getClientId();
+    if (clientId) {
+      (async () => {
+        try {
+          const genId = await trackGeneration({
+            clientId,
+            generationType: "recolor",
+            tokenUsage: result.tokenUsage,
+            model: "gemini-2.5-flash-image",
+          });
+          const uploaded = await uploadImage(clientId, finalBase64, "Recolored");
+          if (uploaded) {
+            await trackImage({
+              generationId: genId,
+              clientId,
+              label: `Recolored (${colorDesc})`,
+              storagePath: uploaded.path,
+              fileSizeBytes: uploaded.size,
+            });
+          }
+        } catch (err) {
+          console.error("Tracking error (non-fatal):", err);
+        }
+      })();
+    }
 
     return NextResponse.json({
       success: true,

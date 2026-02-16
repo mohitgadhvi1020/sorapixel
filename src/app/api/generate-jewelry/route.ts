@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateStudioImage } from "@/lib/gemini";
+import { generateStudioImage, TokenUsage } from "@/lib/gemini";
 import {
   getJewelryBackgroundById,
   buildJewelryPackPrompts,
 } from "@/lib/jewelry-styles";
 import { cropToRatio } from "@/lib/crop-to-ratio";
 import { addWatermark } from "@/lib/watermark";
+import { getClientId, trackGeneration, trackImage, uploadImage } from "@/lib/track-usage";
 import sharp from "sharp";
 
 export const maxDuration = 180;
@@ -16,6 +17,8 @@ interface PackImage {
   watermarkedBase64: string;
   mimeType: string;
   text?: string;
+  imageId?: string;
+  tokenUsage?: TokenUsage;
 }
 
 interface GenerateJewelryResponse {
@@ -190,6 +193,7 @@ export async function POST(
           watermarkedBase64: "",
           mimeType: "image/png",
           text: heroResult.text,
+          tokenUsage: heroResult.tokenUsage,
         });
       } else if (regenerateSingle === "closeup") {
         console.log("Regenerating Close-up Detail...");
@@ -221,6 +225,7 @@ export async function POST(
           watermarkedBase64: "",
           mimeType: "image/png",
           text: angleResult.text,
+          tokenUsage: angleResult.tokenUsage,
         });
       }
       console.log(`Single regeneration complete: ${regenerateSingle}`);
@@ -248,6 +253,7 @@ export async function POST(
         watermarkedBase64: "",
         mimeType: "image/png",
         text: heroResult.text,
+        tokenUsage: heroResult.tokenUsage,
       });
 
       console.log("Hero Shot complete.");
@@ -294,6 +300,7 @@ export async function POST(
           watermarkedBase64: "",
           mimeType: "image/png",
           text: angleResult.text,
+          tokenUsage: angleResult.tokenUsage,
         });
       }
 
@@ -323,6 +330,7 @@ export async function POST(
         watermarkedBase64: "",
         mimeType: "image/png",
         text: heroResult.text,
+        tokenUsage: heroResult.tokenUsage,
       });
 
       const [closeupB64, angleResult] = await Promise.all([
@@ -345,7 +353,7 @@ export async function POST(
         } catch (err) {
           console.error("Angle resize failed:", err);
         }
-        images.push({ label: "Alternate Angle", base64: angleB64, watermarkedBase64: "", mimeType: "image/png", text: angleResult.text });
+        images.push({ label: "Alternate Angle", base64: angleB64, watermarkedBase64: "", mimeType: "image/png", text: angleResult.text, tokenUsage: angleResult.tokenUsage });
       }
 
       console.log(`Full pack complete: ${images.length}/3 images.`);
@@ -367,6 +375,44 @@ export async function POST(
         console.error(`Watermark failed for image ${i}:`, err);
         images[i].watermarkedBase64 = images[i].base64;
       }
+    }
+
+    // ── Track usage & store images (non-blocking) ──
+    const clientId = await getClientId();
+    if (clientId) {
+      (async () => {
+        try {
+          for (const img of images) {
+            // Track generation
+            const genType = img.label.toLowerCase().includes("hero")
+              ? "hero"
+              : img.label.toLowerCase().includes("close")
+              ? "closeup"
+              : "angle";
+            const genId = await trackGeneration({
+              clientId,
+              generationType: genType,
+              tokenUsage: img.tokenUsage,
+              model: "gemini-2.5-flash-image",
+            });
+
+            // Upload to storage
+            const uploaded = await uploadImage(clientId, img.base64, img.label);
+            if (uploaded) {
+              const imageId = await trackImage({
+                generationId: genId,
+                clientId,
+                label: img.label,
+                storagePath: uploaded.path,
+                fileSizeBytes: uploaded.size,
+              });
+              img.imageId = imageId || undefined;
+            }
+          }
+        } catch (err) {
+          console.error("Tracking/storage error (non-fatal):", err);
+        }
+      })();
     }
 
     return NextResponse.json({ success: true, images });

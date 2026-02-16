@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import UploadZone from "@/components/upload-zone";
 import BeforeAfterSlider from "@/components/before-after-slider";
-import PasswordGate from "@/components/password-gate";
 import { safeFetch } from "@/lib/safe-fetch";
 import {
   JEWELRY_TYPES,
@@ -23,6 +23,7 @@ interface ResultImage {
   label: string;
   dataUri: string;
   previewUri: string;
+  imageId?: string;
 }
 
 export default function JewelryPage() {
@@ -48,6 +49,14 @@ export default function JewelryPage() {
   const [recolorTarget, setRecolorTarget] = useState("");
   const [recoloringIndex, setRecoloringIndex] = useState<number | null>(null);
   const [recoloringAll, setRecoloringAll] = useState(false);
+
+  // Admin check
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    safeFetch<{ authenticated: boolean; user?: { isAdmin: boolean } }>("/api/auth/me")
+      .then((d) => { if (d.user?.isAdmin) setIsAdmin(true); })
+      .catch(() => {});
+  }, []);
 
   // Listing rewriter
   const [rawTitle, setRawTitle] = useState("");
@@ -126,7 +135,7 @@ export default function JewelryPage() {
 
       const data = await safeFetch<{
         success: boolean;
-        images?: { label: string; base64: string; mimeType: string }[];
+        images?: { label: string; base64: string; mimeType: string; imageId?: string }[];
         error?: string;
       }>("/api/generate-jewelry", {
         method: "POST",
@@ -135,12 +144,13 @@ export default function JewelryPage() {
       });
 
       if (!data.success) throw new Error(data.error || "Generation failed");
-      const images = (data.images ?? []).map((img: { label: string; base64: string; watermarkedBase64?: string; mimeType: string }) => ({
+      const images = (data.images ?? []).map((img: { label: string; base64: string; watermarkedBase64?: string; mimeType: string; imageId?: string }) => ({
         label: img.label,
         dataUri: `data:${img.mimeType};base64,${img.base64}`,
         previewUri: img.watermarkedBase64
           ? `data:${img.mimeType};base64,${img.watermarkedBase64}`
           : `data:${img.mimeType};base64,${img.base64}`,
+        imageId: img.imageId,
       }));
       if (images.length > 0) {
         setHeroImage(images[0]);
@@ -171,7 +181,7 @@ export default function JewelryPage() {
 
       const data = await safeFetch<{
         success: boolean;
-        images?: { label: string; base64: string; mimeType: string }[];
+        images?: { label: string; base64: string; mimeType: string; imageId?: string }[];
         error?: string;
       }>("/api/generate-jewelry", {
         method: "POST",
@@ -180,12 +190,13 @@ export default function JewelryPage() {
       });
 
       if (!data.success) throw new Error(data.error || "Generation failed");
-      const images = (data.images ?? []).map((img: { label: string; base64: string; watermarkedBase64?: string; mimeType: string }) => ({
+      const images = (data.images ?? []).map((img: { label: string; base64: string; watermarkedBase64?: string; mimeType: string; imageId?: string }) => ({
         label: img.label,
         dataUri: `data:${img.mimeType};base64,${img.base64}`,
         previewUri: img.watermarkedBase64
           ? `data:${img.mimeType};base64,${img.watermarkedBase64}`
           : `data:${img.mimeType};base64,${img.base64}`,
+        imageId: img.imageId,
       }));
       setRestImages(images);
       setStep("all-done");
@@ -195,18 +206,29 @@ export default function JewelryPage() {
     }
   }, [imageBase64, heroImage, buildPayload]);
 
-  const downloadImage = useCallback((dataUri: string, label: string) => {
-    const a = document.createElement("a");
-    a.href = dataUri;
-    a.download = `sorapixel-jewelry-${label.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}.png`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+  const downloadImage = useCallback((dataUri: string, label: string, imageId?: string) => {
+    if (imageId) {
+      // Use tracked download API
+      const a = document.createElement("a");
+      a.href = `/api/download?imageId=${imageId}`;
+      a.download = `sorapixel-jewelry-${label.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } else {
+      // Fallback: direct data URI download
+      const a = document.createElement("a");
+      a.href = dataUri;
+      a.download = `sorapixel-jewelry-${label.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
   }, []);
 
   const handleDownloadAll = useCallback(() => {
     allImages.forEach((img, i) => {
-      setTimeout(() => downloadImage(img.dataUri, img.label), i * 300);
+      setTimeout(() => downloadImage(img.dataUri, img.label, img.imageId), i * 300);
     });
   }, [allImages, downloadImage]);
 
@@ -449,10 +471,19 @@ export default function JewelryPage() {
     !!jewelryType &&
     !!backgroundId;
 
+  const router = useRouter();
+
+  const handleLogout = useCallback(async () => {
+    try {
+      await safeFetch("/api/auth/logout", { method: "POST" });
+    } catch { /* ignore */ }
+    sessionStorage.removeItem("sorapixel_auth");
+    router.replace("/login");
+  }, [router]);
+
   // ─── Render ──────────────────────────────────────────────────
 
   return (
-    <PasswordGate>
       <div className="min-h-screen bg-[#fafaf8]">
         {/* Header */}
         <header className="glass border-b border-[#e8e5df] sticky top-0 z-50">
@@ -468,12 +499,19 @@ export default function JewelryPage() {
               </span>
             </a>
             <div className="flex items-center gap-3 sm:gap-4">
-              {/* Studio disabled for now */}
               {(imageBase64 || hasResults) && (
                 <button onClick={handleReset} className="text-sm text-[#8c8c8c] hover:text-[#1b1b1f] transition-colors duration-300">
                   Start over
                 </button>
               )}
+              {isAdmin && (
+                <a href="/admin" className="text-xs font-medium text-[#8b7355] bg-[#f5f0e8] px-2.5 py-1 rounded-md hover:bg-[#ece3d3] transition-colors duration-300">
+                  Admin
+                </a>
+              )}
+              <button onClick={handleLogout} className="text-sm text-[#8c8c8c] hover:text-[#1b1b1f] transition-colors duration-300">
+                Logout
+              </button>
             </div>
           </div>
         </header>
@@ -509,7 +547,7 @@ export default function JewelryPage() {
                       key={index}
                       img={img}
                       onExpand={() => setExpandedIndex(expandedIndex === index ? null : index)}
-                      onDownload={() => downloadImage(img.dataUri, img.label)}
+                      onDownload={() => downloadImage(img.dataUri, img.label, img.imageId)}
                       onRegenerate={() => handleRegenerateSingle(index)}
                       isRegenerating={regeneratingIndex === index}
                     />
@@ -1082,7 +1120,6 @@ export default function JewelryPage() {
           )}
         </main>
       </div>
-    </PasswordGate>
   );
 }
 

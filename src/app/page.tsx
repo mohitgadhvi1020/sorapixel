@@ -25,7 +25,18 @@ export default function HomePage() {
             >
               Try-On
             </Link>
-            {/* Studio disabled for now */}
+            <Link
+              href="/admin"
+              className="px-3 py-2 sm:px-4 sm:py-2.5 text-xs font-medium text-[#8b7355] bg-[#f5f0e8] rounded-lg hover:bg-[#ece3d3] transition-all duration-300 active:scale-[0.97]"
+            >
+              Admin
+            </Link>
+            <Link
+              href="/login"
+              className="px-3 py-2 sm:px-4 sm:py-2.5 text-white text-sm font-medium bg-gradient-to-r from-[#8b7355] to-[#6b5740] rounded-lg transition-all duration-300 active:scale-[0.97]"
+            >
+              Login
+            </Link>
           </div>
         </div>
       </header>

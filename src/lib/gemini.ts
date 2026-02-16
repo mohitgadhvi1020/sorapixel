@@ -60,12 +60,18 @@ export async function withRetry<T>(
  *
  * Single API call — no mask, no pipeline, just works.
  */
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+}
+
 export async function generateStudioImage(
   imageBase64: string,
   mimeType: string,
   prompt: string,
   aspectRatio?: string
-): Promise<{ resultBase64: string; resultMimeType: string; text?: string }> {
+): Promise<{ resultBase64: string; resultMimeType: string; text?: string; tokenUsage?: TokenUsage }> {
   const ai = getClient();
 
   // Strip data URI prefix if present
@@ -123,7 +129,16 @@ export async function generateStudioImage(
     );
   }
 
-  return { resultBase64, resultMimeType, text };
+  const usage = response.usageMetadata;
+  const tokenUsage: TokenUsage | undefined = usage
+    ? {
+        inputTokens: usage.promptTokenCount ?? 0,
+        outputTokens: usage.candidatesTokenCount ?? 0,
+        totalTokens: usage.totalTokenCount ?? 0,
+      }
+    : undefined;
+
+  return { resultBase64, resultMimeType, text, tokenUsage };
 }
 
 /**
@@ -138,7 +153,7 @@ export async function generateStudioImageMultiRef(
   images: { base64: string; mimeType: string }[],
   prompt: string,
   aspectRatio?: string
-): Promise<{ resultBase64: string; resultMimeType: string; text?: string }> {
+): Promise<{ resultBase64: string; resultMimeType: string; text?: string; tokenUsage?: TokenUsage }> {
   const ai = getClient();
 
   // Build content parts: prompt text first, then all images
@@ -198,7 +213,16 @@ export async function generateStudioImageMultiRef(
     );
   }
 
-  return { resultBase64, resultMimeType, text };
+  const usage2 = response.usageMetadata;
+  const tokenUsage: TokenUsage | undefined = usage2
+    ? {
+        inputTokens: usage2.promptTokenCount ?? 0,
+        outputTokens: usage2.candidatesTokenCount ?? 0,
+        totalTokens: usage2.totalTokenCount ?? 0,
+      }
+    : undefined;
+
+  return { resultBase64, resultMimeType, text, tokenUsage };
 }
 
 /**

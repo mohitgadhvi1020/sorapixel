@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withRetry } from "@/lib/gemini";
 import { GoogleGenAI } from "@google/genai";
+import { getClientId, trackGeneration } from "@/lib/track-usage";
 
 export const maxDuration = 45;
 
@@ -311,6 +312,24 @@ ${OUTPUT_JSON_SCHEMA}`;
           productType: parsed.attributes?.productType || "[TBD]",
         },
       };
+
+      // Track usage (non-blocking)
+      const clientId = await getClientId();
+      if (clientId) {
+        const usage = response.usageMetadata;
+        trackGeneration({
+          clientId,
+          generationType: "listing",
+          tokenUsage: usage
+            ? {
+                inputTokens: usage.promptTokenCount ?? 0,
+                outputTokens: usage.candidatesTokenCount ?? 0,
+                totalTokens: usage.totalTokenCount ?? 0,
+              }
+            : null,
+          model: "gemini-2.5-flash",
+        }).catch((err) => console.error("Listing tracking error:", err));
+      }
 
       return NextResponse.json({ success: true, listing });
     } catch {
