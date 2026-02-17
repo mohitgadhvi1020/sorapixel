@@ -70,7 +70,7 @@ export default function BeforeAfterSlider({
         <img
           src={beforeSrc}
           alt="Before"
-          className="w-full h-full object-contain"
+          className="absolute inset-0 w-full h-full object-contain"
           draggable={false}
         />
       </div>

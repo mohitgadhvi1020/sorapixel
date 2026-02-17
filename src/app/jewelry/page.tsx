@@ -45,6 +45,10 @@ export default function JewelryPage() {
   // Regenerate single
   const [regeneratingIndex, setRegeneratingIndex] = useState<number | null>(null);
 
+  // Custom angle upload
+  const [customAngleUploading, setCustomAngleUploading] = useState(false);
+  const [customAngleOriginal, setCustomAngleOriginal] = useState<string | null>(null);
+
   // Recolor
   const [recolorTarget, setRecolorTarget] = useState("");
   const [recoloringIndex, setRecoloringIndex] = useState<number | null>(null);
@@ -86,16 +90,35 @@ export default function JewelryPage() {
 
   // ─── Handlers ────────────────────────────────────────────────
 
+  const cropToSquare = useCallback((base64: string): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const size = Math.min(img.naturalWidth, img.naturalHeight);
+        const x = (img.naturalWidth - size) / 2;
+        const y = (img.naturalHeight - size) / 2;
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(img, x, y, size, size, 0, 0, size, size);
+        resolve(canvas.toDataURL("image/png"));
+      };
+      img.src = base64;
+    });
+  }, []);
+
   const handleImageSelected = useCallback(
-    (base64: string, _preview: string) => {
-      setImageBase64(base64);
+    async (base64: string, _preview: string) => {
+      const squared = await cropToSquare(base64);
+      setImageBase64(squared);
       setHeroImage(null);
       setRestImages([]);
       setError(null);
       setStep("idle");
       setExpandedIndex(null);
     },
-    []
+    [cropToSquare]
   );
 
   const handleReset = useCallback(() => {
@@ -107,6 +130,7 @@ export default function JewelryPage() {
     setError(null);
     setStep("idle");
     setExpandedIndex(null);
+    setCustomAngleOriginal(null);
     setListing(null);
     setRawTitle("");
     setRawDescription("");
@@ -116,7 +140,8 @@ export default function JewelryPage() {
     imageBase64: imageBase64!,
     aspectRatioId: "square",
     backgroundId: backgroundId!,
-  }), [imageBase64, backgroundId]);
+    jewelryType: jewelryType || "ring",
+  }), [imageBase64, backgroundId, jewelryType]);
 
   // Step 1: Generate ONLY the hero shot
   const handleGenerateHero = useCallback(async () => {
@@ -291,6 +316,70 @@ export default function JewelryPage() {
       setRegeneratingIndex(null);
     }
   }, [imageBase64, backgroundId, heroImage, allImages, regeneratingIndex, buildPayload]);
+
+  // Custom angle upload — user provides their own angle photo
+  const handleCustomAngleUpload = useCallback(async (file: File) => {
+    if (!file || customAngleUploading) return;
+
+    setCustomAngleUploading(true);
+    setError(null);
+
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      // Store a square-cropped version for comparison display
+      const squaredOriginal = await cropToSquare(base64);
+      setCustomAngleOriginal(squaredOriginal);
+
+      const payload = buildPayload();
+      payload.customAngleBase64 = base64;
+
+      const data = await safeFetch<{
+        success: boolean;
+        images?: { label: string; base64: string; mimeType: string; imageId?: string; watermarkedBase64?: string }[];
+        error?: string;
+      }>("/api/generate-jewelry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!data.success || !data.images?.length) {
+        throw new Error(data.error || "Custom angle generation failed");
+      }
+
+      const img = data.images[0];
+      const dataUri = `data:${img.mimeType};base64,${img.base64}`;
+      const previewUri = img.watermarkedBase64
+        ? `data:${img.mimeType};base64,${img.watermarkedBase64}`
+        : dataUri;
+
+      const updated: ResultImage = {
+        label: "Alternate Angle",
+        dataUri,
+        previewUri,
+        imageId: img.imageId,
+      };
+
+      // Replace the angle image in restImages (index 1 = angle)
+      setRestImages((prev) => {
+        const newArr = [...prev];
+        const angleIdx = newArr.findIndex((r) => r.label.startsWith("Alternate"));
+        if (angleIdx >= 0) newArr[angleIdx] = updated;
+        else newArr.push(updated);
+        return newArr;
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Custom angle generation failed");
+    } finally {
+      setCustomAngleUploading(false);
+    }
+  }, [buildPayload, customAngleUploading, cropToSquare]);
 
   // Recolor a single image
   const handleRecolor = useCallback(
@@ -544,16 +633,21 @@ export default function JewelryPage() {
                       ? "grid-cols-1 min-[400px]:grid-cols-2 sm:grid-cols-3 max-w-4xl mx-auto"
                       : "grid-cols-2 sm:grid-cols-4"
                 }`}>
-                  {allImages.map((img, index) => (
-                    <ImageCard
-                      key={index}
-                      img={img}
-                      onExpand={() => setExpandedIndex(expandedIndex === index ? null : index)}
-                      onDownload={() => downloadImage(img.dataUri, img.label, img.imageId)}
-                      onRegenerate={() => handleRegenerateSingle(index)}
-                      isRegenerating={regeneratingIndex === index}
-                    />
-                  ))}
+                  {allImages.map((img, index) => {
+                    const isAngle = img.label.startsWith("Alternate");
+                    return (
+                      <ImageCard
+                        key={index}
+                        img={img}
+                        onExpand={() => setExpandedIndex(expandedIndex === index ? null : index)}
+                        onDownload={() => downloadImage(img.dataUri, img.label, img.imageId)}
+                        onRegenerate={() => handleRegenerateSingle(index)}
+                        isRegenerating={regeneratingIndex === index}
+                        onCustomUpload={isAngle && step === "all-done" ? handleCustomAngleUpload : undefined}
+                        isCustomUploading={isAngle ? customAngleUploading : false}
+                      />
+                    );
+                  })}
                 </div>
               </div>
 
@@ -585,7 +679,14 @@ export default function JewelryPage() {
                     </button>
                   </div>
                   <div className="w-full max-w-2xl mx-auto">
-                    <BeforeAfterSlider beforeSrc={imageBase64} afterSrc={expandedImage.previewUri} />
+                    <BeforeAfterSlider
+                      beforeSrc={
+                        expandedImage.label.startsWith("Alternate") && customAngleOriginal
+                          ? customAngleOriginal
+                          : imageBase64
+                      }
+                      afterSrc={expandedImage.previewUri}
+                    />
                   </div>
                 </div>
               )}
@@ -1171,13 +1272,20 @@ function ImageCard({
   onDownload,
   onRegenerate,
   isRegenerating,
+  onCustomUpload,
+  isCustomUploading,
 }: {
   img: ResultImage;
   onExpand: () => void;
   onDownload: () => void;
   onRegenerate?: () => void;
   isRegenerating?: boolean;
+  onCustomUpload?: (file: File) => void;
+  isCustomUploading?: boolean;
 }) {
+  const isBusy = isRegenerating || isCustomUploading;
+  const busyLabel = isCustomUploading ? "Processing your angle..." : "Regenerating...";
+
   return (
     <div className="group">
       {/* Label */}
@@ -1186,22 +1294,22 @@ function ImageCard({
       </p>
       {/* Image */}
       <div
-        className={`relative overflow-hidden bg-white cursor-pointer rounded-xl border border-[#e8e5df] transition-all duration-300 ${isRegenerating ? "opacity-50 pointer-events-none" : "hover:shadow-lg hover:shadow-black/8 hover:-translate-y-1"}`}
+        className={`relative overflow-hidden bg-white cursor-pointer rounded-xl border border-[#e8e5df] transition-all duration-300 ${isBusy ? "opacity-50 pointer-events-none" : "hover:shadow-lg hover:shadow-black/8 hover:-translate-y-1"}`}
         onClick={onExpand}
       >
         <div style={{ paddingBottom: "100%" }} className="relative w-full">
-          {isRegenerating ? (
+          {isBusy ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#f7f7f5]">
               <div className="relative w-10 h-10">
                 <div className="absolute inset-0 border-2 border-transparent border-t-[#8b7355] rounded-full animate-spin" />
               </div>
-              <span className="text-[11px] font-medium text-[#8c8c8c] uppercase tracking-wide">Regenerating...</span>
+              <span className="text-[11px] font-medium text-[#8c8c8c] uppercase tracking-wide">{busyLabel}</span>
             </div>
           ) : (
             <img src={img.previewUri} alt={img.label} className="absolute inset-0 w-full h-full object-cover" />
           )}
         </div>
-        {!isRegenerating && (
+        {!isBusy && (
           <div className="absolute inset-0 bg-black/0 sm:group-hover:bg-black/10 transition-all duration-300 flex items-end sm:items-center justify-center">
             <span className="sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-300 bg-white/90 sm:bg-white text-[#0a0a0a] text-[10px] sm:text-[11px] font-semibold px-3 sm:px-4 py-1.5 sm:py-2 rounded-full shadow-md uppercase tracking-wide mb-2 sm:mb-0 backdrop-blur-sm sm:backdrop-blur-none">
               Tap to Compare
@@ -1220,7 +1328,7 @@ function ImageCard({
         {onRegenerate && (
           <button
             onClick={(e) => { e.stopPropagation(); onRegenerate(); }}
-            disabled={isRegenerating}
+            disabled={isBusy}
             className="px-2.5 sm:px-3 py-2.5 text-[#8c8c8c] bg-white border border-[#e8e5df] rounded-lg hover:bg-[#f5f0e8] hover:text-[#8b7355] hover:border-[#c4a67d] transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
             title="Regenerate this image"
           >
@@ -1228,6 +1336,23 @@ function ImageCard({
           </button>
         )}
       </div>
+      {/* Custom angle upload option */}
+      {onCustomUpload && !isBusy && (
+        <label className="mt-2 flex items-center justify-center gap-1.5 py-2 text-[10px] sm:text-[11px] font-medium text-[#8b7355] bg-[#f5f0e8] border border-[#e8e5df] rounded-lg cursor-pointer hover:bg-[#ede5d8] hover:border-[#c4a67d] transition-all duration-200 active:scale-[0.98]">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+          Upload your own angle
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) onCustomUpload(f);
+              e.target.value = "";
+            }}
+          />
+        </label>
+      )}
     </div>
   );
 }

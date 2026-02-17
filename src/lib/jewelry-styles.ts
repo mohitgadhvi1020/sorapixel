@@ -83,16 +83,43 @@ export function getJewelryBackgroundById(
  * hero (background replace) and angle (slight perspective shift).
  * Close-up is handled via Sharp crop — no AI needed.
  */
-export function buildJewelryPackPrompts(backgroundPrompt: string): {
+// Type-specific angle descriptions for visually distinct alternate shots
+const ANGLE_BY_TYPE: Record<string, string> = {
+  ring: "Show the ring TILTED at a 45-degree angle, leaning slightly toward the camera — so the viewer can see both the TOP FACE (stones/setting) and the SIDE PROFILE (band thickness, setting height) simultaneously. The ring should rest on the surface at this tilt with a natural contact shadow beneath it.",
+
+  necklace: "Show the necklace in a FLAT-LAY composition — camera directly overhead looking straight down. The necklace is laid out in a natural open curve/arc shape on the surface, showing its full length and pendant. Natural drape with realistic contact shadow.",
+
+  earring: "Show the earring at a SIDE ANGLE — camera at roughly 30 degrees from the side, so the viewer can see the DROP/DANGLE depth, the hook/post attachment, and the three-dimensional form of the earring. Realistic contact shadow beneath it.",
+
+  bracelet: "Show the bracelet STANDING UPRIGHT in its natural circular form — camera at eye level, so the viewer sees the full circular shape from the front, revealing the clasp area and the depth of the design. Realistic contact shadow beneath it.",
+
+  bangle: "Show the bangle STANDING UPRIGHT in its circular form — camera at eye level or slightly above, displaying the full round silhouette and the width/thickness of the bangle. Realistic contact shadow beneath it.",
+
+  pendant: "Show the pendant at a TILTED ANGLE — camera at roughly 45 degrees from the side, so the viewer can see the pendant's depth/thickness, the bail, and how the pendant would hang. Realistic contact shadow.",
+
+  brooch: "Show the brooch at a SLIGHT TILT — camera at roughly 30 degrees from the side, revealing the three-dimensional depth of the design, any raised elements, and the pin mechanism on the back edge. Realistic contact shadow.",
+
+  anklet: "Show the anklet in a FLAT-LAY composition — camera directly overhead, the anklet laid out in a gentle open curve showing its full length, charms, and clasp detail. Realistic contact shadow.",
+
+  chain: "Show the chain in a FLAT-LAY composition — camera directly overhead, the chain arranged in an elegant S-curve or gentle loop on the surface, showing link detail and full length. Realistic contact shadow.",
+
+  set: "Show the jewelry set in a FLAT-LAY composition — camera directly overhead, each piece arranged with breathing space between them in a balanced editorial layout on the surface. Realistic contact shadows.",
+};
+
+export function buildJewelryPackPrompts(backgroundPrompt: string, jewelryType?: string): {
   hero: string;
   angle: string;
 } {
   const removeExtras = "Remove any hands, fingers, skin, body parts, display stands, boxes, or props — show ONLY the jewelry piece itself.";
 
-  return {
-    hero: `Edit this jewelry photograph. ${removeExtras} Replace ONLY the background. ${backgroundPrompt} Add soft, professional studio lighting that enhances the jewelry's natural brilliance, sparkle, and metal luster. The background must be uniform edge-to-edge — no dark corners, no vignette. CRITICAL PIXEL-PERFECT RULE: Every single stone, facet, prong, bezel, engraving, metal texture, chain link, clasp, and design element must remain EXACTLY identical to the original photograph — same count of stones, same arrangement, same metal color and finish, same proportions. Do NOT add, remove, or alter ANY detail of the jewelry. Only remove non-jewelry elements and change the background and lighting.`,
+  const pixelPerfect = "CRITICAL PIXEL-PERFECT RULE: Every single stone, facet, prong, bezel, engraving, metal texture, chain link, clasp, and design element must remain EXACTLY identical to the original photograph — same count of stones, same arrangement, same metal color and finish, same proportions. Do NOT add, remove, or alter ANY detail of the jewelry.";
 
-    angle: `Edit this jewelry photograph. ${removeExtras} Create a FLAT-LAY composition — camera positioned directly overhead looking straight down. The jewelry piece is laid flat, resting naturally on the surface. ${backgroundPrompt} Show realistic contact shadow where the jewelry meets the surface. Do NOT add ANY props, flowers, leaves, mirrors, or decorative elements — ONLY the jewelry piece on the background, nothing else. LIGHTING: Dramatic editorial side-lighting from the left creating gentle shadows on the surface, with a warm highlight on the metal. The surface should fill the entire frame edge-to-edge — no dark corners, no vignette. CRITICAL PIXEL-PERFECT RULE: Every single stone, facet, prong, bezel, engraving, metal texture, chain link, clasp, and design element must remain EXACTLY identical to the original photograph — same count of stones, same arrangement, same metal color and finish, same proportions. Do NOT add, remove, or alter ANY detail of the jewelry. Only change the viewing angle, background, and lighting.`,
+  const angleDesc = ANGLE_BY_TYPE[jewelryType || "ring"] || ANGLE_BY_TYPE.ring;
+
+  return {
+    hero: `Edit this jewelry photograph. ${removeExtras} Replace ONLY the background. ${backgroundPrompt} Add soft, professional studio lighting that enhances the jewelry's natural brilliance, sparkle, and metal luster. The background must be uniform edge-to-edge — no dark corners, no vignette. Do NOT change the camera angle, perspective, orientation, or viewing direction — keep the EXACT same angle as the original photo. Do NOT rotate, tilt, or reposition the jewelry in any way. ${pixelPerfect} Only remove non-jewelry elements and change the background and lighting.`,
+
+    angle: `RECOMPOSE this jewelry into a NEW CAMERA ANGLE. THIS IS THE MOST IMPORTANT INSTRUCTION: ${angleDesc} WHILE CHANGING THE ANGLE, you MUST preserve every minute detail of the jewelry — every stone count, every facet, every prong, every engraving, every texture, every metal finish EXACTLY as the original. If you cannot show a detail from this new angle, do NOT invent or guess — only show what would naturally be visible. ${removeExtras} Background: ${backgroundPrompt} Do NOT add ANY props — ONLY the jewelry piece on the background. LIGHTING: Dramatic editorial side-lighting from the left with a warm highlight on the metal. Background must fill the frame edge-to-edge — no dark corners, no vignette. ${pixelPerfect}`,
   };
 }
 

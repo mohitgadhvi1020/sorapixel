@@ -54,7 +54,7 @@ async function removeBackground(
   imageBase64: string,
   mimeType: string
 ): Promise<{ base64: string; mimeType: string }> {
-  const BG_REMOVAL_PROMPT = `Remove the background from this jewelry photo. Place the jewelry on a plain white background. Do NOT modify the jewelry in any way — keep every stone, metal detail, engraving, and design element exactly as-is. Only the background changes to white.`;
+  const BG_REMOVAL_PROMPT = `Remove the background from this jewelry photo. Place the jewelry on a plain white background. Do NOT modify the jewelry in any way — keep every stone, metal detail, engraving, and design element exactly as-is. Do NOT change the angle, perspective, orientation, or position of the jewelry — keep the EXACT same viewing angle as the original. Only the background changes to white.`;
 
   const result = await generateStudioImage(
     imageBase64,
@@ -109,10 +109,12 @@ export async function POST(
     const {
       imageBase64,
       backgroundId,
+      jewelryType,
       onlyHero,
       onlyRest,
       heroBase64,
       regenerateSingle,
+      customAngleBase64,
     } = body;
 
     if (!imageBase64) {
@@ -165,11 +167,106 @@ export async function POST(
     const cleanDataUri = `data:${cleanImage.mimeType};base64,${cleanImage.base64}`;
     const cleanMime = cleanImage.mimeType;
 
-    // Build prompts
-    const prompts = buildJewelryPackPrompts(bg.prompt);
+    // Build prompts (type-aware for angle variations)
+    const jType = jewelryType || "ring";
+    const prompts = buildJewelryPackPrompts(bg.prompt, jType);
     const compositionHint = "\n\nOutput a perfect 1:1 square image. Jewelry centered with balanced space on all sides.";
+    console.log(`Jewelry type: "${jType}" | Angle prompt snippet: "${prompts.angle.substring(0, 200)}..."`);
 
     const images: PackImage[] = [];
+
+    // ── Custom Angle: user uploaded their own angle photo ──
+    if (customAngleBase64) {
+      console.log("Custom angle upload — processing user-provided angle image...");
+
+      // Step 1: Flatten and remove background from the custom angle image
+      const customFlat = await flattenToWhite(customAngleBase64);
+      const customFlatUri = `data:image/png;base64,${customFlat}`;
+
+      let customClean: { base64: string; mimeType: string };
+      try {
+        customClean = await removeBackground(customFlatUri, "image/png");
+        console.log("Custom angle background removal complete.");
+      } catch (err) {
+        console.warn("Custom angle bg removal failed, using flattened:", err);
+        customClean = { base64: customFlat, mimeType: "image/png" };
+      }
+
+      // Step 2: Generate studio image with hero-style prompt (same bg, lighting)
+      const customCleanUri = `data:${customClean.mimeType};base64,${customClean.base64}`;
+      const customPrompt = `Edit this jewelry photograph. Remove any hands, fingers, skin, body parts, display stands, boxes, or props — show ONLY the jewelry piece itself. Replace ONLY the background. ${bg.prompt} Add soft, professional studio lighting that enhances the jewelry's natural brilliance, sparkle, and metal luster. The background must be uniform edge-to-edge — no dark corners, no vignette. CRITICAL PIXEL-PERFECT RULE: Every single stone, facet, prong, bezel, engraving, metal texture, chain link, clasp, and design element must remain EXACTLY identical to the original photograph — same count of stones, same arrangement, same metal color and finish, same proportions. Do NOT add, remove, or alter ANY detail of the jewelry. Only remove non-jewelry elements and change the background and lighting.${compositionHint}`;
+
+      const angleResult = await generateStudioImage(
+        customCleanUri,
+        customClean.mimeType,
+        customPrompt,
+        "1:1"
+      );
+
+      let angleB64 = angleResult.resultBase64;
+      try {
+        angleB64 = await cropToRatio(angleB64, targetSize, targetSize, false, true);
+      } catch (err) {
+        console.error("Custom angle resize failed:", err);
+      }
+
+      images.push({
+        label: "Alternate Angle",
+        base64: angleB64,
+        watermarkedBase64: "",
+        mimeType: "image/png",
+        text: angleResult.text,
+        tokenUsage: angleResult.tokenUsage,
+      });
+
+      console.log("Custom angle generation complete.");
+
+      // Add watermark
+      for (const img of images) {
+        try {
+          img.watermarkedBase64 = await addWatermark(img.base64);
+        } catch { /* ignore */ }
+      }
+
+      // Track
+      const clientId = await getClientId();
+      if (clientId) {
+        (async () => {
+          try {
+            const genId = await trackGeneration({
+              clientId,
+              generationType: "angle",
+              tokenUsage: angleResult.tokenUsage,
+              model: "gemini-2.5-flash-image",
+            });
+            const uploaded = await uploadImage(clientId, angleB64, "Custom Angle");
+            if (uploaded) {
+              const imageId = await trackImage({
+                generationId: genId,
+                clientId,
+                label: "Custom Angle",
+                storagePath: uploaded.path,
+                fileSizeBytes: uploaded.size,
+              });
+              if (imageId) images[0].imageId = imageId;
+            }
+          } catch (err) {
+            console.error("Tracking error (non-fatal):", err);
+          }
+        })();
+      }
+
+      return NextResponse.json({
+        success: true,
+        images: images.map((img) => ({
+          label: img.label,
+          base64: img.base64,
+          mimeType: img.mimeType,
+          watermarkedBase64: img.watermarkedBase64,
+          imageId: img.imageId,
+        })),
+      });
+    }
 
     if (regenerateSingle) {
       // ── Regenerate a single image ──
