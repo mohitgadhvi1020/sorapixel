@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServer } from "@/lib/supabase";
 import { isSupabaseConfigured } from "@/lib/auth";
+import { createClient } from "@supabase/supabase-js";
 
 const SESSION_COOKIE = "sb-session";
 
@@ -27,11 +28,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const sb = getSupabaseServer();
+    // Use a DISPOSABLE client for signInWithPassword so we don't
+    // taint the singleton service-role client with a user session.
+    const disposable = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { auth: { persistSession: false, autoRefreshToken: false } }
+    );
 
-    // Sign in with Supabase Auth
+    // Sign in with Supabase Auth (on disposable client)
     const { data: authData, error: authError } =
-      await sb.auth.signInWithPassword({ email, password });
+      await disposable.auth.signInWithPassword({ email, password });
 
     if (authError || !authData.user) {
       return NextResponse.json(
@@ -40,7 +47,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check if client is active
+    // Check if client is active (using service-role client for RLS bypass)
+    const sb = getSupabaseServer();
     const { data: client } = await sb
       .from("clients")
       .select("id, email, is_admin, is_active, company_name, contact_name")

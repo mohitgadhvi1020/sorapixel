@@ -53,32 +53,51 @@ export async function POST(req: NextRequest) {
   const sb = getSupabaseServer();
 
   // Create user in Supabase Auth
+  let userId: string;
   const { data: authData, error: authError } = await sb.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
   });
 
-  if (authError || !authData.user) {
+  if (authError) {
+    // If user already exists in Auth, look them up and ensure client row exists
+    if (authError.message?.includes("already been registered")) {
+      const { data: listData } = await sb.auth.admin.listUsers();
+      const existing = listData?.users?.find((u) => u.email === email);
+      if (!existing) {
+        return NextResponse.json(
+          { error: "User exists in Auth but could not be found" },
+          { status: 400 }
+        );
+      }
+      userId = existing.id;
+    } else {
+      return NextResponse.json(
+        { error: authError.message || "Failed to create user" },
+        { status: 400 }
+      );
+    }
+  } else if (!authData.user) {
     return NextResponse.json(
-      { error: authError?.message || "Failed to create user" },
+      { error: "Failed to create user" },
       { status: 400 }
     );
+  } else {
+    userId = authData.user.id;
   }
 
-  // Create client row
-  const { error: clientError } = await sb.from("clients").insert({
-    id: authData.user.id,
+  // Create client row (upsert to handle re-creation)
+  const { error: clientError } = await sb.from("clients").upsert({
+    id: userId,
     email,
     company_name: companyName || "",
     contact_name: contactName || "",
     is_active: true,
     is_admin: isAdminEmail(email),
-  });
+  }, { onConflict: "id" });
 
   if (clientError) {
-    // Rollback: delete the auth user
-    await sb.auth.admin.deleteUser(authData.user.id);
     return NextResponse.json(
       { error: clientError.message },
       { status: 500 }
@@ -88,7 +107,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     success: true,
     client: {
-      id: authData.user.id,
+      id: userId,
       email,
       companyName: companyName || "",
       contactName: contactName || "",
