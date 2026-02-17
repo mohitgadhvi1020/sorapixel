@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { safeFetch } from "@/lib/safe-fetch";
 
 export default function LoginPage() {
@@ -12,7 +13,6 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
 
-  // Check if already logged in
   useEffect(() => {
     (async () => {
       try {
@@ -22,7 +22,6 @@ export default function LoginPage() {
         }>("/api/auth/me");
 
         if (data.legacy) {
-          // Supabase not configured — check old sessionStorage gate
           const token = sessionStorage.getItem("sorapixel_auth");
           if (token === "authenticated") {
             router.replace("/jewelry");
@@ -60,7 +59,6 @@ export default function LoginPage() {
 
         if (data.success) {
           if (data.legacy) {
-            // Supabase not configured — fall back to old session storage
             sessionStorage.setItem("sorapixel_auth", "authenticated");
           }
           router.replace("/jewelry");
@@ -79,117 +77,145 @@ export default function LoginPage() {
 
   if (checking) {
     return (
-      <div className="min-h-screen bg-[#fafaf8] flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-[#e8e5df] border-t-[#8b7355] rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-white/10 border-t-[#c4a67d] rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#fafaf8] flex items-center justify-center px-4">
-      <div className="w-full max-w-sm animate-scale-in">
-        {/* Logo + branding */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center mb-4">
-            <img
-              src="/logo.png"
-              alt="SoraPixel"
-              className="w-12 h-12 object-contain"
-            />
+    <div className="min-h-screen flex flex-col lg:flex-row">
+      {/* ---- Left: Editorial image ---- */}
+      <div className="relative lg:w-[55%] min-h-[35vh] lg:min-h-screen overflow-hidden">
+        <img
+          src="https://images.unsplash.com/photo-1611591437281-460bfbe1220a?auto=format&fit=crop&w=1200&q=80"
+          alt="Jewelry photography"
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/30 to-transparent lg:bg-gradient-to-r lg:from-black/50 lg:via-black/20 lg:to-transparent" />
+
+        {/* Overlay content */}
+        <div className="relative z-10 h-full flex flex-col justify-between p-6 md:p-10 lg:p-14">
+          {/* Logo */}
+          <Link href="/" className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center border border-white/10">
+              <span className="text-white text-xs font-bold">SP</span>
+            </div>
+            <span className="font-display font-bold text-[15px] text-white/90">
+              SoraPixel
+            </span>
+          </Link>
+
+          {/* Bottom text */}
+          <div className="hidden lg:block">
+            <h2 className="font-display font-extrabold text-white uppercase tracking-[-0.03em] text-[2.5rem] xl:text-[3.5rem] leading-[0.92] mb-4">
+              Studio Quality
+              <br />
+              <span className="text-[#c4a67d]">In Seconds</span>
+            </h2>
+            <p className="text-white/50 text-[15px] max-w-sm leading-relaxed">
+              Transform raw product photos into professional studio shots with AI-powered photography.
+            </p>
           </div>
-          <h1 className="text-xl sm:text-2xl font-bold text-[#1b1b1f] tracking-tight">
-            Welcome to SoraPixel
-          </h1>
-          <p className="text-sm text-[#8c8c8c] mt-1.5">
-            Sign in to access the studio
-          </p>
         </div>
+      </div>
 
-        {/* Login form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-[#8c8c8c] uppercase tracking-wider mb-1.5">
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                if (error) setError("");
-              }}
-              placeholder="you@company.com"
-              autoFocus
-              disabled={loading}
-              className="w-full px-4 py-3 rounded-xl border border-[#e8e5df] bg-white text-[#1b1b1f] text-sm placeholder:text-[#c0bdb7] focus:outline-none focus:ring-2 focus:ring-[#8b7355]/30 focus:border-[#8b7355] disabled:opacity-50 transition-all duration-300"
-            />
+      {/* ---- Right: Login form ---- */}
+      <div className="flex-1 bg-[#f7f7f5] flex items-center justify-center px-5 py-12 lg:py-0">
+        <div className="w-full max-w-sm animate-scale-in">
+          {/* Mobile logo (hidden on desktop since it's on the image) */}
+          <div className="lg:hidden text-center mb-8">
+            <h2 className="font-display font-bold text-[#0a0a0a] text-xl uppercase tracking-tight">
+              SoraPixel
+            </h2>
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-[#8c8c8c] uppercase tracking-wider mb-1.5">
-              Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                if (error) setError("");
-              }}
-              placeholder="Enter your password"
-              disabled={loading}
-              className="w-full px-4 py-3 rounded-xl border border-[#e8e5df] bg-white text-[#1b1b1f] text-sm placeholder:text-[#c0bdb7] focus:outline-none focus:ring-2 focus:ring-[#8b7355]/30 focus:border-[#8b7355] disabled:opacity-50 transition-all duration-300"
-            />
+          {/* Heading */}
+          <div className="mb-8">
+            <span className="text-[11px] font-semibold text-[#8b7355] tracking-[0.12em] uppercase block mb-3">
+              Welcome Back
+            </span>
+            <h1 className="font-display font-bold text-[#0a0a0a] text-[1.5rem] sm:text-[1.75rem] uppercase tracking-[-0.02em] leading-tight">
+              Sign In To
+              <br />
+              <span className="text-[#8b7355]">Your Studio</span>
+            </h1>
+            <p className="text-sm text-[#8c8c8c] mt-3">
+              Access AI product photography tools
+            </p>
           </div>
 
-          {error && (
-            <p className="text-sm text-red-500 animate-slide-up-sm">{error}</p>
-          )}
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-[11px] font-semibold text-[#4a4a4a] uppercase tracking-[0.1em] mb-2">
+                Email
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (error) setError("");
+                }}
+                placeholder="you@company.com"
+                autoFocus
+                disabled={loading}
+                className="w-full px-4 py-3 rounded-lg border border-[#e8e5df] bg-white text-[#0a0a0a] text-sm placeholder:text-[#c0bdb7] focus:outline-none focus:ring-2 focus:ring-[#8b7355]/20 focus:border-[#8b7355] disabled:opacity-50 transition-all duration-200"
+              />
+            </div>
 
-          <button
-            type="submit"
-            disabled={!email.trim() || !password.trim() || loading}
-            className={`
-              w-full py-3 rounded-xl font-semibold text-sm transition-all duration-300
-              ${
-                email.trim() && password.trim() && !loading
-                  ? "bg-gradient-to-r from-[#8b7355] to-[#6b5740] text-white shadow-lg shadow-[#8b7355]/15 active:scale-[0.99]"
-                  : "bg-[#e8e5df] text-[#b0b0b0] cursor-not-allowed"
-              }
-            `}
-          >
-            {loading ? (
-              <span className="inline-flex items-center gap-2">
-                <svg
-                  className="w-4 h-4 animate-spin"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  />
-                </svg>
-                Signing in...
-              </span>
-            ) : (
-              "Sign In"
+            <div>
+              <label className="block text-[11px] font-semibold text-[#4a4a4a] uppercase tracking-[0.1em] mb-2">
+                Password
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (error) setError("");
+                }}
+                placeholder="Enter your password"
+                disabled={loading}
+                className="w-full px-4 py-3 rounded-lg border border-[#e8e5df] bg-white text-[#0a0a0a] text-sm placeholder:text-[#c0bdb7] focus:outline-none focus:ring-2 focus:ring-[#8b7355]/20 focus:border-[#8b7355] disabled:opacity-50 transition-all duration-200"
+              />
+            </div>
+
+            {error && (
+              <p className="text-sm text-red-500 animate-slide-up-sm">{error}</p>
             )}
-          </button>
-        </form>
 
-        <p className="text-center text-xs text-[#b0b0b0] mt-6">
-          AI Product Photography for Jewelry
-        </p>
+            <button
+              type="submit"
+              disabled={!email.trim() || !password.trim() || loading}
+              className={`w-full py-3.5 rounded-lg font-semibold text-[14px] transition-all duration-200 ${
+                email.trim() && password.trim() && !loading
+                  ? "bg-[#0a0a0a] text-white hover:bg-[#1a1a1a] active:scale-[0.99]"
+                  : "bg-[#e8e5df] text-[#b0b0b0] cursor-not-allowed"
+              }`}
+            >
+              {loading ? (
+                <span className="inline-flex items-center gap-2">
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Signing in...
+                </span>
+              ) : (
+                "Sign In"
+              )}
+            </button>
+          </form>
+
+          {/* Footer */}
+          <div className="mt-8 pt-6 border-t border-[#e8e5df]">
+            <p className="text-[12px] text-[#8c8c8c] text-center">
+              AI Product Photography for Jewelry & Kitchenware
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );

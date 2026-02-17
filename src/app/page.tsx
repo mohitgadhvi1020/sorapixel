@@ -1,54 +1,116 @@
 import Link from "next/link";
 
-/* ---------- placeholder gradient cards (replace with real images later) ---------- */
+/* ---------- Unsplash images for showcase grid ---------- */
 const showcaseItems = [
-  { id: 1, gradient: "from-amber-100 to-orange-200", label: "Jewelry", span: "col-span-2 row-span-2" },
-  { id: 2, gradient: "from-stone-200 to-stone-300", label: "Kitchenware", span: "" },
-  { id: 3, gradient: "from-slate-800 to-slate-900", label: "Dark Mode", span: "", dark: true },
-  { id: 4, gradient: "from-rose-100 to-pink-200", label: "Lifestyle", span: "" },
-  { id: 5, gradient: "from-emerald-100 to-teal-200", label: "Studio", span: "" },
-  { id: 6, gradient: "from-violet-100 to-purple-200", label: "Editorial", span: "col-span-2" },
-  { id: 7, gradient: "from-sky-100 to-blue-200", label: "Morning Light", span: "" },
-  { id: 8, gradient: "from-zinc-800 to-zinc-900", label: "Dramatic", span: "", dark: true },
+  {
+    id: 1,
+    src: "https://images.unsplash.com/photo-1601121141461-9d6647bca1ed?auto=format&fit=crop&w=800&q=80",
+    label: "Jewelry",
+  },
+  {
+    id: 2,
+    src: "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?auto=format&fit=crop&w=600&q=80",
+    label: "Kitchenware",
+  },
+  {
+    id: 3,
+    src: "https://images.unsplash.com/photo-1617038220319-276d3cfab638?auto=format&fit=crop&w=600&q=80",
+    label: "Dark Mode",
+    dark: true,
+  },
+  {
+    id: 4,
+    src: "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?auto=format&fit=crop&w=600&q=80",
+    label: "Lifestyle",
+  },
+  {
+    id: 5,
+    src: "https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?auto=format&fit=crop&w=600&q=80",
+    label: "Studio",
+  },
+  {
+    id: 6,
+    src: "https://images.unsplash.com/photo-1602173574767-37ac01994b2a?auto=format&fit=crop&w=800&q=80",
+    label: "Editorial",
+  },
+  {
+    id: 7,
+    src: "https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=600&q=80",
+    label: "Morning Light",
+  },
+  {
+    id: 8,
+    src: "https://images.unsplash.com/photo-1573408301185-9146fe634ad0?auto=format&fit=crop&w=600&q=80",
+    label: "Dramatic",
+    dark: true,
+  },
 ];
 
+/* ---------- Feature cards ---------- */
 const featureCards = [
   {
     title: "NEVER STOP CREATING",
     desc: "Upload any product photo and watch AI transform it into studio-quality imagery.",
-    gradient: "from-amber-200 via-orange-100 to-yellow-50",
+    src: "https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=600&q=80",
     size: "md:col-span-1 md:row-span-2",
   },
   {
     title: "CUSTOM STYLES",
     desc: "Choose from curated photography presets or describe your own scene.",
-    gradient: "from-rose-200 via-pink-100 to-rose-50",
+    src: "https://images.unsplash.com/photo-1588444837495-c6cfeb53f32d?auto=format&fit=crop&w=600&q=80",
     size: "",
   },
   {
     title: "INSTANT RESULTS",
     desc: "Get studio-quality images in seconds, not hours.",
-    gradient: "from-teal-200 via-emerald-100 to-green-50",
+    src: "https://images.unsplash.com/photo-1611085583191-a3b181a88401?auto=format&fit=crop&w=600&q=80",
     size: "",
   },
   {
     title: "AI-POWERED PRECISION",
     desc: "Product details stay pixel-perfect. No distortion, no artifacts.",
-    gradient: "from-violet-200 via-purple-100 to-indigo-50",
+    src: "https://images.unsplash.com/photo-1629224316810-9d8805b95e76?auto=format&fit=crop&w=800&q=80",
     size: "md:col-span-2",
   },
 ];
 
+/* ---------- Style presets ---------- */
 const stylePresets = [
-  { name: "Kitchen Counter", gradient: "from-amber-100 to-orange-50", icon: "01" },
-  { name: "Marble Surface", gradient: "from-stone-200 to-stone-100", icon: "02" },
-  { name: "Dramatic Dark", gradient: "from-zinc-800 to-zinc-900", icon: "03", dark: true },
-  { name: "Lifestyle Scene", gradient: "from-emerald-100 to-teal-50", icon: "04" },
-  { name: "Morning Light", gradient: "from-amber-50 to-yellow-100", icon: "05" },
-  { name: "Rustic Wood", gradient: "from-orange-200 to-amber-100", icon: "06" },
+  {
+    name: "Kitchen Counter",
+    src: "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?auto=format&fit=crop&w=600&q=80",
+    icon: "01",
+  },
+  {
+    name: "Marble Surface",
+    src: "https://images.unsplash.com/photo-1618220179428-22790b461013?auto=format&fit=crop&w=600&q=80",
+    icon: "02",
+  },
+  {
+    name: "Dramatic Dark",
+    src: "https://images.unsplash.com/photo-1617038220319-276d3cfab638?auto=format&fit=crop&w=600&q=80",
+    icon: "03",
+    dark: true,
+  },
+  {
+    name: "Lifestyle Scene",
+    src: "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=600&q=80",
+    icon: "04",
+  },
+  {
+    name: "Morning Light",
+    src: "https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=600&q=80",
+    icon: "05",
+  },
+  {
+    name: "Rustic Wood",
+    src: "https://images.unsplash.com/photo-1530018607912-eff2daa1bac4?auto=format&fit=crop&w=600&q=80",
+    icon: "06",
+  },
 ];
 
-const steps = [
+/* ---------- Use cases ---------- */
+const useCases = [
   {
     num: "01",
     title: "FOR PRODUCT BRANDS",
@@ -72,7 +134,6 @@ export default function HomePage() {
       {/* ===================== NAVBAR ===================== */}
       <header className="fixed top-0 left-0 right-0 z-50 glass border-b border-[#e8e5df]">
         <div className="max-w-[1400px] mx-auto px-5 md:px-8 lg:px-12 py-3 md:py-4 flex items-center justify-between">
-          {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5 group">
             <div className="w-8 h-8 rounded-full bg-[#0a0a0a] flex items-center justify-center">
               <span className="text-white text-xs font-bold">SP</span>
@@ -82,29 +143,28 @@ export default function HomePage() {
             </span>
           </Link>
 
-          {/* Nav Links */}
           <nav className="flex items-center gap-1 sm:gap-2">
             <Link
               href="/jewelry"
-              className="px-3 py-2 text-[13px] font-medium text-[#4a4a4a] rounded-lg hover:text-[#0a0a0a] hover:bg-black/[0.04] transition-all duration-200"
+              className="px-2.5 sm:px-3 py-2 text-[12px] sm:text-[13px] font-medium text-[#4a4a4a] rounded-lg hover:text-[#0a0a0a] hover:bg-black/[0.04] transition-all duration-200"
             >
               Jewelry
             </Link>
             <Link
               href="/tryon"
-              className="px-3 py-2 text-[13px] font-medium text-[#4a4a4a] rounded-lg hover:text-[#0a0a0a] hover:bg-black/[0.04] transition-all duration-200 hidden sm:block"
+              className="px-2.5 sm:px-3 py-2 text-[12px] sm:text-[13px] font-medium text-[#4a4a4a] rounded-lg hover:text-[#0a0a0a] hover:bg-black/[0.04] transition-all duration-200 hidden sm:block"
             >
               Try-On
             </Link>
             <Link
               href="/admin"
-              className="px-3 py-2 text-[13px] font-medium text-[#8b7355] bg-[#f5f0e8] rounded-lg hover:bg-[#ece3d3] transition-all duration-200 hidden md:block"
+              className="px-2.5 sm:px-3 py-2 text-[12px] sm:text-[13px] font-medium text-[#8b7355] bg-[#f5f0e8] rounded-lg hover:bg-[#ece3d3] transition-all duration-200 hidden md:block"
             >
               Admin
             </Link>
             <Link
               href="/login"
-              className="ml-1 px-4 py-2 text-[13px] font-semibold text-white bg-[#0a0a0a] rounded-lg hover:bg-[#1a1a1a] transition-all duration-200"
+              className="ml-0.5 sm:ml-1 px-3 sm:px-4 py-2 text-[12px] sm:text-[13px] font-semibold text-white bg-[#0a0a0a] rounded-lg hover:bg-[#1a1a1a] transition-all duration-200"
             >
               Login
             </Link>
@@ -113,20 +173,23 @@ export default function HomePage() {
       </header>
 
       {/* ===================== HERO ===================== */}
-      <section className="relative min-h-[85vh] md:min-h-screen flex items-center justify-center overflow-hidden bg-[#0a0a0a]">
-        {/* Background texture */}
-        <div className="absolute inset-0 opacity-30">
-          <div className="absolute inset-0 bg-gradient-to-br from-[#1a1a2e] via-[#0a0a0a] to-[#16213e]" />
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[#8b7355]/10 rounded-full blur-[120px]" />
-          <div className="absolute bottom-1/4 right-1/4 w-72 h-72 bg-[#c4a67d]/8 rounded-full blur-[100px]" />
+      <section className="relative min-h-[85vh] md:min-h-screen flex items-end overflow-hidden">
+        {/* Background image */}
+        <div className="absolute inset-0">
+          <img
+            src="https://images.unsplash.com/photo-1617038220319-276d3cfab638?auto=format&fit=crop&w=1920&q=80"
+            alt="Jewelry photography"
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/20" />
         </div>
 
         {/* Content */}
-        <div className="relative z-10 max-w-[1400px] mx-auto px-5 md:px-8 lg:px-12 py-32 md:py-40 w-full">
+        <div className="relative z-10 max-w-[1400px] mx-auto px-5 md:px-8 lg:px-12 pb-16 md:pb-24 pt-32 w-full">
           <div className="max-w-4xl">
             {/* Badge */}
             <div className="animate-slide-up">
-              <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/10 text-white/70 text-[11px] sm:text-xs font-medium tracking-[0.1em] uppercase rounded-full border border-white/10 mb-8 md:mb-10">
+              <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/10 text-white/70 text-[11px] sm:text-xs font-medium tracking-[0.1em] uppercase rounded-full border border-white/10 mb-8 md:mb-10 backdrop-blur-sm">
                 <span className="w-1.5 h-1.5 bg-[#c4a67d] rounded-full animate-pulse" />
                 AI-Powered Photography
               </span>
@@ -134,7 +197,7 @@ export default function HomePage() {
 
             {/* Headline */}
             <h1
-              className="font-display font-extrabold text-white uppercase leading-[0.92] tracking-[-0.03em] text-[2.75rem] sm:text-[4rem] md:text-[5.5rem] lg:text-[7rem] animate-slide-up"
+              className="font-display font-extrabold text-white uppercase leading-[0.92] tracking-[-0.03em] text-[2rem] min-[375px]:text-[2.5rem] sm:text-[4rem] md:text-[5.5rem] lg:text-[7rem] animate-slide-up"
               style={{ animationDelay: "100ms" }}
             >
               Elevate Your
@@ -146,7 +209,7 @@ export default function HomePage() {
 
             {/* Subtitle */}
             <p
-              className="mt-6 md:mt-8 text-[15px] md:text-[17px] text-white/50 max-w-md leading-relaxed animate-slide-up"
+              className="mt-6 md:mt-8 text-[15px] md:text-[17px] text-white/60 max-w-md leading-relaxed animate-slide-up"
               style={{ animationDelay: "200ms" }}
             >
               Studio-quality product photography in seconds.
@@ -178,7 +241,7 @@ export default function HomePage() {
           </div>
 
           {/* Scroll indicator */}
-          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex-col items-center gap-2 hidden md:flex">
+          <div className="absolute bottom-8 right-8 md:right-12 flex-col items-center gap-2 hidden md:flex">
             <span className="text-[10px] text-white/30 tracking-[0.2em] uppercase">Scroll</span>
             <div className="w-[1px] h-8 bg-gradient-to-b from-white/30 to-transparent animate-scroll-hint" />
           </div>
@@ -205,24 +268,36 @@ export default function HomePage() {
             </p>
           </div>
 
-          {/* Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-[3px] stagger-children">
-            {showcaseItems.map((item) => (
-              <div
-                key={item.id}
-                className={`relative overflow-hidden group cursor-pointer ${item.span} aspect-square img-zoom`}
-              >
+          {/* Grid — item 1 spans 2×2, item 6 spans 2 cols */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-px stagger-children bg-[#e8e5df]">
+            {showcaseItems.map((item) => {
+              const spanClass =
+                item.id === 1
+                  ? "col-span-2 row-span-2"
+                  : item.id === 6
+                    ? "col-span-2"
+                    : "";
+              return (
                 <div
-                  className={`img-inner absolute inset-0 bg-gradient-to-br ${item.gradient}`}
-                />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-500" />
-                <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4">
-                  <span className={`text-[11px] sm:text-xs font-semibold tracking-[0.08em] uppercase ${item.dark ? "text-white/70" : "text-black/50"}`}>
-                    {item.label}
-                  </span>
+                  key={item.id}
+                  className={`relative overflow-hidden group cursor-pointer img-zoom bg-[#1a1a1a] ${spanClass}`}
+                  style={{ aspectRatio: item.id === 6 ? "2/1" : "1/1" }}
+                >
+                  <img
+                    src={item.src}
+                    alt={item.label}
+                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-500" />
+                  <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                    <span className="text-[11px] sm:text-xs font-semibold tracking-[0.08em] uppercase text-white/90">
+                      {item.label}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
@@ -236,7 +311,7 @@ export default function HomePage() {
               <span className="text-[11px] sm:text-xs font-semibold text-[#8b7355] tracking-[0.12em] uppercase mb-4 block">
                 Why SoraPixel
               </span>
-              <h2 className="font-display font-bold text-[#0a0a0a] uppercase tracking-[-0.02em] text-[2rem] sm:text-[2.5rem] md:text-[3.25rem] leading-[0.95]">
+              <h2 className="font-display font-bold text-[#0a0a0a] uppercase tracking-[-0.02em] text-[1.75rem] min-[375px]:text-[2rem] sm:text-[2.5rem] md:text-[3.25rem] leading-[0.95]">
                 Studio Quality
                 <br />
                 Without
@@ -257,19 +332,29 @@ export default function HomePage() {
               </Link>
             </div>
 
-            {/* Right — Feature Cards */}
+            {/* Right — Feature Cards with images */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 stagger-children">
               {featureCards.map((card) => (
                 <div
                   key={card.title}
-                  className={`relative overflow-hidden rounded-xl p-6 sm:p-7 ${card.size} card-hover`}
+                  className={`relative overflow-hidden rounded-xl ${card.size} card-hover group`}
                 >
-                  <div className={`absolute inset-0 bg-gradient-to-br ${card.gradient}`} />
-                  <div className="relative z-10">
-                    <h3 className="font-display font-bold text-[#0a0a0a] text-[13px] sm:text-[14px] tracking-[0.04em] uppercase mb-2.5">
+                  {/* Image */}
+                  <div className="absolute inset-0">
+                    <img
+                      src={card.src}
+                      alt={card.title}
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                      loading="lazy"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/10" />
+                  </div>
+                  {/* Content */}
+                  <div className="relative z-10 p-6 sm:p-7 flex flex-col justify-end min-h-[200px]">
+                    <h3 className="font-display font-bold text-white text-[13px] sm:text-[14px] tracking-[0.04em] uppercase mb-2">
                       {card.title}
                     </h3>
-                    <p className="text-[#4a4a4a] text-[13px] leading-relaxed">
+                    <p className="text-white/70 text-[13px] leading-relaxed">
                       {card.desc}
                     </p>
                   </div>
@@ -283,7 +368,6 @@ export default function HomePage() {
       {/* ===================== STYLE PRESETS ===================== */}
       <section className="bg-white">
         <div className="max-w-[1400px] mx-auto px-5 md:px-8 lg:px-12 py-16 md:py-24">
-          {/* Header */}
           <div className="text-center mb-10 md:mb-14">
             <span className="text-[11px] sm:text-xs font-semibold text-[#8b7355] tracking-[0.12em] uppercase mb-3 block">
               Photography Styles
@@ -295,24 +379,26 @@ export default function HomePage() {
             </h2>
           </div>
 
-          {/* Style Grid */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 stagger-children">
             {stylePresets.map((style) => (
               <div
                 key={style.name}
-                className="relative overflow-hidden rounded-xl aspect-[4/3] group cursor-pointer img-zoom"
+                className="relative overflow-hidden rounded-xl aspect-[4/3] group cursor-pointer"
               >
-                <div className={`img-inner absolute inset-0 bg-gradient-to-br ${style.gradient}`} />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all duration-500" />
+                <img
+                  src={style.src}
+                  alt={style.name}
+                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                  loading="lazy"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
                 <div className="relative z-10 h-full flex flex-col justify-between p-5 sm:p-6">
-                  <span className={`font-display font-bold text-[32px] sm:text-[40px] md:text-[48px] leading-none ${style.dark ? "text-white/20" : "text-black/10"}`}>
+                  <span className="font-display font-bold text-[32px] sm:text-[40px] md:text-[48px] leading-none text-white/20">
                     {style.icon}
                   </span>
-                  <div>
-                    <h3 className={`font-display font-bold text-[14px] sm:text-[16px] tracking-[0.02em] uppercase ${style.dark ? "text-white" : "text-[#0a0a0a]"}`}>
-                      {style.name}
-                    </h3>
-                  </div>
+                  <h3 className="font-display font-bold text-[14px] sm:text-[16px] tracking-[0.02em] uppercase text-white">
+                    {style.name}
+                  </h3>
                 </div>
               </div>
             ))}
@@ -320,10 +406,9 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ===================== HOW IT WORKS (3 STEPS) ===================== */}
+      {/* ===================== HOW IT WORKS ===================== */}
       <section className="bg-[#f7f7f5] border-y border-[#e8e5df]">
         <div className="max-w-[1400px] mx-auto px-5 md:px-8 lg:px-12 py-16 md:py-24">
-          {/* Header */}
           <div className="mb-10 md:mb-14">
             <span className="text-[11px] sm:text-xs font-semibold text-[#8b7355] tracking-[0.12em] uppercase mb-3 block">
               How It Works
@@ -333,29 +418,40 @@ export default function HomePage() {
             </h2>
           </div>
 
-          {/* Steps */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-0 border-t border-[#e8e5df]">
             {[
               {
                 step: "01",
                 title: "Upload",
                 desc: "Drop in any product photo — even a phone picture works. Our AI removes backgrounds and optimizes automatically.",
+                img: "https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?auto=format&fit=crop&w=400&q=80",
               },
               {
                 step: "02",
                 title: "Choose Style",
                 desc: "Pick from curated photography presets or describe your own scene. Marble surface, rustic wood, lifestyle kitchen, and more.",
+                img: "https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&w=400&q=80",
               },
               {
                 step: "03",
                 title: "Download",
                 desc: "Get a studio-quality image in seconds. Product details stay pixel-perfect — no distortion, no artifacts.",
+                img: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=400&q=80",
               },
             ].map((item, i) => (
               <div
                 key={item.step}
                 className={`py-8 md:py-10 ${i < 2 ? "border-b md:border-b-0 md:border-r border-[#e8e5df]" : ""} ${i > 0 ? "md:pl-8 lg:pl-12" : ""} ${i < 2 ? "md:pr-8 lg:pr-12" : ""}`}
               >
+                {/* Step image */}
+                <div className="w-full aspect-[16/10] rounded-lg overflow-hidden mb-5">
+                  <img
+                    src={item.img}
+                    alt={item.title}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                </div>
                 <span className="font-display font-bold text-[#e8e5df] text-[48px] sm:text-[56px] md:text-[64px] leading-none block mb-4">
                   {item.step}
                 </span>
@@ -375,7 +471,7 @@ export default function HomePage() {
       <section className="bg-white border-b border-[#e8e5df]">
         <div className="max-w-[1400px] mx-auto px-5 md:px-8 lg:px-12 py-16 md:py-24">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
-            {steps.map((step) => (
+            {useCases.map((step) => (
               <div key={step.num}>
                 <span className="text-[11px] font-bold text-[#8b7355] tracking-[0.12em] uppercase block mb-3">
                   {step.num}
@@ -396,14 +492,18 @@ export default function HomePage() {
       <section className="bg-white border-b border-[#e8e5df]">
         <div className="max-w-[1400px] mx-auto px-5 md:px-8 lg:px-12">
           <div className="flex flex-wrap items-center gap-x-8 gap-y-3 py-5 md:py-6">
-            {["Get Help", "What's New", "Try SoraPixel"].map((link) => (
-              <a
-                key={link}
-                href="#"
+            {[
+              { label: "Get Help", href: "#" },
+              { label: "What's New", href: "#" },
+              { label: "Try SoraPixel", href: "/jewelry" },
+            ].map((link) => (
+              <Link
+                key={link.label}
+                href={link.href}
                 className="text-[13px] font-semibold text-[#4a4a4a] hover:text-[#0a0a0a] tracking-[0.04em] uppercase transition-colors duration-200"
               >
-                {link}
-              </a>
+                {link.label}
+              </Link>
             ))}
           </div>
         </div>
@@ -412,42 +512,33 @@ export default function HomePage() {
       {/* ===================== DARK CTA SECTION ===================== */}
       <section className="bg-[#0a0a0a] overflow-hidden">
         <div className="max-w-[1400px] mx-auto px-5 md:px-8 lg:px-12 py-20 md:py-32 relative">
-          {/* Background glow */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] bg-[#8b7355]/5 rounded-full blur-[120px]" />
-
           {/* Split heading */}
-          <div className="relative z-10 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-6 mb-16 md:mb-24">
-            <h2 className="font-display font-extrabold text-white uppercase tracking-[-0.03em] text-[2.5rem] sm:text-[3.5rem] md:text-[5rem] lg:text-[6rem] leading-[0.9]">
+          <div className="relative z-10 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 sm:gap-6 mb-10 sm:mb-12 md:mb-20">
+            <h2 className="font-display font-extrabold text-white uppercase tracking-[-0.03em] text-[2rem] min-[375px]:text-[2.5rem] sm:text-[3.5rem] md:text-[5rem] lg:text-[6rem] leading-[0.9]">
               For All
             </h2>
-            <h2 className="font-display font-extrabold text-white uppercase tracking-[-0.03em] text-[2.5rem] sm:text-[3.5rem] md:text-[5rem] lg:text-[6rem] leading-[0.9] sm:text-right">
+            <h2 className="font-display font-extrabold text-white uppercase tracking-[-0.03em] text-[2rem] min-[375px]:text-[2.5rem] sm:text-[3.5rem] md:text-[5rem] lg:text-[6rem] leading-[0.9] sm:text-right">
               Creators
             </h2>
           </div>
 
-          {/* Decorative grid */}
-          <div className="relative z-10 grid grid-cols-2 md:grid-cols-4 gap-[3px]">
-            <div className="aspect-[4/3] rounded-lg overflow-hidden">
-              <div className="w-full h-full bg-gradient-to-br from-[#1a1a1a] to-[#2a2a2a] flex items-center justify-center">
-                <svg className="w-10 h-10 text-white/10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={0.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
-                </svg>
+          {/* Image grid */}
+          <div className="relative z-10 grid grid-cols-2 md:grid-cols-4 gap-[3px] rounded-lg overflow-hidden">
+            {[
+              "https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?auto=format&fit=crop&w=500&q=80",
+              "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=500&q=80",
+              "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=500&q=80",
+              "https://images.unsplash.com/photo-1629224316810-9d8805b95e76?auto=format&fit=crop&w=500&q=80",
+            ].map((src, i) => (
+              <div key={i} className={`aspect-[4/3] overflow-hidden ${i >= 2 ? "hidden md:block" : ""}`}>
+                <img
+                  src={src}
+                  alt="Product photography"
+                  className="w-full h-full object-cover opacity-60 hover:opacity-80 transition-opacity duration-500"
+                  loading="lazy"
+                />
               </div>
-            </div>
-            <div className="aspect-[4/3] rounded-lg overflow-hidden">
-              <div className="w-full h-full bg-gradient-to-br from-[#8b7355]/20 to-[#8b7355]/5" />
-            </div>
-            <div className="aspect-[4/3] rounded-lg overflow-hidden hidden md:block">
-              <div className="w-full h-full bg-gradient-to-br from-[#1a1a1a] to-[#252525]" />
-            </div>
-            <div className="aspect-[4/3] rounded-lg overflow-hidden hidden md:block">
-              <div className="w-full h-full bg-gradient-to-br from-[#c4a67d]/10 to-[#8b7355]/5 flex items-center justify-center">
-                <svg className="w-10 h-10 text-[#c4a67d]/20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={0.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-                </svg>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </section>
@@ -456,7 +547,7 @@ export default function HomePage() {
       <section className="bg-[#0a0a0a] border-t border-white/5">
         <div className="max-w-[1400px] mx-auto px-5 md:px-8 lg:px-12 py-16 md:py-24">
           <div className="flex flex-col md:flex-row items-start md:items-end justify-between gap-8">
-            <h2 className="font-display font-extrabold text-white uppercase tracking-[-0.03em] text-[2rem] sm:text-[2.5rem] md:text-[3.5rem] leading-[0.95]">
+            <h2 className="font-display font-extrabold text-white uppercase tracking-[-0.03em] text-[1.75rem] min-[375px]:text-[2rem] sm:text-[2.5rem] md:text-[3.5rem] leading-[0.95]">
               So You Can
               <br />
               <span className="text-[#c4a67d]">Make It</span>
@@ -473,9 +564,8 @@ export default function HomePage() {
 
       {/* ===================== FOOTER ===================== */}
       <footer className="bg-[#0a0a0a] border-t border-white/5 safe-bottom">
-        <div className="max-w-[1400px] mx-auto px-5 md:px-8 lg:px-12 py-8 md:py-10">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
-            {/* Logo + Brand */}
+        <div className="max-w-[1400px] mx-auto px-5 md:px-8 lg:px-12 py-6 sm:py-8 md:py-10">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
             <div className="flex items-center gap-3">
               <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center">
                 <span className="text-white text-[10px] font-bold">SP</span>
@@ -485,8 +575,7 @@ export default function HomePage() {
               </span>
             </div>
 
-            {/* Footer Links */}
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+            <div className="flex flex-wrap items-center gap-x-5 sm:gap-x-6 gap-y-2">
               <Link href="/jewelry" className="text-[12px] text-white/40 hover:text-white/70 transition-colors duration-200 tracking-wide uppercase">
                 Jewelry
               </Link>
@@ -498,7 +587,6 @@ export default function HomePage() {
               </Link>
             </div>
 
-            {/* Copyright */}
             <span className="text-[11px] text-white/25 tracking-wide">
               AI Product Photography
             </span>

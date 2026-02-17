@@ -73,32 +73,29 @@ export default function TryOnPage() {
 
   return (
     <PasswordGate>
-      <div className="min-h-screen bg-[#fafaf8]">
+      <div className="min-h-screen bg-[#f7f7f5]">
         {/* Header */}
         <header className="glass border-b border-[#e8e5df] sticky top-0 z-50">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
-            <a href="/" className="flex items-center gap-2 group">
-              <img
-                src="/logo.png"
-                alt="SoraPixel"
-                className="w-7 h-7 sm:w-8 sm:h-8 object-contain transition-transform duration-300 group-hover:scale-105"
-              />
-              <span className="font-semibold text-base sm:text-lg tracking-tight text-[#1b1b1f]">
+          <div className="max-w-[1400px] mx-auto px-5 md:px-8 lg:px-12 py-3 md:py-4 flex items-center justify-between">
+            <a href="/" className="flex items-center gap-2.5 group">
+              <div className="w-8 h-8 rounded-full bg-[#0a0a0a] flex items-center justify-center">
+                <span className="text-white text-xs font-bold">SP</span>
+              </div>
+              <span className="font-display font-bold text-[15px] tracking-tight text-[#0a0a0a] hidden sm:block">
                 SoraPixel
               </span>
             </a>
-            <div className="flex items-center gap-3 sm:gap-4">
-              {/* Studio disabled for now */}
+            <div className="flex items-center gap-2 sm:gap-3">
               <a
                 href="/jewelry"
-                className="text-sm text-[#8c8c8c] hover:text-[#1b1b1f] transition-colors duration-300"
+                className="px-3 py-2 text-[13px] font-medium text-[#4a4a4a] rounded-lg hover:text-[#0a0a0a] hover:bg-black/[0.04] transition-all duration-200"
               >
                 Jewelry
               </a>
               {(jewelryBase64 || resultImage) && (
                 <button
                   onClick={handleReset}
-                  className="text-sm text-[#8c8c8c] hover:text-[#1b1b1f] transition-colors duration-300"
+                  className="px-3 py-2 text-[13px] font-medium text-[#4a4a4a] rounded-lg hover:text-[#0a0a0a] hover:bg-black/[0.04] transition-all duration-200"
                 >
                   Start over
                 </button>
@@ -107,17 +104,16 @@ export default function TryOnPage() {
           </div>
         </header>
 
-        <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+        <main className="max-w-[1400px] mx-auto px-5 md:px-8 lg:px-12 py-6 sm:py-10">
           {/* Page title */}
           <div className="text-center mb-8 sm:mb-10 animate-slide-up">
-            <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 bg-[#f5f0e8] text-[#8b7355] text-xs sm:text-sm font-medium rounded-full mb-4 border border-[#e8e5df]">
-              <span className="w-1.5 h-1.5 bg-[#8b7355] rounded-full animate-pulse" />
+            <span className="text-[11px] sm:text-xs font-semibold text-[#8b7355] tracking-[0.12em] uppercase mb-3 block">
               Virtual Try-On
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-[#1b1b1f] tracking-tight">
-              See it on you
+            </span>
+            <h1 className="font-display font-bold text-[#0a0a0a] text-2xl sm:text-3xl uppercase tracking-[-0.02em]">
+              See It On You
             </h1>
-            <p className="text-sm sm:text-base text-[#8c8c8c] mt-1.5 max-w-md mx-auto">
+            <p className="text-sm sm:text-base text-[#8c8c8c] mt-2 max-w-md mx-auto">
               Upload your jewelry and a photo — AI will generate a realistic try-on image
             </p>
           </div>
@@ -160,19 +156,19 @@ export default function TryOnPage() {
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2.5 sm:gap-3">
                 <button
                   onClick={handleDownload}
-                  className="px-6 py-3 bg-[#1b1b1f] text-white rounded-xl font-medium hover:bg-[#2d2d33] transition-all duration-300 active:scale-[0.97] text-center"
+                  className="px-7 py-3.5 bg-[#0a0a0a] text-white rounded-full text-[14px] font-semibold hover:bg-[#1a1a1a] transition-all duration-200 active:scale-[0.97] text-center"
                 >
                   Download Image
                 </button>
                 <button
                   onClick={() => { setResultImage(null); setError(null); }}
-                  className="px-6 py-3 bg-white text-[#1b1b1f] rounded-xl font-medium border border-[#e8e5df] hover:bg-[#f5f0e8] transition-all duration-300 active:scale-[0.97] text-center"
+                  className="px-7 py-3.5 bg-white text-[#4a4a4a] rounded-full text-[14px] font-medium border border-[#e8e5df] hover:bg-[#f5f0e8] hover:border-[#c4a67d] transition-all duration-200 active:scale-[0.97] text-center"
                 >
                   Try Again
                 </button>
                 <button
                   onClick={handleReset}
-                  className="px-6 py-3 text-[#8c8c8c] rounded-xl font-medium hover:text-[#1b1b1f] transition-all duration-300 active:scale-[0.97] text-center"
+                  className="px-5 py-3 text-[#8c8c8c] text-[13px] font-medium hover:text-[#0a0a0a] transition-colors duration-200 text-center"
                 >
                   New Try-On
                 </button>
@@ -255,16 +251,14 @@ export default function TryOnPage() {
                       <button
                         key={t.id}
                         onClick={() => setJewelryType(t.id)}
-                        className={`
-                          flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 text-sm font-medium transition-all duration-200 active:scale-[0.97]
-                          ${jewelryType === t.id
-                            ? "border-[#8b7355] bg-[#f5f0e8] text-[#1b1b1f] shadow-sm shadow-[#8b7355]/10"
-                            : "border-[#e8e5df] bg-white text-[#8c8c8c] hover:border-[#c4a67d]"
-                          }
-                        `}
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-[13px] font-medium transition-all duration-200 active:scale-[0.97] ${
+                          jewelryType === t.id
+                            ? "bg-[#0a0a0a] text-white shadow-sm"
+                            : "bg-white border border-[#e8e5df] text-[#4a4a4a] hover:border-[#c4a67d] hover:text-[#0a0a0a]"
+                        }`}
                       >
-                        <span>{t.icon}</span>
-                        {t.label}
+                        <span className="text-base">{t.icon}</span>
+                        <span>{t.label}</span>
                       </button>
                     ))}
                   </div>
@@ -333,7 +327,7 @@ export default function TryOnPage() {
                   <button
                     onClick={handleGenerate}
                     disabled={isGenerating}
-                    className="w-full sm:w-auto px-8 py-3.5 sm:py-4 bg-gradient-to-r from-[#8b7355] to-[#6b5740] text-white rounded-xl font-semibold text-base sm:text-lg transition-all duration-300 shadow-lg shadow-[#8b7355]/20 active:scale-[0.98] disabled:opacity-50 text-center"
+                    className="w-full sm:w-auto px-10 py-3.5 sm:py-4 bg-[#0a0a0a] text-white rounded-full font-semibold text-[15px] sm:text-base hover:bg-[#1a1a1a] transition-all duration-200 active:scale-[0.98] disabled:opacity-50 text-center"
                   >
                     Generate Try-On
                   </button>

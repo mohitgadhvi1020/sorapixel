@@ -59,8 +59,11 @@ export default function PasswordGate({ children }: PasswordGateProps) {
   // While checking sessionStorage, show nothing (prevents flash)
   if (checking) {
     return (
-      <div className="min-h-screen bg-[#fafaf8] flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-[#e8e5df] border-t-[#8b7355] rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#f7f7f5] flex items-center justify-center">
+        <div className="relative w-10 h-10">
+          <div className="absolute inset-0 border-2 border-[#e8e5df] rounded-full" />
+          <div className="absolute inset-0 border-2 border-transparent border-t-[#8b7355] rounded-full animate-spin" />
+        </div>
       </div>
     );
   }
@@ -70,17 +73,19 @@ export default function PasswordGate({ children }: PasswordGateProps) {
   }
 
   return (
-    <div className="min-h-screen bg-[#fafaf8] flex items-center justify-center px-4">
+    <div className="min-h-screen bg-[#f7f7f5] flex items-center justify-center px-5 sm:px-6">
       <div className="w-full max-w-sm animate-scale-in">
         {/* Logo + branding */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center mb-4">
-            <img src="/logo.png" alt="SoraPixel" className="w-12 h-12 object-contain" />
+          <div className="inline-flex items-center justify-center mb-5">
+            <div className="w-10 h-10 rounded-full bg-[#0a0a0a] flex items-center justify-center">
+              <span className="text-white text-sm font-bold">SP</span>
+            </div>
           </div>
-          <h1 className="text-xl sm:text-2xl font-bold text-[#1b1b1f] tracking-tight">
-            Welcome to SoraPixel
+          <h1 className="font-display font-bold text-[#0a0a0a] text-lg sm:text-xl uppercase tracking-tight">
+            SoraPixel
           </h1>
-          <p className="text-sm text-[#8c8c8c] mt-1.5">
+          <p className="text-[13px] sm:text-sm text-[#8c8c8c] mt-2">
             Enter the access password to continue
           </p>
         </div>
@@ -88,6 +93,9 @@ export default function PasswordGate({ children }: PasswordGateProps) {
         {/* Password form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
+            <label className="block text-[11px] font-semibold text-[#4a4a4a] uppercase tracking-[0.1em] mb-2">
+              Password
+            </label>
             <input
               type="password"
               value={password}
@@ -95,10 +103,10 @@ export default function PasswordGate({ children }: PasswordGateProps) {
                 setPassword(e.target.value);
                 if (error) setError("");
               }}
-              placeholder="Enter password"
+              placeholder="Enter access password"
               autoFocus
               disabled={loading}
-              className="w-full px-4 py-3 rounded-xl border border-[#e8e5df] bg-white text-[#1b1b1f] text-sm placeholder:text-[#c0bdb7] focus:outline-none focus:ring-2 focus:ring-[#8b7355]/30 focus:border-[#8b7355] disabled:opacity-50 transition-all duration-300"
+              className="w-full px-4 py-3 rounded-lg border border-[#e8e5df] bg-white text-[#0a0a0a] text-sm placeholder:text-[#c0bdb7] focus:outline-none focus:ring-2 focus:ring-[#8b7355]/20 focus:border-[#8b7355] disabled:opacity-50 transition-all duration-200"
             />
           </div>
 
@@ -110,10 +118,10 @@ export default function PasswordGate({ children }: PasswordGateProps) {
             type="submit"
             disabled={!password.trim() || loading}
             className={`
-              w-full py-3 rounded-xl font-semibold text-sm transition-all duration-300
+              w-full py-3.5 rounded-lg font-semibold text-[14px] transition-all duration-200
               ${
                 password.trim() && !loading
-                  ? "bg-gradient-to-r from-[#8b7355] to-[#6b5740] text-white shadow-lg shadow-[#8b7355]/15 active:scale-[0.99]"
+                  ? "bg-[#0a0a0a] text-white hover:bg-[#1a1a1a] active:scale-[0.99]"
                   : "bg-[#e8e5df] text-[#b0b0b0] cursor-not-allowed"
               }
             `}
@@ -132,9 +140,11 @@ export default function PasswordGate({ children }: PasswordGateProps) {
           </button>
         </form>
 
-        <p className="text-center text-xs text-[#b0b0b0] mt-6">
-          AI Product Photography for Kitchenware
-        </p>
+        <div className="mt-8 pt-5 border-t border-[#e8e5df]">
+          <p className="text-center text-[11px] text-[#b0b0b0] tracking-wide">
+            AI Product Photography
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -28,28 +28,28 @@ export async function POST(req: NextRequest) {
 
     const colorDesc = targetColor.trim();
 
-    const prompt = `You are a professional jewelry retoucher. You are given an image of a jewelry piece (or jewelry worn on a person).
+    const prompt = `You are a professional jewelry retoucher. Change ONLY the metal color to: "${colorDesc}"
 
-YOUR TASK: Change the METAL COLOR of the jewelry to: "${colorDesc}"
+WHAT IS METAL (change these): band, chain links, prongs, settings, clasps, wire, frame, bezel, hook, post, back, bail — the solid metallic structural parts.
 
-CRITICAL RULES — READ CAREFULLY:
-1. ONLY change the METAL parts of the jewelry (the base metal, chain links, prongs, clasps, band, wire, frame)
-2. Change the metal to EXACTLY the color described: "${colorDesc}"
-   - If it's a hex code (e.g. #FFD700), match that exact color as the metal finish
-   - If it's a text description (e.g. "rose gold", "antique bronze", "matte black"), match that finish realistically
-3. Do NOT change ANYTHING else:
-   - Do NOT change any STONES (diamonds, emeralds, rubies, sapphires, pearls, etc.) — they must remain their original color
-   - Do NOT change the DESIGN, SHAPE, SIZE, or STRUCTURE of the jewelry in any way
-   - Do NOT change the BACKGROUND or any PERSON in the image
-   - Do NOT change ENGRAVINGS, HALLMARKS, or SURFACE TEXTURES — only the color/finish of the metal
-4. The recolored metal should look REALISTIC:
-   - Maintain natural metallic reflections and highlights appropriate for the new color
-   - Keep the same light/shadow patterns — just shift the metal hue
-   - The metal should still look like real metal, not painted or flat
-5. Every other pixel in the image must remain COMPLETELY UNCHANGED
-6. The output must be HYPER-REALISTIC — indistinguishable from a real photograph of jewelry in the target metal color
+WHAT IS NOT METAL (DO NOT touch these — leave EVERY pixel unchanged):
+- DIAMONDS — keep them white/clear/brilliant, do NOT tint them
+- GEMSTONES — rubies (red), emeralds (green), sapphires (blue), pearls (white/cream), amethyst (purple), topaz, garnet, opal, turquoise, CZ — keep their EXACT original color
+- ENAMEL or painted accents — keep their exact color
+- MEENAKARI / KUNDAN / POLKI work — keep the original colors of any colored inlay or uncut stones
+- Background, skin, clothing, fabric — zero changes
 
-OUTPUT: The same image with ONLY the metal color changed. Everything else identical.`;
+COLOR TARGET: "${colorDesc}"
+- Hex code → match that exact metallic hue
+- Text (e.g. "rose gold") → realistic metallic finish in that color
+
+REALISM RULES:
+- Metal must look like REAL metal — maintain natural reflections, highlights, and light/shadow patterns
+- Only shift the metal hue — do NOT flatten, paint, or remove metallic luster
+- Prongs and settings around stones change color, but the stones they hold must NOT change at all
+- Every non-metal pixel must remain COMPLETELY IDENTICAL to the input
+
+OUTPUT: Same image, only metal color changed. Nothing else.`;
 
     // Detect mime type
     const mimeMatch = imageBase64.match(/^data:(image\/\w+);base64,/);

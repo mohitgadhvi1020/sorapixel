@@ -169,32 +169,34 @@ export default function AdminPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#fafaf8] flex items-center justify-center">
+      <div className="min-h-screen bg-[#f7f7f5] flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-[#e8e5df] border-t-[#8b7355] rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#fafaf8]">
+    <div className="min-h-screen bg-[#f7f7f5]">
       {/* Header */}
       <header className="glass border-b border-[#e8e5df] sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
+        <div className="max-w-[1400px] mx-auto px-5 md:px-8 lg:px-12 py-3 md:py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <a href="/" className="flex items-center gap-2 group">
-              <img src="/logo.png" alt="SoraPixel" className="w-7 h-7 sm:w-8 sm:h-8 object-contain" />
-              <span className="font-semibold text-base sm:text-lg tracking-tight text-[#1b1b1f]">SoraPixel</span>
+            <a href="/" className="flex items-center gap-2.5 group">
+              <div className="w-8 h-8 rounded-full bg-[#0a0a0a] flex items-center justify-center">
+                <span className="text-white text-xs font-bold">SP</span>
+              </div>
+              <span className="font-display font-bold text-[15px] tracking-tight text-[#0a0a0a] hidden sm:block">SoraPixel</span>
             </a>
-            <span className="text-xs font-medium text-[#8b7355] bg-[#f5f0e8] px-2 py-0.5 rounded-md">Admin</span>
+            <span className="text-[11px] font-semibold text-[#8b7355] bg-[#f5f0e8] px-2.5 py-1 rounded-md tracking-[0.06em] uppercase">Admin</span>
           </div>
-          <div className="flex items-center gap-3">
-            <a href="/jewelry" className="text-sm text-[#8c8c8c] hover:text-[#1b1b1f] transition-colors">Studio</a>
-            <button onClick={handleLogout} className="text-sm text-[#8c8c8c] hover:text-[#1b1b1f] transition-colors">Logout</button>
+          <div className="flex items-center gap-2">
+            <a href="/jewelry" className="px-3 py-2 text-[13px] font-medium text-[#4a4a4a] rounded-lg hover:text-[#0a0a0a] hover:bg-black/[0.04] transition-all duration-200">Studio</a>
+            <button onClick={handleLogout} className="px-3 py-2 text-[13px] font-medium text-[#4a4a4a] rounded-lg hover:text-[#0a0a0a] hover:bg-black/[0.04] transition-all duration-200">Logout</button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-6">
+      <main className="max-w-[1400px] mx-auto px-5 md:px-8 lg:px-12 py-6 sm:py-10 space-y-6">
         {error && (
           <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
             {error}
@@ -212,26 +214,26 @@ export default function AdminPage() {
         {/* Overview Cards */}
         {totals && (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 sm:gap-4">
+            <div className="grid grid-cols-2 min-[480px]:grid-cols-3 sm:grid-cols-5 gap-2.5 sm:gap-4">
               {[
-                { label: "Total Clients", value: formatNumber(totals.totalClients) },
+                { label: "Clients", value: formatNumber(totals.totalClients) },
                 { label: "Generations", value: formatNumber(totals.totalGenerations) },
-                { label: "Tokens Used", value: formatNumber(totals.totalTokens) },
-                { label: "Images Stored", value: formatNumber(totals.totalImages) },
+                { label: "Tokens", value: formatNumber(totals.totalTokens) },
+                { label: "Images", value: formatNumber(totals.totalImages) },
                 { label: "Downloads", value: formatNumber(totals.totalDownloads) },
               ].map((card) => (
-                <div key={card.label} className="bg-white rounded-xl border border-[#e8e5df] p-4">
-                  <p className="text-[10px] sm:text-xs font-medium text-[#8c8c8c] uppercase tracking-wider">{card.label}</p>
-                  <p className="text-xl sm:text-2xl font-bold text-[#1b1b1f] mt-1">{card.value}</p>
+                <div key={card.label} className="bg-white rounded-xl border border-[#e8e5df] p-3 sm:p-4">
+                  <p className="text-[10px] sm:text-xs font-medium text-[#8c8c8c] uppercase tracking-wider truncate">{card.label}</p>
+                  <p className="text-lg sm:text-2xl font-bold text-[#1b1b1f] mt-0.5 sm:mt-1">{card.value}</p>
                 </div>
               ))}
             </div>
 
             {/* Cost Breakdown */}
-            <div className="bg-gradient-to-br from-[#1b1b1f] to-[#2d2b3a] rounded-xl p-5 sm:p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider">API Cost Estimate</h3>
-                <span className="text-xs text-[#a0a0a0]">Gemini 2.5 Flash · 1 USD ≈ ₹86.5</span>
+            <div className="bg-gradient-to-br from-[#1b1b1f] to-[#2d2b3a] rounded-xl p-4 sm:p-6">
+              <div className="flex flex-col min-[480px]:flex-row min-[480px]:items-center justify-between gap-1 mb-4">
+                <h3 className="text-[13px] sm:text-sm font-bold text-white uppercase tracking-wider">API Cost Estimate</h3>
+                <span className="text-[10px] sm:text-xs text-[#a0a0a0]">Gemini 2.5 Flash · 1 USD ≈ ₹86.5</span>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
                 <div>
@@ -265,13 +267,18 @@ export default function AdminPage() {
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+              className={`flex-1 py-2.5 sm:py-2 rounded-lg text-[12px] sm:text-sm font-medium transition-all duration-200 ${
                 tab === t
                   ? "bg-[#f5f0e8] text-[#8b7355]"
                   : "text-[#8c8c8c] hover:text-[#1b1b1f]"
               }`}
             >
-              {t === "overview" ? "Per-Client Stats" : t === "clients" ? "Manage Clients" : "Recent Activity"}
+              <span className="hidden sm:inline">
+                {t === "overview" ? "Per-Client Stats" : t === "clients" ? "Manage Clients" : "Recent Activity"}
+              </span>
+              <span className="sm:hidden">
+                {t === "overview" ? "Stats" : t === "clients" ? "Clients" : "Activity"}
+              </span>
             </button>
           ))}
         </div>
@@ -279,8 +286,8 @@ export default function AdminPage() {
         {/* Per-Client Stats Table */}
         {tab === "overview" && (
           <div className="bg-white rounded-xl border border-[#e8e5df] overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+            <div className="overflow-x-auto scroll-x-mobile">
+              <table className="w-full text-sm min-w-[700px]">
                 <thead>
                   <tr className="border-b border-[#e8e5df] bg-[#fafaf8]">
                     <th className="text-left px-4 py-3 text-xs font-bold text-[#8b7355] uppercase tracking-wider">Client</th>
@@ -382,7 +389,7 @@ export default function AdminPage() {
                   <button
                     onClick={handleCreateClient}
                     disabled={!newEmail.trim() || !newPassword.trim() || creating}
-                    className="px-6 py-2.5 bg-gradient-to-r from-[#8b7355] to-[#6b5740] text-white rounded-lg font-semibold text-sm transition-all duration-300 active:scale-[0.98] disabled:opacity-50"
+                    className="w-full sm:w-auto px-6 py-3 bg-[#0a0a0a] text-white rounded-full font-semibold text-[13px] hover:bg-[#1a1a1a] transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
                   >
                     {creating ? "Creating..." : "Create Client"}
                   </button>
@@ -392,8 +399,8 @@ export default function AdminPage() {
 
             {/* Clients List */}
             <div className="bg-white rounded-xl border border-[#e8e5df] overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+              <div className="overflow-x-auto scroll-x-mobile">
+                <table className="w-full text-sm min-w-[550px]">
                   <thead>
                     <tr className="border-b border-[#e8e5df] bg-[#fafaf8]">
                       <th className="text-left px-4 py-3 text-xs font-bold text-[#8b7355] uppercase tracking-wider">Client</th>
@@ -446,8 +453,8 @@ export default function AdminPage() {
         {/* Recent Activity */}
         {tab === "activity" && (
           <div className="bg-white rounded-xl border border-[#e8e5df] overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+            <div className="overflow-x-auto scroll-x-mobile">
+              <table className="w-full text-sm min-w-[650px]">
                 <thead>
                   <tr className="border-b border-[#e8e5df] bg-[#fafaf8]">
                     <th className="text-left px-4 py-3 text-xs font-bold text-[#8b7355] uppercase tracking-wider">Time</th>
