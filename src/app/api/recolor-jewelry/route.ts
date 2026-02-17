@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateStudioImage } from "@/lib/gemini";
+import { generateStudioImage, generateStudioImageMultiRef } from "@/lib/gemini";
 import { getRatioById, DEFAULT_RATIO } from "@/lib/aspect-ratios";
 import { cropToRatio } from "@/lib/crop-to-ratio";
 import { addWatermark } from "@/lib/watermark";
@@ -28,44 +28,62 @@ export async function POST(req: NextRequest) {
 
     const colorDesc = targetColor.trim();
 
-    const prompt = `You are a professional jewelry retoucher. Change ONLY the metal color to: "${colorDesc}"
+    // ── STEP 1: Recolor metal (may bleed into stones) ──
+    const step1Prompt = `Change ONLY the metal color of this jewelry to: "${colorDesc}". Metal parts include: band, chain links, prongs, settings, clasps, wire, frame, bezel, hook, post, bail. Change these to a realistic ${colorDesc} metallic finish with natural reflections. Try to keep stones and non-metal elements unchanged, but focus on getting the metal color right.`;
 
-WHAT IS METAL (change these): band, chain links, prongs, settings, clasps, wire, frame, bezel, hook, post, back, bail — the solid metallic structural parts.
-
-WHAT IS NOT METAL (DO NOT touch these — leave EVERY pixel unchanged):
-- DIAMONDS — keep them white/clear/brilliant, do NOT tint them
-- GEMSTONES — rubies (red), emeralds (green), sapphires (blue), pearls (white/cream), amethyst (purple), topaz, garnet, opal, turquoise, CZ — keep their EXACT original color
-- ENAMEL or painted accents — keep their exact color
-- MEENAKARI / KUNDAN / POLKI work — keep the original colors of any colored inlay or uncut stones
-- Background, skin, clothing, fabric — zero changes
-
-COLOR TARGET: "${colorDesc}"
-- Hex code → match that exact metallic hue
-- Text (e.g. "rose gold") → realistic metallic finish in that color
-
-REALISM RULES:
-- Metal must look like REAL metal — maintain natural reflections, highlights, and light/shadow patterns
-- Only shift the metal hue — do NOT flatten, paint, or remove metallic luster
-- Prongs and settings around stones change color, but the stones they hold must NOT change at all
-- Every non-metal pixel must remain COMPLETELY IDENTICAL to the input
-
-OUTPUT: Same image, only metal color changed. Nothing else.`;
-
-    // Detect mime type
     const mimeMatch = imageBase64.match(/^data:(image\/\w+);base64,/);
     const mimeType = mimeMatch ? mimeMatch[1] : "image/png";
 
-    console.log(`Recoloring jewelry metal to: "${colorDesc}"`);
+    console.log(`Recoloring jewelry metal to: "${colorDesc}" (Step 1: recolor)...`);
 
-    const result = await generateStudioImage(imageBase64, mimeType, prompt, "1:1");
+    const step1Result = await generateStudioImage(imageBase64, mimeType, step1Prompt, "1:1");
 
-    if (!result.resultBase64) {
-      throw new Error("Recolor failed — no image returned");
+    if (!step1Result.resultBase64) {
+      throw new Error("Recolor Step 1 failed — no image returned");
     }
 
+    // ── STEP 2: Restore stones/diamonds from original ──
+    const step2Prompt = `You are given TWO images of the same jewelry piece:
+- Image 1 (FIRST): The ORIGINAL jewelry with correct stone/diamond/gem colors but the OLD metal color
+- Image 2 (SECOND): The RECOLORED jewelry with the correct NEW metal color (${colorDesc}) but some stones/diamonds may have been accidentally tinted
+
+YOUR TASK: Create a FINAL image that combines:
+1. The NEW METAL COLOR from Image 2 — keep the ${colorDesc} metal exactly as shown in Image 2
+2. The ORIGINAL STONE/DIAMOND/GEM COLORS from Image 1 — restore every non-metal element to match Image 1 exactly
+
+WHAT TO TAKE FROM IMAGE 2 (recolored): metal band, chain, prongs, settings, clasps, wire, frame, bezel — all the ${colorDesc} metallic parts
+WHAT TO TAKE FROM IMAGE 1 (original): diamonds (white/clear), gemstones (their original colors), pearls, enamel, Kundan/Polki/Meenakari work, any colored inlay, background
+
+The output must look like the jewelry was ALWAYS made in ${colorDesc} metal — with realistic reflections and metallic luster on the metal parts — while every single stone, diamond, pearl, gem, and enamel element has its EXACT original color from Image 1. No tinting, no color bleed.`;
+
+    console.log(`Recoloring jewelry (Step 2: restore stones from original)...`);
+
+    const originalRaw = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+    const step1Raw = step1Result.resultBase64;
+
+    const step2Result = await generateStudioImageMultiRef(
+      [
+        { base64: originalRaw, mimeType },
+        { base64: step1Raw, mimeType: step1Result.resultMimeType },
+      ],
+      step2Prompt,
+      "1:1"
+    );
+
+    if (!step2Result.resultBase64) {
+      throw new Error("Recolor Step 2 failed — no image returned");
+    }
+
+    // Combine token usage from both steps
+    const totalTokenUsage = {
+      inputTokens: (step1Result.tokenUsage?.inputTokens || 0) + (step2Result.tokenUsage?.inputTokens || 0),
+      outputTokens: (step1Result.tokenUsage?.outputTokens || 0) + (step2Result.tokenUsage?.outputTokens || 0),
+      totalTokens: (step1Result.tokenUsage?.totalTokens || 0) + (step2Result.tokenUsage?.totalTokens || 0),
+    };
+
     // Crop to aspect ratio if provided
-    let finalBase64 = result.resultBase64;
-    let finalMimeType = result.resultMimeType;
+    let finalBase64 = step2Result.resultBase64;
+    let finalMimeType = step2Result.resultMimeType;
 
     if (aspectRatioId) {
       const ratio = getRatioById(aspectRatioId) || DEFAULT_RATIO;
@@ -101,7 +119,7 @@ OUTPUT: Same image, only metal color changed. Nothing else.`;
           const genId = await trackGeneration({
             clientId,
             generationType: "recolor",
-            tokenUsage: result.tokenUsage,
+            tokenUsage: totalTokenUsage,
             model: "gemini-2.5-flash-image",
           });
           const uploaded = await uploadImage(clientId, finalBase64, "Recolored");
