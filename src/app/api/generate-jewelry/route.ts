@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateStudioImage, TokenUsage } from "@/lib/gemini";
+import { generateStudioImage, withRetry, TokenUsage } from "@/lib/gemini";
 import {
   getJewelryBackgroundById,
   buildJewelryPackPrompts,
@@ -56,11 +56,9 @@ async function removeBackground(
 ): Promise<{ base64: string; mimeType: string }> {
   const BG_REMOVAL_PROMPT = `Remove the background from this jewelry photo. Place the jewelry on a plain white background. Do NOT modify the jewelry in any way — keep every stone, metal detail, engraving, and design element exactly as-is. Do NOT change the angle, perspective, orientation, or position of the jewelry — keep the EXACT same viewing angle as the original. Only the background changes to white.`;
 
-  const result = await generateStudioImage(
-    imageBase64,
-    mimeType,
-    BG_REMOVAL_PROMPT,
-    "1:1"
+  const result = await withRetry(
+    () => generateStudioImage(imageBase64, mimeType, BG_REMOVAL_PROMPT, "1:1"),
+    2, 3000
   );
 
   return {
@@ -196,11 +194,9 @@ export async function POST(
       const customCleanUri = `data:${customClean.mimeType};base64,${customClean.base64}`;
       const customPrompt = `Edit this jewelry photograph. Remove any hands, fingers, skin, body parts, display stands, boxes, or props — show ONLY the jewelry piece itself. Replace ONLY the background. ${bg.prompt} Add soft, professional studio lighting that enhances the jewelry's natural brilliance, sparkle, and metal luster. The background must be uniform edge-to-edge — no dark corners, no vignette. CRITICAL PIXEL-PERFECT RULE: Every single stone, facet, prong, bezel, engraving, metal texture, chain link, clasp, and design element must remain EXACTLY identical to the original photograph — same count of stones, same arrangement, same metal color and finish, same proportions. Do NOT add, remove, or alter ANY detail of the jewelry. Only remove non-jewelry elements and change the background and lighting.${compositionHint}`;
 
-      const angleResult = await generateStudioImage(
-        customCleanUri,
-        customClean.mimeType,
-        customPrompt,
-        "1:1"
+      const angleResult = await withRetry(
+        () => generateStudioImage(customCleanUri, customClean.mimeType, customPrompt, "1:1"),
+        2, 3000
       );
 
       let angleB64 = angleResult.resultBase64;
@@ -272,11 +268,9 @@ export async function POST(
       // ── Regenerate a single image ──
       if (regenerateSingle === "hero") {
         console.log("Regenerating Hero Shot...");
-        const heroResult = await generateStudioImage(
-          cleanDataUri,
-          cleanMime,
-          prompts.hero + compositionHint,
-          "1:1"
+        const heroResult = await withRetry(
+          () => generateStudioImage(cleanDataUri, cleanMime, prompts.hero + compositionHint, "1:1"),
+          2, 3000
         );
         let heroB64 = heroResult.resultBase64;
         try {
@@ -304,11 +298,9 @@ export async function POST(
         });
       } else if (regenerateSingle === "angle") {
         console.log("Regenerating Alternate Angle...");
-        const angleResult = await generateStudioImage(
-          cleanDataUri,
-          cleanMime,
-          prompts.angle + compositionHint,
-          "1:1"
+        const angleResult = await withRetry(
+          () => generateStudioImage(cleanDataUri, cleanMime, prompts.angle + compositionHint, "1:1"),
+          2, 3000
         );
         let angleB64 = angleResult.resultBase64;
         try {
@@ -330,11 +322,9 @@ export async function POST(
     } else if (onlyHero) {
       // ── Step 1: Hero Shot ──
       console.log("Generating Hero Shot from cleaned image...");
-      const heroResult = await generateStudioImage(
-        cleanDataUri,
-        cleanMime,
-        prompts.hero + compositionHint,
-        "1:1"
+      const heroResult = await withRetry(
+        () => generateStudioImage(cleanDataUri, cleanMime, prompts.hero + compositionHint, "1:1"),
+        2, 3000
       );
 
       let heroB64 = heroResult.resultBase64;
@@ -364,11 +354,9 @@ export async function POST(
           console.error("Close-up crop failed:", err);
           return null;
         }),
-        generateStudioImage(
-          cleanDataUri,
-          cleanMime,
-          prompts.angle + compositionHint,
-          "1:1"
+        withRetry(
+          () => generateStudioImage(cleanDataUri, cleanMime, prompts.angle + compositionHint, "1:1"),
+          2, 3000
         ).catch((err) => {
           console.error("Alternate angle failed:", err);
           return null;
@@ -407,11 +395,9 @@ export async function POST(
       // Full pack fallback
       console.log("Generating full pack (3 images)...");
 
-      const heroResult = await generateStudioImage(
-        cleanDataUri,
-        cleanMime,
-        prompts.hero + compositionHint,
-        "1:1"
+      const heroResult = await withRetry(
+        () => generateStudioImage(cleanDataUri, cleanMime, prompts.hero + compositionHint, "1:1"),
+        2, 3000
       );
 
       let heroB64 = heroResult.resultBase64;
@@ -432,11 +418,9 @@ export async function POST(
 
       const [closeupB64, angleResult] = await Promise.all([
         createCloseupCrop(`data:image/png;base64,${heroB64}`, targetSize).catch(() => null),
-        generateStudioImage(
-          cleanDataUri,
-          cleanMime,
-          prompts.angle + compositionHint,
-          "1:1"
+        withRetry(
+          () => generateStudioImage(cleanDataUri, cleanMime, prompts.angle + compositionHint, "1:1"),
+          2, 3000
         ).catch(() => null),
       ]);
 

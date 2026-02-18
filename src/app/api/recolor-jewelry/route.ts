@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateStudioImage, generateStudioImageMultiRef } from "@/lib/gemini";
+import { generateStudioImage, generateStudioImageMultiRef, withRetry } from "@/lib/gemini";
 import { getRatioById, DEFAULT_RATIO } from "@/lib/aspect-ratios";
 import { cropToRatio } from "@/lib/crop-to-ratio";
 import { addWatermark } from "@/lib/watermark";
@@ -36,7 +36,10 @@ export async function POST(req: NextRequest) {
 
     console.log(`Recoloring jewelry metal to: "${colorDesc}" (Step 1: recolor)...`);
 
-    const step1Result = await generateStudioImage(imageBase64, mimeType, step1Prompt, "1:1");
+    const step1Result = await withRetry(
+      () => generateStudioImage(imageBase64, mimeType, step1Prompt, "1:1"),
+      2, 3000
+    );
 
     if (!step1Result.resultBase64) {
       throw new Error("Recolor Step 1 failed — no image returned");
@@ -61,13 +64,16 @@ The output must look like the jewelry was ALWAYS made in ${colorDesc} metal — 
     const originalRaw = imageBase64.replace(/^data:image\/\w+;base64,/, "");
     const step1Raw = step1Result.resultBase64;
 
-    const step2Result = await generateStudioImageMultiRef(
-      [
-        { base64: originalRaw, mimeType },
-        { base64: step1Raw, mimeType: step1Result.resultMimeType },
-      ],
-      step2Prompt,
-      "1:1"
+    const step2Result = await withRetry(
+      () => generateStudioImageMultiRef(
+        [
+          { base64: originalRaw, mimeType },
+          { base64: step1Raw, mimeType: step1Result.resultMimeType },
+        ],
+        step2Prompt,
+        "1:1"
+      ),
+      2, 3000
     );
 
     if (!step2Result.resultBase64) {

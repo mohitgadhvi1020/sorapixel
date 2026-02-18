@@ -38,7 +38,10 @@ export async function withRetry<T>(
         msg.includes("500") ||
         msg.includes("503") ||
         msg.includes("overloaded") ||
-        msg.includes("unavailable");
+        msg.includes("unavailable") ||
+        msg.includes("safety filter") ||
+        msg.includes("no content") ||
+        msg.includes("blocked");
 
       if (!isRetryable || attempt === maxRetries) {
         throw lastError;
