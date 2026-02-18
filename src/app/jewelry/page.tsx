@@ -146,19 +146,20 @@ export default function JewelryPage() {
 
   // ─── Handlers ────────────────────────────────────────────────
 
-  const cropToSquare = useCallback((base64: string): Promise<string> => {
+  const cropToSquare = useCallback((base64: string, maxDim = 2048, quality = 0.92): Promise<string> => {
     return new Promise((resolve) => {
       const img = new window.Image();
       img.onload = () => {
         const size = Math.min(img.naturalWidth, img.naturalHeight);
         const x = (img.naturalWidth - size) / 2;
         const y = (img.naturalHeight - size) / 2;
+        const outSize = Math.min(size, maxDim);
         const canvas = document.createElement("canvas");
-        canvas.width = size;
-        canvas.height = size;
+        canvas.width = outSize;
+        canvas.height = outSize;
         const ctx = canvas.getContext("2d")!;
-        ctx.drawImage(img, x, y, size, size, 0, 0, size, size);
-        resolve(canvas.toDataURL("image/png"));
+        ctx.drawImage(img, x, y, size, size, 0, 0, outSize, outSize);
+        resolve(canvas.toDataURL("image/jpeg", quality));
       };
       img.src = base64;
     });
@@ -422,12 +423,12 @@ export default function JewelryPage() {
         reader.readAsDataURL(file);
       });
 
-      // Store a square-cropped version for comparison display
+      // Compress and square-crop for both comparison display and API payload
       const squaredOriginal = await cropToSquare(base64);
       setCustomAngleOriginal(squaredOriginal);
 
       const payload = buildPayload();
-      payload.customAngleBase64 = base64;
+      payload.customAngleBase64 = squaredOriginal;
 
       const data = await safeFetch<{
         success: boolean;
