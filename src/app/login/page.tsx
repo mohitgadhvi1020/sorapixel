@@ -61,7 +61,11 @@ export default function LoginPage() {
           if (data.legacy) {
             sessionStorage.setItem("sorapixel_auth", "authenticated");
           }
-          router.replace("/jewelry");
+          // Use the redirect param from the URL, or default to /jewelry
+          const params = new URLSearchParams(window.location.search);
+          const redirectTo = params.get("redirect") || "/jewelry";
+          // Hard navigation ensures the cookie is sent on the next request
+          window.location.href = redirectTo;
         } else {
           setError(data.error || "Invalid credentials");
           setPassword("");
@@ -72,7 +76,7 @@ export default function LoginPage() {
         setLoading(false);
       }
     },
-    [email, password, loading, router]
+    [email, password, loading]
   );
 
   if (checking) {
