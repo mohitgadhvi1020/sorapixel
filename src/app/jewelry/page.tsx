@@ -188,6 +188,7 @@ export default function JewelryPage() {
     setStep("idle");
     setExpandedIndex(null);
     setCustomAngleOriginal(null);
+    setRecolorTarget("");
     setListing(null);
     setRawTitle("");
     setRawDescription("");
@@ -595,8 +596,17 @@ export default function JewelryPage() {
         mode,
       };
 
-      // Send the product image for image-aware listing generation
-      if (imageBase64) payload.imageBase64 = imageBase64;
+      // Send the recolored hero image if available, otherwise the original upload
+      if (heroImage) {
+        payload.imageBase64 = heroImage.dataUri;
+      } else if (imageBase64) {
+        payload.imageBase64 = imageBase64;
+      }
+
+      // Include recolor info so the listing reflects the current metal color
+      if (recolorTarget.trim()) {
+        payload.recolorColor = recolorTarget.trim();
+      }
 
       if (mode === "refine" && listing) {
         payload.rawTitle = listing.title;
@@ -639,7 +649,7 @@ export default function JewelryPage() {
     } finally {
       setListingLoading(false);
     }
-  }, [rawTitle, rawDescription, jewelryType, imageBase64, listing, showToast]);
+  }, [rawTitle, rawDescription, jewelryType, imageBase64, heroImage, recolorTarget, listing, showToast]);
 
   const copyToClipboard = useCallback((text: string, field: string) => {
     navigator.clipboard.writeText(text).then(() => {

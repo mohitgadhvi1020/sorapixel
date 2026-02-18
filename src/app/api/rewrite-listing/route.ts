@@ -209,6 +209,7 @@ export async function POST(
       rawDescription,
       jewelryType,
       mode,
+      recolorColor,
     } = await req.json();
 
     const isAutoGenerate = mode === "auto";
@@ -224,6 +225,9 @@ export async function POST(
     const ai = getClient();
 
     let prompt: string;
+    const recolorNote = recolorColor?.trim()
+      ? `\nIMPORTANT — METAL COLOR: This jewelry has been recolored to "${recolorColor.trim()}". The listing MUST reflect this color as the metal finish in the title context, description, alt text, and the "color" attribute. Apply proper material language rules (e.g. if recolored to "Silver" → use "Silver-tone" or "Rhodium-plated finish").`
+      : "";
 
     if (isAutoGenerate) {
       prompt = `${STYLIKA_PROMPT}
@@ -232,7 +236,7 @@ TASK: Analyze the product image and generate a COMPLETE Shopify-ready listing fo
 
 JEWELRY TYPE (user-selected): ${jewelryType || "jewelry"}
 ${rawTitle?.trim() ? `SELLER'S TITLE HINT: "${rawTitle.trim()}"` : ""}
-${rawDescription?.trim() ? `SELLER'S NOTES: "${rawDescription.trim()}"` : ""}
+${rawDescription?.trim() ? `SELLER'S NOTES: "${rawDescription.trim()}"` : ""}${recolorNote}
 
 Look at the image carefully. Identify the metal finish, stones, design style, closure type, and complexity. Then generate the full listing.
 
@@ -245,7 +249,7 @@ TASK: The seller has reviewed and possibly edited their listing. Refine it furth
 
 CURRENT TITLE: "${rawTitle || ""}"
 CURRENT DESCRIPTION: "${rawDescription || ""}"
-JEWELRY TYPE: ${jewelryType || "jewelry"}
+JEWELRY TYPE: ${jewelryType || "jewelry"}${recolorNote}
 
 Ensure the output passes the Quality Checklist. Fix any material language violations. Ensure title ends with " | Stylika" and is 50-65 chars.
 
@@ -258,7 +262,7 @@ TASK: Rewrite the seller's raw input into a polished, Stylika-compliant Shopify 
 
 RAW TITLE: "${rawTitle || ""}"
 RAW DESCRIPTION: "${rawDescription || ""}"
-JEWELRY TYPE: ${jewelryType || "jewelry"}
+JEWELRY TYPE: ${jewelryType || "jewelry"}${recolorNote}
 ${imageBase64 ? "\nAnalyze the product image to infer material, stones, style, collection, and category." : ""}
 
 OUTPUT FORMAT (strict JSON, nothing else):
