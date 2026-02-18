@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import UploadZone from "@/components/upload-zone";
 import BeforeAfterSlider from "@/components/before-after-slider";
@@ -26,6 +26,52 @@ interface ResultImage {
   imageId?: string;
 }
 
+interface Toast {
+  id: number;
+  message: string;
+  type: "error" | "warning" | "info" | "success";
+}
+
+function isRetryableError(msg: string): boolean {
+  const lower = msg.toLowerCase();
+  return (
+    lower.includes("429") ||
+    lower.includes("rate limit") ||
+    lower.includes("quota") ||
+    lower.includes("resource_exhausted") ||
+    lower.includes("overloaded") ||
+    lower.includes("unavailable") ||
+    lower.includes("timed out") ||
+    lower.includes("504") ||
+    lower.includes("502") ||
+    lower.includes("503")
+  );
+}
+
+async function fetchWithRetry<T>(
+  url: string,
+  options: RequestInit,
+  onRetry?: (attempt: number, maxRetries: number, delayMs: number) => void,
+  maxRetries = 2,
+  baseDelayMs = 5000,
+): Promise<T> {
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await safeFetch<T>(url, options);
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (!isRetryableError(lastError.message) || attempt === maxRetries) {
+        throw lastError;
+      }
+      const delay = baseDelayMs * Math.pow(2, attempt);
+      onRetry?.(attempt + 1, maxRetries, delay);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw lastError!;
+}
+
 export default function JewelryPage() {
   // Upload — single image
   const [imageBase64, setImageBase64] = useState<string | null>(null);
@@ -41,6 +87,16 @@ export default function JewelryPage() {
   const [restImages, setRestImages] = useState<ResultImage[]>([]);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [genStatus, setGenStatus] = useState<string | null>(null);
+
+  // Toast notifications
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const toastIdRef = useRef(0);
+  const showToast = useCallback((message: string, type: Toast["type"] = "error") => {
+    const id = ++toastIdRef.current;
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), type === "error" ? 8000 : 5000);
+  }, []);
 
   // Regenerate single
   const [regeneratingIndex, setRegeneratingIndex] = useState<number | null>(null);
@@ -150,6 +206,7 @@ export default function JewelryPage() {
 
     setStep("generating-hero");
     setError(null);
+    setGenStatus(null);
     setHeroImage(null);
     setRestImages([]);
     setExpandedIndex(null);
@@ -158,15 +215,23 @@ export default function JewelryPage() {
       const payload = buildPayload();
       payload.onlyHero = true;
 
-      const data = await safeFetch<{
+      const data = await fetchWithRetry<{
         success: boolean;
         images?: { label: string; base64: string; mimeType: string; imageId?: string }[];
         error?: string;
-      }>("/api/generate-jewelry", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      }>(
+        "/api/generate-jewelry",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+        (attempt, maxRetries, delayMs) => {
+          const secs = Math.round(delayMs / 1000);
+          setGenStatus(`Rate limited — retrying in ${secs}s (attempt ${attempt}/${maxRetries})...`);
+          showToast(`Rate limited by AI service. Retrying automatically in ${secs}s...`, "warning");
+        },
+      );
 
       if (!data.success) throw new Error(data.error || "Generation failed");
       const images = (data.images ?? []).map((img: { label: string; base64: string; watermarkedBase64?: string; mimeType: string; imageId?: string }) => ({
@@ -180,14 +245,18 @@ export default function JewelryPage() {
       if (images.length > 0) {
         setHeroImage(images[0]);
         setStep("hero-done");
+        setGenStatus(null);
       } else {
         throw new Error("No image generated");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      const msg = err instanceof Error ? err.message : "Something went wrong";
+      setError(msg);
+      showToast(msg, "error");
       setStep("idle");
+      setGenStatus(null);
     }
-  }, [imageBase64, backgroundId, buildPayload]);
+  }, [imageBase64, backgroundId, buildPayload, showToast]);
 
   // Step 2: Generate remaining images (Close-up crop + Alternate Angle)
   const handleGenerateRest = useCallback(async () => {
@@ -195,24 +264,32 @@ export default function JewelryPage() {
 
     setStep("generating-rest");
     setError(null);
+    setGenStatus(null);
 
     try {
       const payload = buildPayload();
       payload.onlyRest = true;
-      // Send hero image so the close-up is cropped from the studio-lit hero
       if (heroImage) {
         payload.heroBase64 = heroImage.dataUri;
       }
 
-      const data = await safeFetch<{
+      const data = await fetchWithRetry<{
         success: boolean;
         images?: { label: string; base64: string; mimeType: string; imageId?: string }[];
         error?: string;
-      }>("/api/generate-jewelry", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      }>(
+        "/api/generate-jewelry",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+        (attempt, maxRetries, delayMs) => {
+          const secs = Math.round(delayMs / 1000);
+          setGenStatus(`Rate limited — retrying in ${secs}s (attempt ${attempt}/${maxRetries})...`);
+          showToast(`Rate limited by AI service. Retrying automatically in ${secs}s...`, "warning");
+        },
+      );
 
       if (!data.success) throw new Error(data.error || "Generation failed");
       const images = (data.images ?? []).map((img: { label: string; base64: string; watermarkedBase64?: string; mimeType: string; imageId?: string }) => ({
@@ -225,11 +302,15 @@ export default function JewelryPage() {
       }));
       setRestImages(images);
       setStep("all-done");
+      setGenStatus(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      const msg = err instanceof Error ? err.message : "Something went wrong";
+      setError(msg);
+      showToast(msg, "error");
       setStep("hero-done");
+      setGenStatus(null);
     }
-  }, [imageBase64, heroImage, buildPayload]);
+  }, [imageBase64, heroImage, buildPayload, showToast]);
 
   const downloadImage = useCallback((dataUri: string, label: string, imageId?: string) => {
     if (imageId) {
@@ -282,15 +363,22 @@ export default function JewelryPage() {
         payload.heroBase64 = heroImage.dataUri;
       }
 
-      const data = await safeFetch<{
+      const data = await fetchWithRetry<{
         success: boolean;
         images?: { label: string; base64: string; watermarkedBase64?: string; mimeType: string }[];
         error?: string;
-      }>("/api/generate-jewelry", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      }>(
+        "/api/generate-jewelry",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+        (_attempt, _maxRetries, delayMs) => {
+          const secs = Math.round(delayMs / 1000);
+          showToast(`Rate limited — retrying in ${secs}s...`, "warning");
+        },
+      );
 
       if (!data.success || !data.images?.length) throw new Error(data.error || "Regeneration failed");
 
@@ -311,11 +399,13 @@ export default function JewelryPage() {
         );
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Regeneration failed");
+      const msg = err instanceof Error ? err.message : "Regeneration failed";
+      setError(msg);
+      showToast(msg, "error");
     } finally {
       setRegeneratingIndex(null);
     }
-  }, [imageBase64, backgroundId, heroImage, allImages, regeneratingIndex, buildPayload]);
+  }, [imageBase64, backgroundId, heroImage, allImages, regeneratingIndex, buildPayload, showToast]);
 
   // Custom angle upload — user provides their own angle photo
   const handleCustomAngleUpload = useCallback(async (file: File) => {
@@ -375,11 +465,13 @@ export default function JewelryPage() {
         return newArr;
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Custom angle generation failed");
+      const msg = err instanceof Error ? err.message : "Custom angle generation failed";
+      setError(msg);
+      showToast(msg, "error");
     } finally {
       setCustomAngleUploading(false);
     }
-  }, [buildPayload, customAngleUploading, cropToSquare]);
+  }, [buildPayload, customAngleUploading, cropToSquare, showToast]);
 
   // Recolor a single image
   const handleRecolor = useCallback(
@@ -422,12 +514,14 @@ export default function JewelryPage() {
           );
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Recolor failed");
+        const msg = err instanceof Error ? err.message : "Recolor failed";
+        setError(msg);
+        showToast(msg, "error");
       } finally {
         setRecoloringIndex(null);
       }
     },
-    [allImages, recolorTarget, recoloringIndex, recoloringAll]
+    [allImages, recolorTarget, recoloringIndex, recoloringAll, showToast]
   );
 
   // Recolor ALL images at once
@@ -475,11 +569,13 @@ export default function JewelryPage() {
         }
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Recolor failed");
+      const msg = err instanceof Error ? err.message : "Recolor failed";
+      setError(msg);
+      showToast(msg, "error");
     } finally {
       setRecoloringAll(false);
     }
-  }, [allImages, recolorTarget, recoloringAll, recoloringIndex]);
+  }, [allImages, recolorTarget, recoloringAll, recoloringIndex, showToast]);
 
   // Listing rewriter — supports "auto", "refine", and default "rewrite" modes
   const handleGenerateListing = useCallback(async (mode: "auto" | "refine" | "rewrite" = "rewrite") => {
@@ -536,11 +632,13 @@ export default function JewelryPage() {
       if (!data.success || !data.listing) throw new Error(data.error || "Listing generation failed");
       setListing(data.listing);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Listing generation failed");
+      const msg = err instanceof Error ? err.message : "Listing generation failed";
+      setError(msg);
+      showToast(msg, "error");
     } finally {
       setListingLoading(false);
     }
-  }, [rawTitle, rawDescription, jewelryType, imageBase64, listing]);
+  }, [rawTitle, rawDescription, jewelryType, imageBase64, listing, showToast]);
 
   const copyToClipboard = useCallback((text: string, field: string) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -574,6 +672,37 @@ export default function JewelryPage() {
 
   return (
       <div className="min-h-screen bg-[#f7f7f5]">
+        {/* Toast Notifications */}
+        {toasts.length > 0 && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 w-[90vw] max-w-md pointer-events-none">
+            {toasts.map((toast) => (
+              <div
+                key={toast.id}
+                className={`pointer-events-auto px-4 py-3 rounded-xl shadow-lg border text-[13px] font-medium animate-slide-up-sm flex items-start gap-3 ${
+                  toast.type === "error"
+                    ? "bg-red-50 border-red-200 text-red-700"
+                    : toast.type === "warning"
+                      ? "bg-amber-50 border-amber-200 text-amber-700"
+                      : toast.type === "success"
+                        ? "bg-green-50 border-green-200 text-green-700"
+                        : "bg-blue-50 border-blue-200 text-blue-700"
+                }`}
+              >
+                <span className="flex-shrink-0 mt-0.5">
+                  {toast.type === "error" ? "✕" : toast.type === "warning" ? "⚠" : toast.type === "success" ? "✓" : "ℹ"}
+                </span>
+                <span className="flex-1">{toast.message}</span>
+                <button
+                  onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
+                  className="flex-shrink-0 ml-1 text-current opacity-50 hover:opacity-100 transition-opacity"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Header */}
         <header className="glass border-b border-[#e8e5df] sticky top-0 z-50">
           <div className="max-w-[1400px] mx-auto px-5 md:px-8 lg:px-12 py-3 md:py-4 flex items-center justify-between">
@@ -1111,15 +1240,24 @@ export default function JewelryPage() {
                     : "Generating Additional Angles"}
                 </h2>
                 <p className="text-[13px] text-[#8c8c8c] mt-2">
-                  {step === "generating-hero"
-                    ? "Creating your studio-quality product photo..."
-                    : "Generating close-up crop + alternate angle..."}
+                  {genStatus
+                    ? genStatus
+                    : step === "generating-hero"
+                      ? "Creating your studio-quality product photo..."
+                      : "Generating close-up crop + alternate angle..."}
                 </p>
               </div>
               <div className="w-48 h-1 rounded-full overflow-hidden bg-[#e8e5df]">
                 <div className="h-full rounded-full animate-shimmer" />
               </div>
-              <p className="text-[12px] text-[#b0b0b0] tracking-wide">This takes 15–30 seconds</p>
+              {genStatus ? (
+                <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-200 rounded-full">
+                  <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse" />
+                  <p className="text-[12px] text-amber-700 font-medium">Auto-retrying — please wait</p>
+                </div>
+              ) : (
+                <p className="text-[12px] text-[#b0b0b0] tracking-wide">This takes 15–30 seconds</p>
+              )}
             </div>
           ) : (
 
