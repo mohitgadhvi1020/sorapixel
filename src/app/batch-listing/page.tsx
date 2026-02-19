@@ -95,6 +95,7 @@ export default function BatchListingPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [processedCount, setProcessedCount] = useState(0);
   const cancelRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const detailRef = useRef<HTMLDivElement>(null);
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
@@ -123,9 +124,10 @@ export default function BatchListingPage() {
 
   // Token balance
   const COST_PER_IMAGE = 5;
+  const COST_PER_REGEN = 3;
   const [tokenBalance, setTokenBalance] = useState<number | null>(null);
   const fetchTokenBalance = useCallback(() => {
-    safeFetch<{ balance: number; costPerImage: number }>("/api/listing-tokens")
+    safeFetch<{ balance: number; costPerImage: number; costPerRegen: number }>("/api/listing-tokens")
       .then((d) => setTokenBalance(d.balance))
       .catch(() => {});
   }, []);
@@ -291,6 +293,7 @@ export default function BatchListingPage() {
 
     setPhase("processing");
     cancelRef.current = false;
+    abortRef.current = new AbortController();
     setProcessedCount(0);
 
     for (let i = 0; i < items.length; i++) {
@@ -307,6 +310,11 @@ export default function BatchListingPage() {
       try {
         const base64 = await readFileAsBase64(item.file);
 
+        if (cancelRef.current) {
+          updateItem(item.localId, { status: "failed", error: "Cancelled" });
+          break;
+        }
+
         const result = await safeFetch<{
           success: boolean;
           balance?: number;
@@ -322,6 +330,7 @@ export default function BatchListingPage() {
             filename: item.file.name,
             batchId,
           }),
+          signal: abortRef.current?.signal,
         });
 
         if (!result.success || !result.item) {
@@ -346,6 +355,10 @@ export default function BatchListingPage() {
           attributes: result.item.attributes,
         });
       } catch (err) {
+        if (cancelRef.current) {
+          updateItem(item.localId, { status: "failed", error: "Cancelled" });
+          break;
+        }
         const msg = err instanceof Error ? err.message : "Failed";
         updateItem(item.localId, { status: "failed", error: msg });
       }
@@ -353,11 +366,16 @@ export default function BatchListingPage() {
       setProcessedCount(i + 1);
     }
 
+    setItems((prev) =>
+      prev.map((it) => (it.status === "processing" ? { ...it, status: "failed", error: "Cancelled" } : it))
+    );
+    abortRef.current = null;
     setPhase("done");
   }, [items, batchId, updateItem, tokenBalance, showToast]);
 
   const cancelProcessing = useCallback(() => {
     cancelRef.current = true;
+    abortRef.current?.abort();
   }, []);
 
   /* ─── Regenerate Single ──────────────────────────────────── */
@@ -367,8 +385,8 @@ export default function BatchListingPage() {
       const item = items.find((i) => i.localId === localId);
       if (!item || regeneratingId) return;
 
-      if (tokenBalance !== null && tokenBalance < COST_PER_IMAGE) {
-        showToast(`Not enough tokens to regenerate (need ${COST_PER_IMAGE}, have ${tokenBalance}).`, "error");
+      if (tokenBalance !== null && tokenBalance < COST_PER_REGEN) {
+        showToast(`Not enough tokens to regenerate (need ${COST_PER_REGEN}, have ${tokenBalance}).`, "error");
         return;
       }
 

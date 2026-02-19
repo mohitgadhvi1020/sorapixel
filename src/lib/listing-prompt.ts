@@ -80,7 +80,11 @@ OUTPUT SPECIFICATION — GENERATE ALL OF THESE:
    - Front-load the most searchable/descriptive terms
    - Natural language, no pipes mid-title
    - Always end with " | Stylika"
-   - No tones/colours in title (e.g. don't put "Gold-Tone" in title)
+   - NEVER include metal or material info in title (no "Gold-Tone", "Silver-Tone", "Brass", "Plated", "Rhodium", etc.)
+   - NEVER include stone info in title (no "CZ", "Cubic Zirconia", "Pearl", "Crystal", "Diamond", etc.)
+   - Title should describe the DESIGN and STYLE, not the materials
+   - Good: "Layered Floral Drop Earrings | Stylika"
+   - Bad: "CZ Gold-Tone Floral Earrings | Stylika"
 
 2. DESCRIPTION (HTML-ready, 100-160 words):
    Paragraph 1 (2-3 sentences): What the piece IS + defining visual feature. Include design inspiration if relevant.
@@ -134,6 +138,7 @@ EDGE CASES:
 QUALITY CHECKLIST (your output MUST pass ALL):
 ═══════════════════════════════════════
 ✓ No "gold"/"silver"/"diamond"/"pearl" without proper qualifiers
+✓ Title contains NO material/metal/stone words (no Gold-Tone, CZ, Silver, Pearl, Crystal, Brass, Plated, Diamond, etc.)
 ✓ Title is 50-65 chars, ends with " | Stylika"
 ✓ Meta description is 140-155 chars
 ✓ Description is 100-160 words
@@ -146,7 +151,7 @@ QUALITY CHECKLIST (your output MUST pass ALL):
 ✓ No conversational fluff or "Would you like…" endings`;
 
 export const LISTING_JSON_SCHEMA = `{
-  "title": "Product title 50-65 chars ending with | Stylika",
+  "title": "Product title 50-65 chars ending with | Stylika — NO metal/stone words (no CZ, Gold-Tone, Silver, Pearl, Crystal etc.)",
   "description": "<p>Paragraph 1...</p><p>Paragraph 2...</p><ul><li>Material: ...</li><li>Stones: ...</li><li>Closure: ...</li></ul>",
   "metaDescription": "140-155 char meta description with brand name",
   "altText": "Under 125 char descriptive alt text without brand name",

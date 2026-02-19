@@ -4,13 +4,14 @@ import { isSupabaseConfigured } from "@/lib/auth";
 import { getClientId } from "@/lib/track-usage";
 
 const TOKENS_PER_IMAGE = 5;
+const TOKENS_PER_REGEN = 3;
 
 /**
  * GET /api/listing-tokens — get the current user's listing token balance
  */
 export async function GET() {
   if (!isSupabaseConfigured()) {
-    return NextResponse.json({ balance: Infinity, costPerImage: TOKENS_PER_IMAGE });
+    return NextResponse.json({ balance: Infinity, costPerImage: TOKENS_PER_IMAGE, costPerRegen: TOKENS_PER_REGEN });
   }
 
   const clientId = await getClientId();
@@ -32,5 +33,6 @@ export async function GET() {
   return NextResponse.json({
     balance: data?.listing_tokens ?? 0,
     costPerImage: TOKENS_PER_IMAGE,
+    costPerRegen: TOKENS_PER_REGEN,
   });
 }

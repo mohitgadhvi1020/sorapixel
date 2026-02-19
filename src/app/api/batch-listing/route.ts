@@ -13,8 +13,9 @@ import {
 export const maxDuration = 60;
 
 const TOKENS_PER_IMAGE = 5;
+const TOKENS_PER_REGEN = 3;
 
-async function checkAndDeductTokens(clientId: string): Promise<{ ok: boolean; balance: number }> {
+async function checkTokenBalance(clientId: string, cost = TOKENS_PER_IMAGE): Promise<{ ok: boolean; balance: number }> {
   if (!isSupabaseConfigured()) return { ok: true, balance: Infinity };
 
   const sb = getSupabaseServer();
@@ -27,16 +28,30 @@ async function checkAndDeductTokens(clientId: string): Promise<{ ok: boolean; ba
   if (error || !data) return { ok: false, balance: 0 };
 
   const current = data.listing_tokens ?? 0;
-  if (current < TOKENS_PER_IMAGE) return { ok: false, balance: current };
+  if (current < cost) return { ok: false, balance: current };
 
-  const { error: updateErr } = await sb
+  return { ok: true, balance: current };
+}
+
+async function deductTokens(clientId: string, cost = TOKENS_PER_IMAGE): Promise<number> {
+  if (!isSupabaseConfigured()) return Infinity;
+
+  const sb = getSupabaseServer();
+  const { data } = await sb
     .from("clients")
-    .update({ listing_tokens: current - TOKENS_PER_IMAGE })
+    .select("listing_tokens")
+    .eq("id", clientId)
+    .single();
+
+  const current = data?.listing_tokens ?? 0;
+  const newBalance = Math.max(0, current - cost);
+
+  await sb
+    .from("clients")
+    .update({ listing_tokens: newBalance })
     .eq("id", clientId);
 
-  if (updateErr) return { ok: false, balance: current };
-
-  return { ok: true, balance: current - TOKENS_PER_IMAGE };
+  return newBalance;
 }
 
 let _ai: GoogleGenAI | null = null;
@@ -145,7 +160,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const tokenCheck = await checkAndDeductTokens(clientId);
+      const tokenCheck = await checkTokenBalance(clientId);
       if (!tokenCheck.ok) {
         return NextResponse.json(
           {
@@ -159,6 +174,8 @@ export async function POST(req: NextRequest) {
       }
 
       const { listing, tokenUsage } = await generateListing(imageBase64);
+
+      const newBalance = await deductTokens(clientId);
 
       const label = `batch-${(filename || "image").replace(/\.[^.]+$/, "")}`;
       const uploaded = await uploadImage(clientId, imageBase64, label);
@@ -199,7 +216,7 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        balance: tokenCheck.balance,
+        balance: newBalance,
         item: {
           id: dbId,
           title: listing.title,
@@ -221,12 +238,12 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const tokenCheck = await checkAndDeductTokens(clientId);
+      const tokenCheck = await checkTokenBalance(clientId, TOKENS_PER_REGEN);
       if (!tokenCheck.ok) {
         return NextResponse.json(
           {
             success: false,
-            error: `Insufficient listing tokens. You have ${tokenCheck.balance} tokens, but each image costs ${TOKENS_PER_IMAGE}. Please contact admin to add more tokens.`,
+            error: `Insufficient listing tokens. You have ${tokenCheck.balance} tokens, but regeneration costs ${TOKENS_PER_REGEN}. Please contact admin to add more tokens.`,
             code: "INSUFFICIENT_TOKENS",
             balance: tokenCheck.balance,
           },
@@ -235,6 +252,8 @@ export async function POST(req: NextRequest) {
       }
 
       const { listing, tokenUsage } = await generateListing(imageBase64);
+
+      const newBalance = await deductTokens(clientId, TOKENS_PER_REGEN);
 
       if (isSupabaseConfigured() && itemId) {
         const sb = getSupabaseServer();
@@ -254,14 +273,14 @@ export async function POST(req: NextRequest) {
 
       trackGeneration({
         clientId,
-        generationType: "batch_listing",
+        generationType: "batch_listing_regen",
         tokenUsage: tokenUsage || null,
         model: "gemini-2.5-flash",
       }).catch((err) => console.error("Batch listing tracking error:", err));
 
       return NextResponse.json({
         success: true,
-        balance: tokenCheck.balance,
+        balance: newBalance,
         item: {
           id: itemId,
           title: listing.title,
