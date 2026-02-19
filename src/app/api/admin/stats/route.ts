@@ -20,7 +20,7 @@ export async function GET() {
     // Get all clients
     const { data: clients } = await sb
       .from("clients")
-      .select("id, email, company_name, contact_name, is_active, created_at")
+      .select("id, email, company_name, contact_name, is_active, created_at, studio_free_used, token_balance, allowed_sections")
       .order("created_at", { ascending: false });
 
     // Get generation counts per client
@@ -47,10 +47,11 @@ export async function GET() {
       const totalInputTokens = gens.reduce((sum, g) => sum + (g.input_tokens || 0), 0);
       const totalOutputTokens = gens.reduce((sum, g) => sum + (g.output_tokens || 0), 0);
 
-      // Image generation calls (hero, angle, closeup, recolor, bg_removal)
       const imageGenCount = gens.filter((g) =>
         ["hero", "angle", "closeup", "recolor", "bg_removal"].includes(g.generation_type)
       ).length;
+
+      const hdUpscaleCount = gens.filter((g) => g.generation_type === "hd_upscale").length;
 
       return {
         id: c.id,
@@ -66,6 +67,10 @@ export async function GET() {
         totalImages: imgs.length,
         totalDownloads: dls.length,
         imageGenCount,
+        hdUpscaleCount,
+        studioFreeUsed: c.studio_free_used ?? 0,
+        tokenBalance: c.token_balance ?? 0,
+        allowedSections: c.allowed_sections || ["studio", "jewelry"],
       };
     });
   }
@@ -85,20 +90,24 @@ export async function GET() {
   const totalDownloads = stats?.reduce((s: number, c: { totalDownloads: number }) => s + c.totalDownloads, 0) || 0;
   const totalImages = stats?.reduce((s: number, c: { totalImages: number }) => s + c.totalImages, 0) || 0;
   const totalImageGens = stats?.reduce((s: number, c: { imageGenCount: number }) => s + c.imageGenCount, 0) || 0;
+  const totalHdUpscales = stats?.reduce((s: number, c: { hdUpscaleCount: number }) => s + c.hdUpscaleCount, 0) || 0;
 
   // ── Cost calculation (Gemini 2.5 Flash pricing, converted to INR) ──
   // Text tokens: $0.15 / 1M input, $0.60 / 1M output (under 200k context)
   // Image generation: $0.0258 per image generated
+  // HD upscale (AuraSR v2): ~$0.005 per upscale
   // USD to INR approximate rate
   const USD_TO_INR = 86.5;
   const inputTokenCostUSD = (totalInputTokens / 1_000_000) * 0.15;
   const outputTokenCostUSD = (totalOutputTokens / 1_000_000) * 0.60;
   const imageGenCostUSD = totalImageGens * 0.0258;
-  const totalCostUSD = inputTokenCostUSD + outputTokenCostUSD + imageGenCostUSD;
+  const hdUpscaleCostUSD = totalHdUpscales * 0.005;
+  const totalCostUSD = inputTokenCostUSD + outputTokenCostUSD + imageGenCostUSD + hdUpscaleCostUSD;
 
   const inputTokenCost = inputTokenCostUSD * USD_TO_INR;
   const outputTokenCost = outputTokenCostUSD * USD_TO_INR;
   const imageGenCost = imageGenCostUSD * USD_TO_INR;
+  const hdUpscaleCost = hdUpscaleCostUSD * USD_TO_INR;
   const totalCost = totalCostUSD * USD_TO_INR;
 
   return NextResponse.json({
@@ -113,10 +122,12 @@ export async function GET() {
       totalImages,
       totalClients: stats?.length || 0,
       totalImageGens,
+      totalHdUpscales,
       costBreakdown: {
         inputTokenCost: +inputTokenCost.toFixed(4),
         outputTokenCost: +outputTokenCost.toFixed(4),
         imageGenCost: +imageGenCost.toFixed(4),
+        hdUpscaleCost: +hdUpscaleCost.toFixed(4),
         totalCost: +totalCost.toFixed(4),
       },
     },

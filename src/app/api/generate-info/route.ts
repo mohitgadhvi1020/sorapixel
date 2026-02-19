@@ -1,16 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateStudioImage } from "@/lib/gemini";
+import { generateStudioImage, TokenUsage } from "@/lib/gemini";
 import { compositeLogoOnImage } from "@/lib/logo-overlay-server";
 import { getRatioById, DEFAULT_RATIO } from "@/lib/aspect-ratios";
 import { cropToRatio } from "@/lib/crop-to-ratio";
+import { addWatermark } from "@/lib/watermark";
+import { getClientId, trackGeneration, trackImage, uploadImage } from "@/lib/track-usage";
+import { getStudioCredits, deductStudioCredits } from "@/lib/studio-credits";
 
 export const maxDuration = 120;
 
 interface InfoImage {
   label: string;
   base64: string;
+  watermarkedBase64: string;
   mimeType: string;
   text?: string;
+  tokenUsage?: TokenUsage;
 }
 
 interface GenerateInfoResponse {
@@ -132,6 +137,21 @@ export async function POST(
       );
     }
 
+    // Check studio credits
+    const clientId = await getClientId();
+    if (clientId) {
+      const credits = await getStudioCredits(clientId);
+      if (credits && !credits.canGenerate) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "You've used all your free generations. Please purchase tokens to continue.",
+          },
+          { status: 403 }
+        );
+      }
+    }
+
     const mimeMatch = imageBase64.match(/^data:(image\/\w+);base64,/);
     const mimeType = mimeMatch ? mimeMatch[1] : "image/png";
 
@@ -182,8 +202,10 @@ export async function POST(
       .map((r) => ({
         label: r.label,
         base64: r.resultBase64,
+        watermarkedBase64: "",
         mimeType: r.resultMimeType,
         text: r.text,
+        tokenUsage: "tokenUsage" in r ? (r as { tokenUsage?: TokenUsage }).tokenUsage : undefined,
       }));
 
     if (images.length === 0) {
@@ -224,7 +246,52 @@ export async function POST(
       }
     }
 
+    // Add watermarks for preview
+    console.log("Adding watermarks for preview...");
+    for (let i = 0; i < images.length; i++) {
+      try {
+        images[i].watermarkedBase64 = await addWatermark(images[i].base64);
+      } catch (err) {
+        console.error(`Watermark failed for info image ${i}:`, err);
+        images[i].watermarkedBase64 = images[i].base64;
+      }
+    }
+
     console.log(`Info images complete! ${images.length} generated.`);
+
+    // Deduct studio credits
+    if (clientId) {
+      await deductStudioCredits(clientId, images.length);
+    }
+
+    // ── Track usage & store images (non-blocking) ──
+    if (clientId) {
+      (async () => {
+        try {
+          for (const img of images) {
+            const genId = await trackGeneration({
+              clientId,
+              generationType: `studio-${img.label.toLowerCase().replace(/\s+/g, "-")}`,
+              tokenUsage: img.tokenUsage,
+              model: "gemini-2.5-flash-image",
+            });
+
+            const uploaded = await uploadImage(clientId, img.base64, img.label);
+            if (uploaded) {
+              await trackImage({
+                generationId: genId,
+                clientId,
+                label: img.label,
+                storagePath: uploaded.path,
+                fileSizeBytes: uploaded.size,
+              });
+            }
+          }
+        } catch (err) {
+          console.error("Studio info tracking error:", err);
+        }
+      })();
+    }
 
     return NextResponse.json({ success: true, images });
   } catch (error) {

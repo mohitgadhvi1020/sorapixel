@@ -1,17 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateStudioImage } from "@/lib/gemini";
+import { generateStudioImage, TokenUsage } from "@/lib/gemini";
 import { getStyleById, buildPackPrompts, buildCustomPrompt } from "@/lib/styles";
 import { compositeLogoOnImage } from "@/lib/logo-overlay-server";
 import { getRatioById, DEFAULT_RATIO } from "@/lib/aspect-ratios";
 import { cropToRatio } from "@/lib/crop-to-ratio";
+import { addWatermark } from "@/lib/watermark";
+import { getClientId, trackGeneration, trackImage, uploadImage } from "@/lib/track-usage";
+import { getStudioCredits, deductStudioCredits } from "@/lib/studio-credits";
 
 export const maxDuration = 120;
 
 interface PackImage {
   label: string;
   base64: string;
+  watermarkedBase64: string;
   mimeType: string;
   text?: string;
+  tokenUsage?: TokenUsage;
 }
 
 interface GeneratePackResponse {
@@ -39,6 +44,22 @@ export async function POST(
         { success: false, error: "No style or custom prompt provided" },
         { status: 400 }
       );
+    }
+
+    // Check studio credits
+    const clientId = await getClientId();
+    if (clientId) {
+      const credits = await getStudioCredits(clientId);
+      if (credits && !credits.canGenerate) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "You've used all your free generations. Please purchase tokens to continue.",
+            code: "CREDITS_EXHAUSTED",
+          } as GeneratePackResponse & { code?: string },
+          { status: 403 }
+        );
+      }
     }
 
     // Resolve aspect ratio
@@ -106,8 +127,10 @@ export async function POST(
       images.push({
         label: "Hero Shot",
         base64: heroResult.resultBase64,
+        watermarkedBase64: "",
         mimeType: heroResult.resultMimeType,
         text: heroResult.text,
+        tokenUsage: "tokenUsage" in heroResult ? heroResult.tokenUsage : undefined,
       });
     }
 
@@ -115,8 +138,10 @@ export async function POST(
       images.push({
         label: "Alternate Angle",
         base64: angleResult.resultBase64,
+        watermarkedBase64: "",
         mimeType: angleResult.resultMimeType,
         text: angleResult.text,
+        tokenUsage: "tokenUsage" in angleResult ? angleResult.tokenUsage : undefined,
       });
     }
 
@@ -124,8 +149,10 @@ export async function POST(
       images.push({
         label: "Close-up Detail",
         base64: closeupResult.resultBase64,
+        watermarkedBase64: "",
         mimeType: closeupResult.resultMimeType,
         text: closeupResult.text,
+        tokenUsage: "tokenUsage" in closeupResult ? closeupResult.tokenUsage : undefined,
       });
     }
 
@@ -172,7 +199,52 @@ export async function POST(
       }
     }
 
+    // Add watermarks for preview
+    console.log("Adding watermarks for preview...");
+    for (let i = 0; i < images.length; i++) {
+      try {
+        images[i].watermarkedBase64 = await addWatermark(images[i].base64);
+      } catch (err) {
+        console.error(`Watermark failed for image ${i}:`, err);
+        images[i].watermarkedBase64 = images[i].base64;
+      }
+    }
+
     console.log(`Pack complete! ${images.length}/3 images generated.`);
+
+    // Deduct studio credits
+    if (clientId) {
+      await deductStudioCredits(clientId, images.length);
+    }
+
+    // ── Track usage & store images (non-blocking) ──
+    if (clientId) {
+      (async () => {
+        try {
+          for (const img of images) {
+            const genId = await trackGeneration({
+              clientId,
+              generationType: `studio-${img.label.toLowerCase().replace(/\s+/g, "-")}`,
+              tokenUsage: img.tokenUsage,
+              model: "gemini-2.5-flash-image",
+            });
+
+            const uploaded = await uploadImage(clientId, img.base64, img.label);
+            if (uploaded) {
+              await trackImage({
+                generationId: genId,
+                clientId,
+                label: img.label,
+                storagePath: uploaded.path,
+                fileSizeBytes: uploaded.size,
+              });
+            }
+          }
+        } catch (err) {
+          console.error("Studio pack tracking error:", err);
+        }
+      })();
+    }
 
     return NextResponse.json({
       success: true,

@@ -1,27 +1,35 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import UploadZone from "@/components/upload-zone";
 import StylePresetGrid from "@/components/style-preset-grid";
 import BeforeAfterSlider from "@/components/before-after-slider";
 import InfoInputs from "@/components/info-inputs";
-import LogoUpload from "@/components/logo-upload";
-import PasswordGate from "@/components/password-gate";
 import AspectRatioSelector from "@/components/aspect-ratio-selector";
 import { getRatioById, DEFAULT_RATIO } from "@/lib/aspect-ratios";
 import { safeFetch } from "@/lib/safe-fetch";
+
+interface StudioCredits {
+  freeUsed: number;
+  freeRemaining: number;
+  tokenBalance: number;
+  canGenerate: boolean;
+  usingFree: boolean;
+  freeLimit: number;
+  tokensPerImage: number;
+}
 
 type Step = "idle" | "generating-pack" | "pack-done" | "generating-info";
 
 interface ResultImage {
   label: string;
   dataUri: string;
+  previewUri: string;
 }
 
 export default function StudioPage() {
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
   const [styleMode, setStyleMode] = useState<"preset" | "custom">("preset");
   const [customRawPrompt, setCustomRawPrompt] = useState("");
@@ -35,8 +43,19 @@ export default function StudioPage() {
   const [expandedSource, setExpandedSource] = useState<"pack" | "info">("pack");
   const [error, setError] = useState<string | null>(null);
   const [aspectRatio, setAspectRatio] = useState("square");
+  const [credits, setCredits] = useState<StudioCredits | null>(null);
+  const [showPricing, setShowPricing] = useState(false);
 
   const currentRatio = getRatioById(aspectRatio) || DEFAULT_RATIO;
+
+  const fetchCredits = useCallback(async () => {
+    try {
+      const data = await safeFetch<StudioCredits & { error?: string }>("/api/studio-credits");
+      if (!data.error) setCredits(data);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { fetchCredits(); }, [fetchCredits]);
   const allImages = [...packImages, ...infoImages];
 
   const handleImageSelected = useCallback(
@@ -93,10 +112,9 @@ export default function StudioPage() {
       } else {
         payload.styleId = selectedStyle!;
       }
-      if (logoBase64) payload.logoBase64 = logoBase64;
       payload.aspectRatioId = aspectRatio;
 
-      const data = await safeFetch<{ success: boolean; images?: { label: string; base64: string; mimeType: string }[]; error?: string }>("/api/generate-pack", {
+      const data = await safeFetch<{ success: boolean; images?: { label: string; base64: string; watermarkedBase64?: string; mimeType: string }[]; error?: string }>("/api/generate-pack", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -106,15 +124,19 @@ export default function StudioPage() {
         (img) => ({
           label: img.label,
           dataUri: `data:${img.mimeType};base64,${img.base64}`,
+          previewUri: img.watermarkedBase64
+            ? `data:image/png;base64,${img.watermarkedBase64}`
+            : `data:${img.mimeType};base64,${img.base64}`,
         })
       );
       setPackImages(images);
       setStep("pack-done");
+      fetchCredits();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
       setStep("idle");
     }
-  }, [imageBase64, selectedStyle, logoBase64, styleMode, customRefinedPrompt, aspectRatio]);
+  }, [imageBase64, selectedStyle, styleMode, customRefinedPrompt, aspectRatio, fetchCredits]);
 
   const handleGenerateInfo = useCallback(
     async (properties: string, dimensions: string) => {
@@ -123,9 +145,8 @@ export default function StudioPage() {
       setError(null);
       try {
         const payload: Record<string, string> = { imageBase64, properties, dimensions };
-        if (logoBase64) payload.logoBase64 = logoBase64;
         payload.aspectRatioId = aspectRatio;
-        const data = await safeFetch<{ success: boolean; images?: { label: string; base64: string; mimeType: string }[]; error?: string }>("/api/generate-info", {
+        const data = await safeFetch<{ success: boolean; images?: { label: string; base64: string; watermarkedBase64?: string; mimeType: string }[]; error?: string }>("/api/generate-info", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -135,16 +156,20 @@ export default function StudioPage() {
           (img) => ({
             label: img.label,
             dataUri: `data:${img.mimeType};base64,${img.base64}`,
+            previewUri: img.watermarkedBase64
+              ? `data:image/png;base64,${img.watermarkedBase64}`
+              : `data:${img.mimeType};base64,${img.base64}`,
           })
         );
         setInfoImages(images);
         setStep("pack-done");
+        fetchCredits();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Something went wrong");
         setStep("pack-done");
       }
     },
-    [imageBase64, logoBase64, aspectRatio]
+    [imageBase64, aspectRatio, fetchCredits]
   );
 
   const handleReset = useCallback(() => {
@@ -195,8 +220,12 @@ export default function StudioPage() {
   const isGenerating = step === "generating-pack" || step === "generating-info";
   const hasResults = packImages.length > 0;
 
+  const handleLogout = useCallback(async () => {
+    document.cookie = "sb-session=; path=/; max-age=0";
+    window.location.href = "/login?redirect=/studio";
+  }, []);
+
   return (
-    <PasswordGate>
     <div className="min-h-screen bg-[#fafaf8]">
       {/* Header */}
       <header className="glass border-b border-[#e8e5df] sticky top-0 z-50">
@@ -228,11 +257,71 @@ export default function StudioPage() {
                 Start over
               </button>
             )}
+            {credits && (
+              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#f5f0e8] border border-[#e8e5df]">
+                {credits.usingFree ? (
+                  <span className="text-xs font-medium text-[#8b7355]">
+                    {credits.freeRemaining} free left
+                  </span>
+                ) : (
+                  <span className="text-xs font-medium text-[#8b7355]">
+                    {credits.tokenBalance} tokens
+                  </span>
+                )}
+              </div>
+            )}
+            <button
+              onClick={handleLogout}
+              className="text-sm text-[#8c8c8c] hover:text-red-500 transition-colors duration-300"
+            >
+              Logout
+            </button>
           </div>
         </div>
       </header>
 
+      {/* Credits exhausted banner */}
+      {credits && !credits.canGenerate && (
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-200 px-4 py-3">
+          <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+            <p className="text-sm text-amber-800 font-medium text-center sm:text-left">
+              You&apos;ve used all {credits.freeLimit} free image generations. Purchase tokens to continue.
+            </p>
+            <button
+              onClick={() => setShowPricing(true)}
+              className="text-xs font-semibold text-white bg-[#8b7355] hover:bg-[#6b5740] px-4 py-1.5 rounded-full transition-colors whitespace-nowrap"
+            >
+              View Plans
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Pricing Modal */}
+      {showPricing && <PricingModal onClose={() => setShowPricing(false)} />}
+
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+        {/* Mobile credits badge */}
+        {credits && (
+          <div className="sm:hidden mb-4 flex justify-center">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#f5f0e8] border border-[#e8e5df]">
+              {credits.usingFree ? (
+                <span className="text-xs font-medium text-[#8b7355]">
+                  {credits.freeRemaining}/{credits.freeLimit} free generations left
+                </span>
+              ) : credits.tokenBalance > 0 ? (
+                <span className="text-xs font-medium text-[#8b7355]">
+                  {credits.tokenBalance} tokens remaining
+                </span>
+              ) : (
+                <span className="text-xs font-medium text-red-600">
+                  No credits remaining
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* ---- RESULTS VIEW ---- */}
         {hasResults && (
           <div className="space-y-6 sm:space-y-10 animate-fade-in">
@@ -242,7 +331,7 @@ export default function StudioPage() {
               </h2>
               <p className="text-[#8c8c8c] text-sm sm:text-base mt-1">
                 {allImages.length} image{allImages.length !== 1 ? "s" : ""}{" "}
-                generated{logoBase64 ? " with brand logo" : ""} — tap any image to compare
+                generated — tap any image to compare
               </p>
             </div>
 
@@ -412,24 +501,6 @@ export default function StudioPage() {
               )}
             </section>
 
-            {/* Brand Logo */}
-            {imagePreview && (
-              <section className="space-y-2 sm:space-y-3 animate-slide-up" style={{ animationDelay: "50ms" }}>
-                <div>
-                  <div className="inline-flex items-center gap-2 text-xs font-bold text-[#8b7355] tracking-widest uppercase mb-1.5 sm:mb-2">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-                    </svg>
-                    Brand Logo
-                  </div>
-                </div>
-                <LogoUpload
-                  logoPreview={logoBase64}
-                  onLogoSelected={setLogoBase64}
-                  onRemove={() => setLogoBase64(null)}
-                />
-              </section>
-            )}
 
             {/* Step 2: Style Selection */}
             {imagePreview && (
@@ -553,20 +624,130 @@ export default function StudioPage() {
               (styleMode === "custom" && customRefinedPrompt)
             ) && (
               <div className="flex justify-center pt-2 sm:pt-4 animate-slide-up" style={{ animationDelay: "200ms" }}>
-                <button
-                  onClick={handleGeneratePack}
-                  disabled={isGenerating}
-                  className="w-full sm:w-auto px-8 py-3.5 sm:py-4 bg-gradient-to-r from-[#8b7355] to-[#6b5740] text-white rounded-xl font-semibold text-base sm:text-lg transition-all duration-300 shadow-lg shadow-[#8b7355]/20 active:scale-[0.98] disabled:opacity-50 text-center"
-                >
-                  Generate Marketplace Pack
-                </button>
+                {credits && !credits.canGenerate ? (
+                  <button
+                    onClick={() => setShowPricing(true)}
+                    className="w-full sm:w-auto px-8 py-3.5 sm:py-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-semibold text-base sm:text-lg transition-all duration-300 shadow-lg shadow-amber-500/20 active:scale-[0.98] text-center"
+                  >
+                    Buy Tokens to Generate
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleGeneratePack}
+                    disabled={isGenerating}
+                    className="w-full sm:w-auto px-8 py-3.5 sm:py-4 bg-gradient-to-r from-[#8b7355] to-[#6b5740] text-white rounded-xl font-semibold text-base sm:text-lg transition-all duration-300 shadow-lg shadow-[#8b7355]/20 active:scale-[0.98] disabled:opacity-50 text-center"
+                  >
+                    Generate Marketplace Pack
+                  </button>
+                )}
               </div>
             )}
           </div>
         )}
       </main>
     </div>
-    </PasswordGate>
+  );
+}
+
+/* ─── Pricing Modal ─── */
+const TOKEN_BUNDLES = [
+  { tokens: 50, price: 500, perToken: 10, label: "Starter" },
+  { tokens: 100, price: 800, perToken: 8, label: "Popular", popular: true },
+  { tokens: 200, price: 1500, perToken: 7.5, label: "Pro" },
+  { tokens: 500, price: 3000, perToken: 6, label: "Business", best: true },
+];
+
+function PricingModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto animate-scale-in">
+        <div className="p-6 sm:p-8">
+          {/* Close */}
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-[#f5f0e8] text-[#8b7355] hover:bg-[#e8e0d0] transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+
+          {/* Header */}
+          <div className="text-center mb-6">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#f5f0e8] text-[#8b7355] text-xs font-semibold uppercase tracking-wider mb-3">
+              Token Packs
+            </div>
+            <h2 className="text-xl sm:text-2xl font-bold text-[#1b1b1f] tracking-tight">
+              Continue Creating
+            </h2>
+            <p className="text-sm text-[#8c8c8c] mt-1.5">
+              1 token = 1 image &middot; Buy more, save more
+            </p>
+          </div>
+
+          {/* Bundles */}
+          <div className="space-y-3">
+            {TOKEN_BUNDLES.map((bundle) => (
+              <div
+                key={bundle.tokens}
+                className={`relative rounded-xl border-2 p-4 transition-all duration-200 ${
+                  bundle.popular
+                    ? "border-[#8b7355] bg-[#fdfbf7] shadow-md"
+                    : "border-[#e8e5df] bg-white hover:border-[#d4c5a9]"
+                }`}
+              >
+                {bundle.popular && (
+                  <span className="absolute -top-2.5 left-4 px-2.5 py-0.5 bg-[#8b7355] text-white text-[10px] font-bold uppercase tracking-wider rounded-full">
+                    Most Popular
+                  </span>
+                )}
+                {bundle.best && (
+                  <span className="absolute -top-2.5 left-4 px-2.5 py-0.5 bg-[#0a0a0a] text-white text-[10px] font-bold uppercase tracking-wider rounded-full">
+                    Best Value
+                  </span>
+                )}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-lg font-bold text-[#1b1b1f]">{bundle.tokens} Tokens</span>
+                      <span className="text-xs text-[#8c8c8c]">{bundle.label}</span>
+                    </div>
+                    <p className="text-xs text-[#8c8c8c] mt-0.5">
+                      ₹{bundle.perToken}/token &middot; ~{Math.floor(bundle.tokens / 3)} packs of 3
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xl font-bold text-[#1b1b1f]">₹{bundle.price.toLocaleString()}</div>
+                    {bundle.perToken < 10 && (
+                      <div className="text-[10px] font-medium text-green-600">
+                        Save {Math.round((1 - bundle.perToken / 10) * 100)}%
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* CTA */}
+          <div className="mt-6 text-center space-y-3">
+            <a
+              href="https://wa.me/916351068776?text=Hi%2C%20I%27d%20like%20to%20purchase%20tokens%20for%20SoraPixel%20Studio."
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 w-full py-3.5 bg-[#25D366] text-white rounded-xl font-semibold text-sm transition-all duration-300 shadow-lg shadow-[#25D366]/20 hover:bg-[#1fb855] hover:shadow-xl active:scale-[0.98]"
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+              Chat on WhatsApp to Purchase
+            </a>
+            <p className="text-[11px] text-[#b0b0b0]">
+              Tokens are added to your account instantly after payment confirmation.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -598,7 +779,7 @@ function ImageCard({
       >
         <div style={{ paddingBottom: `${(ratioH / ratioW) * 100}%` }} className="relative w-full">
           <img
-            src={img.dataUri}
+            src={img.previewUri || img.dataUri}
             alt={img.label}
             className="absolute inset-0 w-full h-full object-cover"
           />

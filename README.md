@@ -1,41 +1,79 @@
-# SoraPixel — AI Product Photography for Kitchenware
+# SoraPixel - AI Product Photography Platform
 
-Transform raw product photos into studio-quality images in seconds.
+AI-powered product photography for jewelry, fashion, and e-commerce. 
+Generate studio-quality product photos, catalogue images with AI models, 
+and branded marketing materials.
 
-## How it works
+## Architecture
 
-1. **Upload** a raw product photo (even a phone picture)
-2. **Pick a style** — kitchen counter, marble surface, lifestyle scene, etc.
-3. **AI generates** a professional studio scene around your product
-4. **Download** a marketplace-ready pack: hero shot, alternate angle, close-up, and optional info images
+```
+soraipixel/
+├── backend/           # FastAPI Python API server
+│   ├── app/           # Application code
+│   │   ├── routers/   # API endpoints
+│   │   ├── services/  # Business logic (AI, payments, credits)
+│   │   ├── schemas/   # Request/response models
+│   │   └── middleware/ # Auth (JWT)
+│   └── migrations/    # SQL migrations
+├── frontend/          # Next.js web application
+│   └── src/
+│       ├── app/       # Pages (login, studio, jewelry, catalogue, etc.)
+│       ├── components/# React components
+│       ├── hooks/     # Custom hooks (useAuth, useCredits)
+│       └── lib/       # API client, types
+└── src/               # Legacy Next.js monolith (being migrated)
+```
 
-## Setup
+## Quick Start
 
-### 1. Install dependencies
-
+### Backend
 ```bash
+cd backend
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env  # Fill in credentials
+uvicorn app.main:app --reload --port 8000
+```
+
+### Frontend
+```bash
+cd frontend
 npm install
-```
-
-### 2. Configure environment
-
-Copy the example env file and add your API key:
-
-```bash
-cp .env.example .env.local
-```
-
-Edit `.env.local` and add your API key.
-
-### 3. Run the dev server
-
-```bash
+echo "NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1" > .env.local
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to see the app.
+## Features
+
+### Existing (migrated from Next.js)
+- Studio product photography (multiple styles, aspect ratios)
+- Jewelry-specific photography (hero, angle, closeup packs)
+- Metal recoloring (gold, silver, rose gold)
+- HD upscaling via fal.ai
+- Virtual try-on (jewelry on person)
+- Product listing generation (Shopify-ready)
+- Token/credit system
+- Admin dashboard
+
+### New (from Flyr feature analysis)
+- OTP mobile login (phone + 6-digit OTP)
+- User profile (business name, logo, address, branding)
+- Multi-category system (Jewelry, Fashion, Accessories, etc.)
+- Catalogue/UGC generation (product on AI models)
+- Projects management (Photoshoot + Catalogue tabs)
+- Daily rewards (2 free tokens/day)
+- Razorpay payment integration (token packs + subscriptions)
+- Home feed with pre-generated examples
+- WhatsApp sharing
 
 ## Tech Stack
 
-- **Next.js 15** (App Router) + TypeScript
-- **Tailwind CSS v4**
+- **Backend**: FastAPI (Python), Supabase (PostgreSQL + Storage + Auth)
+- **Frontend**: Next.js 16, React 19, Tailwind CSS v4
+- **AI**: Google Gemini 2.5 Flash, fal.ai
+- **Payments**: Razorpay
+- **OTP**: MSG91
+
+## API Documentation
+
+Backend Swagger docs: http://localhost:8000/docs

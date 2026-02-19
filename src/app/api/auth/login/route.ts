@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     const sb = getSupabaseServer();
     const { data: client } = await sb
       .from("clients")
-      .select("id, email, is_admin, is_active, company_name, contact_name")
+      .select("id, email, is_admin, is_active, company_name, contact_name, allowed_sections")
       .eq("id", authData.user.id)
       .single();
 
@@ -76,6 +76,7 @@ export async function POST(req: NextRequest) {
       isAdmin: client.is_admin,
       companyName: client.company_name,
       contactName: client.contact_name,
+      allowedSections: client.allowed_sections || ["studio", "jewelry"],
     };
 
     const response = NextResponse.json({ success: true, user: session });

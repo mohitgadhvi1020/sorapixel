@@ -7,6 +7,7 @@ import {
 import { cropToRatio } from "@/lib/crop-to-ratio";
 import { addWatermark } from "@/lib/watermark";
 import { getClientId, trackGeneration, trackImage, uploadImage } from "@/lib/track-usage";
+import { getJewelryCredits, deductJewelryTokens, JEWELRY_PRICING } from "@/lib/jewelry-credits";
 import sharp from "sharp";
 
 export const maxDuration = 180;
@@ -25,6 +26,7 @@ interface GenerateJewelryResponse {
   success: boolean;
   images?: PackImage[];
   error?: string;
+  tokensUsed?: number;
 }
 
 /**
@@ -120,6 +122,49 @@ export async function POST(
         { success: false, error: "No image provided" },
         { status: 400 }
       );
+    }
+
+    // Credit check & deduction
+    let tokensCharged = 0;
+    const clientId = await getClientId();
+    if (clientId) {
+      let cost = 0;
+      let checkOnly = false;
+
+      if (onlyHero && !regenerateSingle && !customAngleBase64) {
+        // Step 1: just verify balance (deduction happens at step 2)
+        cost = JEWELRY_PRICING.packGeneration;
+        checkOnly = true;
+      } else if (onlyRest) {
+        // Step 2: all 3 images done — deduct the full 40
+        cost = JEWELRY_PRICING.packGeneration;
+      } else if (regenerateSingle || customAngleBase64) {
+        cost = JEWELRY_PRICING.recolorSingle;
+      }
+
+      if (cost > 0) {
+        const credits = await getJewelryCredits(clientId);
+        if (credits && credits.tokenBalance < cost) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Insufficient tokens. This costs ${cost} tokens but you have ${credits.tokenBalance}.`,
+              code: "CREDITS_EXHAUSTED",
+            } as GenerateJewelryResponse & { code?: string },
+            { status: 403 }
+          );
+        }
+        if (!checkOnly) {
+          const deducted = await deductJewelryTokens(clientId, cost);
+          if (!deducted) {
+            return NextResponse.json(
+              { success: false, error: "Failed to deduct tokens. Please try again." },
+              { status: 500 }
+            );
+          }
+          tokensCharged = cost;
+        }
+      }
     }
 
     // Parse the input image
@@ -225,7 +270,6 @@ export async function POST(
       }
 
       // Track
-      const clientId = await getClientId();
       if (clientId) {
         (async () => {
           try {
@@ -459,12 +503,10 @@ export async function POST(
     }
 
     // ── Track usage & store images (non-blocking) ──
-    const clientId = await getClientId();
     if (clientId) {
       (async () => {
         try {
           for (const img of images) {
-            // Track generation
             const genType = img.label.toLowerCase().includes("hero")
               ? "hero"
               : img.label.toLowerCase().includes("close")
@@ -477,7 +519,6 @@ export async function POST(
               model: "gemini-2.5-flash-image",
             });
 
-            // Upload to storage
             const uploaded = await uploadImage(clientId, img.base64, img.label);
             if (uploaded) {
               const imageId = await trackImage({
@@ -496,7 +537,15 @@ export async function POST(
       })();
     }
 
-    return NextResponse.json({ success: true, images });
+    const responseImages = images.map((img) => ({
+      label: img.label,
+      base64: img.base64,
+      mimeType: img.mimeType,
+      watermarkedBase64: img.watermarkedBase64,
+      imageId: img.imageId,
+    }));
+
+    return NextResponse.json({ success: true, images: responseImages, tokensUsed: tokensCharged });
   } catch (error) {
     console.error("Jewelry generation error:", error);
     return NextResponse.json(

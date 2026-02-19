@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withRetry } from "@/lib/gemini";
 import { GoogleGenAI } from "@google/genai";
 import { getClientId, trackGeneration } from "@/lib/track-usage";
+import { getJewelryCredits, deductJewelryTokens, JEWELRY_PRICING } from "@/lib/jewelry-credits";
 
 export const maxDuration = 45;
 
@@ -37,6 +38,7 @@ interface RewriteResponse {
   success: boolean;
   listing?: ListingOutput;
   error?: string;
+  tokensUsed?: number;
 }
 
 /* ─── Stylika Brand Guidelines (embedded in prompt) ─── */
@@ -222,6 +224,21 @@ export async function POST(
       );
     }
 
+    // Credit check
+    let tokensCharged = 0;
+    const clientId = await getClientId();
+    if (clientId) {
+      const credits = await getJewelryCredits(clientId);
+      if (credits && credits.tokenBalance < JEWELRY_PRICING.listing) {
+        return NextResponse.json(
+          { success: false, error: `Insufficient tokens. Listing generation costs ${JEWELRY_PRICING.listing} tokens.` },
+          { status: 403 }
+        );
+      }
+      await deductJewelryTokens(clientId, JEWELRY_PRICING.listing);
+      tokensCharged = JEWELRY_PRICING.listing;
+    }
+
     const ai = getClient();
 
     let prompt: string;
@@ -318,7 +335,6 @@ ${OUTPUT_JSON_SCHEMA}`;
       };
 
       // Track usage (non-blocking)
-      const clientId = await getClientId();
       if (clientId) {
         const usage = response.usageMetadata;
         trackGeneration({
@@ -335,7 +351,7 @@ ${OUTPUT_JSON_SCHEMA}`;
         }).catch((err) => console.error("Listing tracking error:", err));
       }
 
-      return NextResponse.json({ success: true, listing });
+      return NextResponse.json({ success: true, listing, tokensUsed: tokensCharged });
     } catch {
       return NextResponse.json(
         { success: false, error: "Failed to parse AI response" },

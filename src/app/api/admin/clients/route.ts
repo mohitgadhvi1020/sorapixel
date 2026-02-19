@@ -18,7 +18,7 @@ export async function GET() {
   const sb = getSupabaseServer();
   const { data: clients, error } = await sb
     .from("clients")
-    .select("id, email, company_name, contact_name, is_active, is_admin, created_at")
+    .select("id, email, company_name, contact_name, is_active, is_admin, created_at, allowed_sections, token_balance, studio_free_used")
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
-  const { email, password, companyName, contactName } = await req.json();
+  const { email, password, companyName, contactName, allowedSections } = await req.json();
 
   if (!email || !password) {
     return NextResponse.json(
@@ -50,9 +50,12 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const sections = Array.isArray(allowedSections) && allowedSections.length > 0
+    ? allowedSections
+    : ["studio", "jewelry"];
+
   const sb = getSupabaseServer();
 
-  // Create user in Supabase Auth
   let userId: string;
   const { data: authData, error: authError } = await sb.auth.admin.createUser({
     email,
@@ -61,7 +64,6 @@ export async function POST(req: NextRequest) {
   });
 
   if (authError) {
-    // If user already exists in Auth, look them up and ensure client row exists
     if (authError.message?.includes("already been registered")) {
       const { data: listData } = await sb.auth.admin.listUsers();
       const existing = listData?.users?.find((u) => u.email === email);
@@ -87,7 +89,6 @@ export async function POST(req: NextRequest) {
     userId = authData.user.id;
   }
 
-  // Create client row (upsert to handle re-creation)
   const { error: clientError } = await sb.from("clients").upsert({
     id: userId,
     email,
@@ -95,6 +96,7 @@ export async function POST(req: NextRequest) {
     contact_name: contactName || "",
     is_active: true,
     is_admin: isAdminEmail(email),
+    allowed_sections: sections,
   }, { onConflict: "id" });
 
   if (clientError) {
@@ -111,12 +113,13 @@ export async function POST(req: NextRequest) {
       email,
       companyName: companyName || "",
       contactName: contactName || "",
+      allowedSections: sections,
     },
   });
 }
 
 /**
- * PATCH /api/admin/clients — toggle active status
+ * PATCH /api/admin/clients — update client (toggle active, update sections)
  */
 export async function PATCH(req: NextRequest) {
   if (!isSupabaseConfigured()) {
@@ -128,19 +131,37 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
-  const { clientId, isActive } = await req.json();
+  const body = await req.json();
+  const { clientId } = body;
 
-  if (!clientId || typeof isActive !== "boolean") {
+  if (!clientId) {
     return NextResponse.json(
-      { error: "clientId and isActive are required" },
+      { error: "clientId is required" },
       { status: 400 }
     );
   }
 
   const sb = getSupabaseServer();
+  const updates: Record<string, unknown> = {};
+
+  if (typeof body.isActive === "boolean") {
+    updates.is_active = body.isActive;
+  }
+
+  if (Array.isArray(body.allowedSections)) {
+    updates.allowed_sections = body.allowedSections;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json(
+      { error: "Nothing to update" },
+      { status: 400 }
+    );
+  }
+
   const { error } = await sb
     .from("clients")
-    .update({ is_active: isActive })
+    .update(updates)
     .eq("id", clientId);
 
   if (error) {

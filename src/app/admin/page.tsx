@@ -18,6 +18,9 @@ interface ClientStat {
   totalImages: number;
   totalDownloads: number;
   imageGenCount: number;
+  studioFreeUsed: number;
+  tokenBalance: number;
+  allowedSections: string[];
 }
 
 interface Activity {
@@ -69,6 +72,14 @@ export default function AdminPage() {
 
   const [tab, setTab] = useState<"overview" | "clients" | "activity">("overview");
 
+  // Token management
+  const [tokenClientId, setTokenClientId] = useState<string | null>(null);
+  const [tokenAmount, setTokenAmount] = useState("");
+  const [addingTokens, setAddingTokens] = useState(false);
+
+  // Section access on create
+  const [newSections, setNewSections] = useState<string[]>(["studio", "jewelry"]);
+
   const fetchStats = useCallback(async () => {
     try {
       const data = await safeFetch<{
@@ -110,6 +121,7 @@ export default function AdminPage() {
           password: newPassword.trim(),
           companyName: newCompany.trim(),
           contactName: newContact.trim(),
+          allowedSections: newSections,
         }),
       });
 
@@ -120,6 +132,7 @@ export default function AdminPage() {
       setNewPassword("");
       setNewCompany("");
       setNewContact("");
+      setNewSections(["studio", "jewelry"]);
       setShowCreate(false);
       fetchStats();
     } catch (err) {
@@ -144,6 +157,49 @@ export default function AdminPage() {
     },
     [fetchStats]
   );
+
+  const handleToggleSections = useCallback(
+    async (clientId: string, currentSections: string[], section: string) => {
+      const newSections = currentSections.includes(section)
+        ? currentSections.filter((s) => s !== section)
+        : [...currentSections, section];
+
+      try {
+        await safeFetch("/api/admin/clients", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clientId, allowedSections: newSections }),
+        });
+        fetchStats();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to update sections");
+      }
+    },
+    [fetchStats]
+  );
+
+  const handleAddTokens = useCallback(async () => {
+    if (!tokenClientId || !tokenAmount.trim() || addingTokens) return;
+    const amount = parseInt(tokenAmount, 10);
+    if (isNaN(amount) || amount <= 0) return;
+
+    setAddingTokens(true);
+    try {
+      const data = await safeFetch<{ success?: boolean; error?: string }>("/api/admin/tokens", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: tokenClientId, amount }),
+      });
+      if (!data.success) throw new Error(data.error || "Failed");
+      setTokenClientId(null);
+      setTokenAmount("");
+      fetchStats();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to add tokens");
+    } finally {
+      setAddingTokens(false);
+    }
+  }, [tokenClientId, tokenAmount, addingTokens, fetchStats]);
 
   const handleLogout = useCallback(async () => {
     try {
@@ -386,6 +442,29 @@ export default function AdminPage() {
                       />
                     </div>
                   </div>
+
+                  {/* Section Access */}
+                  <div>
+                    <label className="block text-xs font-medium text-[#8c8c8c] uppercase tracking-wider mb-2">Section Access</label>
+                    <div className="flex gap-3">
+                      {["studio", "jewelry"].map((section) => (
+                        <label key={section} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={newSections.includes(section)}
+                            onChange={() =>
+                              setNewSections((prev) =>
+                                prev.includes(section) ? prev.filter((s) => s !== section) : [...prev, section]
+                              )
+                            }
+                            className="w-4 h-4 rounded border-[#e8e5df] text-[#8b7355] focus:ring-[#8b7355]"
+                          />
+                          <span className="text-sm font-medium text-[#1b1b1f] capitalize">{section}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
                   <button
                     onClick={handleCreateClient}
                     disabled={!newEmail.trim() || !newPassword.trim() || creating}
@@ -400,14 +479,16 @@ export default function AdminPage() {
             {/* Clients List */}
             <div className="bg-white rounded-xl border border-[#e8e5df] overflow-hidden">
               <div className="overflow-x-auto scroll-x-mobile">
-                <table className="w-full text-sm min-w-[550px]">
+                <table className="w-full text-sm min-w-[700px]">
                   <thead>
                     <tr className="border-b border-[#e8e5df] bg-[#fafaf8]">
                       <th className="text-left px-4 py-3 text-xs font-bold text-[#8b7355] uppercase tracking-wider">Client</th>
                       <th className="text-left px-4 py-3 text-xs font-bold text-[#8b7355] uppercase tracking-wider">Company</th>
-                      <th className="text-left px-4 py-3 text-xs font-bold text-[#8b7355] uppercase tracking-wider">Joined</th>
+                      <th className="text-center px-4 py-3 text-xs font-bold text-[#8b7355] uppercase tracking-wider">Sections</th>
+                      <th className="text-center px-4 py-3 text-xs font-bold text-[#8b7355] uppercase tracking-wider">Free Used</th>
+                      <th className="text-center px-4 py-3 text-xs font-bold text-[#8b7355] uppercase tracking-wider">Tokens</th>
                       <th className="text-center px-4 py-3 text-xs font-bold text-[#8b7355] uppercase tracking-wider">Status</th>
-                      <th className="text-center px-4 py-3 text-xs font-bold text-[#8b7355] uppercase tracking-wider">Action</th>
+                      <th className="text-center px-4 py-3 text-xs font-bold text-[#8b7355] uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -418,29 +499,78 @@ export default function AdminPage() {
                           <div className="text-xs text-[#8c8c8c]">{c.email}</div>
                         </td>
                         <td className="px-4 py-3 text-[#1b1b1f]">{c.companyName || "—"}</td>
-                        <td className="px-4 py-3 text-[#8c8c8c]">{formatDate(c.createdAt)}</td>
+                        <td className="text-center px-4 py-3">
+                          <div className="flex items-center justify-center gap-1.5">
+                            {["studio", "jewelry"].map((section) => (
+                              <button
+                                key={section}
+                                onClick={() => handleToggleSections(c.id, c.allowedSections, section)}
+                                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-colors capitalize ${
+                                  c.allowedSections.includes(section)
+                                    ? "bg-[#f5f0e8] border-[#d4c5a9] text-[#8b7355]"
+                                    : "bg-[#f5f5f5] border-[#e0e0e0] text-[#b0b0b0]"
+                                }`}
+                              >
+                                {section}
+                              </button>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="text-center px-4 py-3">
+                          <span className="text-xs font-medium text-[#1b1b1f]">{c.studioFreeUsed}/9</span>
+                        </td>
+                        <td className="text-center px-4 py-3">
+                          <span className="text-sm font-bold text-[#8b7355]">{c.tokenBalance}</span>
+                        </td>
                         <td className="text-center px-4 py-3">
                           <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${c.isActive ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
                             {c.isActive ? "Active" : "Disabled"}
                           </span>
                         </td>
                         <td className="text-center px-4 py-3">
-                          <button
-                            onClick={() => handleToggleActive(c.id, c.isActive)}
-                            className={`text-xs font-medium px-3 py-1 rounded-lg border transition-colors ${
-                              c.isActive
-                                ? "border-red-200 text-red-600 hover:bg-red-50"
-                                : "border-green-200 text-green-700 hover:bg-green-50"
-                            }`}
-                          >
-                            {c.isActive ? "Disable" : "Enable"}
-                          </button>
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              onClick={() => handleToggleActive(c.id, c.isActive)}
+                              className={`text-xs font-medium px-3 py-1 rounded-lg border transition-colors ${
+                                c.isActive
+                                  ? "border-red-200 text-red-600 hover:bg-red-50"
+                                  : "border-green-200 text-green-700 hover:bg-green-50"
+                              }`}
+                            >
+                              {c.isActive ? "Disable" : "Enable"}
+                            </button>
+                            <button
+                              onClick={() => setTokenClientId(tokenClientId === c.id ? null : c.id)}
+                              className="text-xs font-medium px-3 py-1 rounded-lg border border-[#d4c5a9] text-[#8b7355] hover:bg-[#f5f0e8] transition-colors"
+                            >
+                              + Tokens
+                            </button>
+                          </div>
+                          {tokenClientId === c.id && (
+                            <div className="mt-2 flex items-center gap-2 justify-center animate-slide-up-sm">
+                              <input
+                                type="number"
+                                min="1"
+                                value={tokenAmount}
+                                onChange={(e) => setTokenAmount(e.target.value)}
+                                placeholder="Amount"
+                                className="w-24 px-2 py-1.5 rounded-lg border border-[#e8e5df] bg-[#fafaf8] text-sm text-center focus:outline-none focus:border-[#8b7355]"
+                              />
+                              <button
+                                onClick={handleAddTokens}
+                                disabled={!tokenAmount.trim() || addingTokens}
+                                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#0a0a0a] text-white hover:bg-[#1a1a1a] transition-colors disabled:opacity-50"
+                              >
+                                {addingTokens ? "..." : "Add"}
+                              </button>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ))}
                     {stats.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="px-4 py-8 text-center text-[#8c8c8c]">No clients yet. Create one above.</td>
+                        <td colSpan={7} className="px-4 py-8 text-center text-[#8c8c8c]">No clients yet. Create one above.</td>
                       </tr>
                     )}
                   </tbody>

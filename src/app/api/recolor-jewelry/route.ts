@@ -4,13 +4,14 @@ import { getRatioById, DEFAULT_RATIO } from "@/lib/aspect-ratios";
 import { cropToRatio } from "@/lib/crop-to-ratio";
 import { addWatermark } from "@/lib/watermark";
 import { getClientId, trackGeneration, trackImage, uploadImage } from "@/lib/track-usage";
+import { getJewelryCredits, deductJewelryTokens, JEWELRY_PRICING } from "@/lib/jewelry-credits";
 
 export const maxDuration = 120;
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { imageBase64, targetColor, aspectRatioId } = body;
+    const { imageBase64, targetColor, aspectRatioId, skipTokenCheck } = body;
 
     if (!imageBase64) {
       return NextResponse.json(
@@ -24,6 +25,23 @@ export async function POST(req: NextRequest) {
         { success: false, error: "No target color provided" },
         { status: 400 }
       );
+    }
+
+    // Credit check (skipTokenCheck is used when batch already pre-deducted)
+    let tokensCharged = 0;
+    if (!skipTokenCheck) {
+      const clientId = await getClientId();
+      if (clientId) {
+        const credits = await getJewelryCredits(clientId);
+        if (credits && credits.tokenBalance < JEWELRY_PRICING.recolorSingle) {
+          return NextResponse.json(
+            { success: false, error: `Insufficient tokens. Recolor costs ${JEWELRY_PRICING.recolorSingle} tokens.`, code: "CREDITS_EXHAUSTED" },
+            { status: 403 }
+          );
+        }
+        await deductJewelryTokens(clientId, JEWELRY_PRICING.recolorSingle);
+        tokensCharged = JEWELRY_PRICING.recolorSingle;
+      }
     }
 
     const colorDesc = targetColor.trim();
@@ -151,6 +169,7 @@ The output must look like the jewelry was ALWAYS made in ${colorDesc} metal — 
         watermarkedBase64,
         mimeType: finalMimeType,
       },
+      tokensUsed: tokensCharged,
     });
   } catch (error) {
     console.error("Recolor error:", error);

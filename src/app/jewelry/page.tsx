@@ -24,6 +24,9 @@ interface ResultImage {
   dataUri: string;
   previewUri: string;
   imageId?: string;
+  hasHD?: boolean;
+  hdWidth?: number;
+  hdHeight?: number;
 }
 
 interface Toast {
@@ -105,10 +108,27 @@ export default function JewelryPage() {
   const [customAngleUploading, setCustomAngleUploading] = useState(false);
   const [customAngleOriginal, setCustomAngleOriginal] = useState<string | null>(null);
 
+  // HD on-demand
+  const [hdGeneratingIndex, setHdGeneratingIndex] = useState<number | null>(null);
+
   // Recolor
   const [recolorTarget, setRecolorTarget] = useState("");
   const [recoloringIndex, setRecoloringIndex] = useState<number | null>(null);
   const [recoloringAll, setRecoloringAll] = useState(false);
+
+  // Credits
+  interface JCredits { tokenBalance: number; canGeneratePack: boolean; canRecolorAll: boolean; canRecolorSingle: boolean; canGenerateListing: boolean; canHdUpscale: boolean; pricing: { packGeneration: number; recolorAll: number; recolorSingle: number; listing: number; hdUpscale: number } }
+  const [jCredits, setJCredits] = useState<JCredits | null>(null);
+  const [showPricing, setShowPricing] = useState(false);
+
+  const fetchJCredits = useCallback(async () => {
+    try {
+      const data = await safeFetch<JCredits & { error?: string }>("/api/jewelry-credits");
+      if (!data.error) setJCredits(data);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { fetchJCredits(); }, [fetchJCredits]);
 
   // Admin check
   const [isAdmin, setIsAdmin] = useState(false);
@@ -219,7 +239,7 @@ export default function JewelryPage() {
 
       const data = await fetchWithRetry<{
         success: boolean;
-        images?: { label: string; base64: string; mimeType: string; imageId?: string }[];
+        images?: { label: string; base64: string; mimeType: string; imageId?: string; watermarkedBase64?: string }[];
         error?: string;
       }>(
         "/api/generate-jewelry",
@@ -236,7 +256,7 @@ export default function JewelryPage() {
       );
 
       if (!data.success) throw new Error(data.error || "Generation failed");
-      const images = (data.images ?? []).map((img: { label: string; base64: string; watermarkedBase64?: string; mimeType: string; imageId?: string }) => ({
+      const images = (data.images ?? []).map((img) => ({
         label: img.label,
         dataUri: `data:${img.mimeType};base64,${img.base64}`,
         previewUri: img.watermarkedBase64
@@ -248,6 +268,8 @@ export default function JewelryPage() {
         setHeroImage(images[0]);
         setStep("hero-done");
         setGenStatus(null);
+        showToast("Hero shot ready! Generate remaining images to complete the pack (40 tokens for the full pack).", "success");
+        fetchJCredits();
       } else {
         throw new Error("No image generated");
       }
@@ -258,7 +280,7 @@ export default function JewelryPage() {
       setStep("idle");
       setGenStatus(null);
     }
-  }, [imageBase64, backgroundId, buildPayload, showToast]);
+  }, [imageBase64, backgroundId, buildPayload, showToast, fetchJCredits]);
 
   // Step 2: Generate remaining images (Close-up crop + Alternate Angle)
   const handleGenerateRest = useCallback(async () => {
@@ -277,8 +299,9 @@ export default function JewelryPage() {
 
       const data = await fetchWithRetry<{
         success: boolean;
-        images?: { label: string; base64: string; mimeType: string; imageId?: string }[];
+        images?: { label: string; base64: string; mimeType: string; imageId?: string; watermarkedBase64?: string }[];
         error?: string;
+        tokensUsed?: number;
       }>(
         "/api/generate-jewelry",
         {
@@ -294,7 +317,7 @@ export default function JewelryPage() {
       );
 
       if (!data.success) throw new Error(data.error || "Generation failed");
-      const images = (data.images ?? []).map((img: { label: string; base64: string; watermarkedBase64?: string; mimeType: string; imageId?: string }) => ({
+      const images = (data.images ?? []).map((img) => ({
         label: img.label,
         dataUri: `data:${img.mimeType};base64,${img.base64}`,
         previewUri: img.watermarkedBase64
@@ -305,6 +328,8 @@ export default function JewelryPage() {
       setRestImages(images);
       setStep("all-done");
       setGenStatus(null);
+      showToast(`Pack complete! ${data.tokensUsed ? `${data.tokensUsed} tokens used.` : ""}`, "success");
+      fetchJCredits();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Something went wrong";
       setError(msg);
@@ -312,11 +337,10 @@ export default function JewelryPage() {
       setStep("hero-done");
       setGenStatus(null);
     }
-  }, [imageBase64, heroImage, buildPayload, showToast]);
+  }, [imageBase64, heroImage, buildPayload, showToast, fetchJCredits]);
 
   const downloadImage = useCallback((dataUri: string, label: string, imageId?: string) => {
     if (imageId) {
-      // Use tracked download API
       const a = document.createElement("a");
       a.href = `/api/download?imageId=${imageId}`;
       a.download = `sorapixel-jewelry-${label.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}.png`;
@@ -324,7 +348,6 @@ export default function JewelryPage() {
       a.click();
       document.body.removeChild(a);
     } else {
-      // Fallback: direct data URI download
       const a = document.createElement("a");
       a.href = dataUri;
       a.download = `sorapixel-jewelry-${label.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}.png`;
@@ -333,6 +356,64 @@ export default function JewelryPage() {
       document.body.removeChild(a);
     }
   }, []);
+
+  const downloadHDImage = useCallback((label: string) => {
+    const cleanLabel = label.replace(/ \(.*\)$/, "");
+    const a = document.createElement("a");
+    a.href = `/api/download-hd?label=${encodeURIComponent(cleanLabel)}`;
+    a.download = `sorapixel-jewelry-${cleanLabel.toLowerCase().replace(/\s+/g, "-")}-hd-${Date.now()}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }, []);
+
+  const handleGenerateHD = useCallback(async (index: number) => {
+    const img = allImages[index];
+    if (!img || hdGeneratingIndex !== null) return;
+
+    setHdGeneratingIndex(index);
+    try {
+      const data = await safeFetch<{
+        success: boolean;
+        hdWidth?: number;
+        hdHeight?: number;
+        tokensUsed?: number;
+        error?: string;
+      }>("/api/generate-hd", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageBase64: img.dataUri,
+          label: img.label.replace(/ \(.*\)$/, ""),
+        }),
+      });
+
+      if (!data.success) throw new Error(data.error || "HD generation failed");
+
+      const updated: ResultImage = {
+        ...img,
+        hasHD: true,
+        hdWidth: data.hdWidth,
+        hdHeight: data.hdHeight,
+      };
+
+      if (index === 0) {
+        setHeroImage(updated);
+      } else {
+        setRestImages((prev) =>
+          prev.map((r, i) => (i === index - 1 ? updated : r))
+        );
+      }
+
+      showToast(`HD ready! ${data.hdWidth}×${data.hdHeight} — ${data.tokensUsed} tokens used.`, "success");
+      fetchJCredits();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "HD generation failed";
+      showToast(msg, "error");
+    } finally {
+      setHdGeneratingIndex(null);
+    }
+  }, [allImages, hdGeneratingIndex, showToast, fetchJCredits]);
 
   const handleDownloadAll = useCallback(() => {
     allImages.forEach((img, i) => {
@@ -490,6 +571,7 @@ export default function JewelryPage() {
           success: boolean;
           image?: { base64: string; watermarkedBase64?: string; mimeType: string };
           error?: string;
+          tokensUsed?: number;
         }>("/api/recolor-jewelry", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -502,6 +584,8 @@ export default function JewelryPage() {
 
         if (!data.success || !data.image)
           throw new Error(data.error || "Recolor failed");
+
+        if (data.tokensUsed) showToast(`Recolor done! ${data.tokensUsed} tokens used.`, "success");
 
         const newUri = `data:${data.image.mimeType};base64,${data.image.base64}`;
         const newPreview = data.image.watermarkedBase64
@@ -521,9 +605,10 @@ export default function JewelryPage() {
         showToast(msg, "error");
       } finally {
         setRecoloringIndex(null);
+        fetchJCredits();
       }
     },
-    [allImages, recolorTarget, recoloringIndex, recoloringAll, showToast]
+    [allImages, recolorTarget, recoloringIndex, recoloringAll, showToast, fetchJCredits]
   );
 
   // Recolor ALL images at once
@@ -535,6 +620,13 @@ export default function JewelryPage() {
     setError(null);
 
     try {
+      // Pre-deduct batch recolor tokens (20 total instead of 7×3=21)
+      const deductData = await safeFetch<{ success?: boolean; error?: string; tokensUsed?: number }>("/api/deduct-tokens", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ operation: "recolorAll" }),
+      });
+
       const results = await Promise.all(
         allImages.map((img) =>
           safeFetch<{
@@ -548,14 +640,17 @@ export default function JewelryPage() {
               imageBase64: img.dataUri,
               targetColor: recolorTarget.trim(),
               aspectRatioId: "square",
+              skipTokenCheck: true,
             }),
           })
         )
       );
 
       const colorLabel = recolorTarget.trim();
+      let recoloredCount = 0;
       results.forEach((data, i) => {
         if (data.success && data.image) {
+          recoloredCount++;
           const newUri = `data:${data.image.mimeType};base64,${data.image.base64}`;
           const newPreview = data.image.watermarkedBase64
             ? `data:${data.image.mimeType};base64,${data.image.watermarkedBase64}`
@@ -570,14 +665,18 @@ export default function JewelryPage() {
           }
         }
       });
+      if (recoloredCount > 0) {
+        showToast(`All ${recoloredCount} images recolored! ${deductData.tokensUsed || 20} tokens used.`, "success");
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Recolor failed";
       setError(msg);
       showToast(msg, "error");
     } finally {
       setRecoloringAll(false);
+      fetchJCredits();
     }
-  }, [allImages, recolorTarget, recoloringAll, recoloringIndex, showToast]);
+  }, [allImages, recolorTarget, recoloringAll, recoloringIndex, showToast, fetchJCredits]);
 
   // Listing rewriter — supports "auto", "refine", and default "rewrite" modes
   const handleGenerateListing = useCallback(async (mode: "auto" | "refine" | "rewrite" = "rewrite") => {
@@ -634,6 +733,7 @@ export default function JewelryPage() {
           };
         };
         error?: string;
+        tokensUsed?: number;
       }>("/api/rewrite-listing", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -642,14 +742,16 @@ export default function JewelryPage() {
 
       if (!data.success || !data.listing) throw new Error(data.error || "Listing generation failed");
       setListing(data.listing);
+      if (data.tokensUsed) showToast(`Listing generated! ${data.tokensUsed} tokens used.`, "success");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Listing generation failed";
       setError(msg);
       showToast(msg, "error");
     } finally {
       setListingLoading(false);
+      fetchJCredits();
     }
-  }, [rawTitle, rawDescription, jewelryType, imageBase64, heroImage, recolorTarget, listing, showToast]);
+  }, [rawTitle, rawDescription, jewelryType, imageBase64, heroImage, recolorTarget, listing, showToast, fetchJCredits]);
 
   const copyToClipboard = useCallback((text: string, field: string) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -736,12 +838,24 @@ export default function JewelryPage() {
                   Admin
                 </a>
               )}
+              {jCredits && (
+                <button
+                  onClick={() => setShowPricing(true)}
+                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#f5f0e8] border border-[#e8e5df] hover:bg-[#ece3d3] transition-colors"
+                >
+                  <span className="text-xs font-bold text-[#8b7355]">{jCredits.tokenBalance}</span>
+                  <span className="text-[10px] text-[#8b7355]">tokens</span>
+                </button>
+              )}
               <button onClick={handleLogout} className="px-3 py-2 text-[13px] font-medium text-[#4a4a4a] rounded-lg hover:text-[#0a0a0a] hover:bg-black/[0.04] transition-all duration-200">
                 Logout
               </button>
             </div>
           </div>
         </header>
+
+        {/* Pricing Modal */}
+        {showPricing && <JewelryPricingModal onClose={() => setShowPricing(false)} />}
 
         {/* Main */}
         <main className="max-w-[1400px] mx-auto px-5 md:px-8 lg:px-12 py-6 sm:py-10">
@@ -775,12 +889,16 @@ export default function JewelryPage() {
                 }`}>
                   {allImages.map((img, index) => {
                     const isAngle = img.label.startsWith("Alternate");
+                    const isHeroOrAngle = img.label.startsWith("Hero") || isAngle;
                     return (
                       <ImageCard
                         key={index}
                         img={img}
                         onExpand={() => setExpandedIndex(expandedIndex === index ? null : index)}
                         onDownload={() => downloadImage(img.dataUri, img.label, img.imageId)}
+                        onDownloadHD={img.hasHD ? () => downloadHDImage(img.label) : undefined}
+                        onGenerateHD={isHeroOrAngle && !img.hasHD ? () => handleGenerateHD(index) : undefined}
+                        isGeneratingHD={hdGeneratingIndex === index}
                         onRegenerate={() => handleRegenerateSingle(index)}
                         isRegenerating={regeneratingIndex === index}
                         onCustomUpload={isAngle && step === "all-done" ? handleCustomAngleUpload : undefined}
@@ -839,6 +957,7 @@ export default function JewelryPage() {
                     className="w-full sm:w-auto px-7 py-3.5 bg-[#0a0a0a] text-white text-[13px] sm:text-[14px] rounded-full font-semibold hover:bg-[#1a1a1a] transition-all duration-200 active:scale-[0.98] text-center"
                   >
                     Looks Good — Generate More
+                    <span className="ml-1.5 text-[11px] opacity-70">(40 tokens)</span>
                   </button>
                 )}
 
@@ -914,7 +1033,7 @@ export default function JewelryPage() {
                             Recoloring all images...
                           </span>
                         ) : (
-                          `Recolor All ${allImages.length} Images`
+                          <>Recolor All {allImages.length} Images <span className="ml-1 text-[11px] opacity-70">(20 tokens)</span></>
                         )}
                       </button>
 
@@ -936,7 +1055,7 @@ export default function JewelryPage() {
                                 Recoloring...
                               </span>
                             ) : (
-                              img.label.replace(/ \(.*\)$/, "")
+                              <>{img.label.replace(/ \(.*\)$/, "")} <span className="text-[10px] opacity-60">(7)</span></>
                             )}
                           </button>
                         ))}
@@ -971,7 +1090,7 @@ export default function JewelryPage() {
                             Generating...
                           </span>
                         ) : (
-                          "Auto-Generate"
+                          <>Auto-Generate <span className="ml-1 text-[11px] opacity-70">(5 tokens)</span></>
                         )}
                       </button>
                     )}
@@ -1016,7 +1135,7 @@ export default function JewelryPage() {
                             Generating...
                           </span>
                         ) : (
-                          "Generate Listing"
+                          <>Generate Listing <span className="ml-1 text-[11px] opacity-70">(5 tokens)</span></>
                         )}
                       </button>
                     </div>
@@ -1182,7 +1301,7 @@ export default function JewelryPage() {
                               Refining...
                             </span>
                           ) : (
-                            "Refine with AI"
+                            <>Refine with AI <span className="ml-1 text-[11px] opacity-70">(5 tokens)</span></>
                           )}
                         </button>
                         <button
@@ -1190,7 +1309,7 @@ export default function JewelryPage() {
                           disabled={listingLoading}
                           className="flex-1 py-3 rounded-full font-medium text-[13px] transition-all duration-200 active:scale-[0.98] bg-white border border-[#e8e5df] text-[#4a4a4a] hover:bg-[#f5f0e8] hover:border-[#c4a67d] disabled:opacity-50"
                         >
-                          Regenerate from Scratch
+                          Regenerate from Scratch <span className="ml-1 text-[11px] opacity-60">(5 tokens)</span>
                         </button>
                       </div>
 
@@ -1404,6 +1523,7 @@ export default function JewelryPage() {
                     className="w-full sm:w-auto px-10 py-4 bg-[#0a0a0a] text-white rounded-full font-semibold text-[15px] hover:bg-[#1a1a1a] transition-all duration-200 active:scale-[0.98] disabled:opacity-50 text-center"
                   >
                     Generate Hero Shot
+                    <span className="block text-[11px] opacity-60 mt-0.5">No tokens charged until full pack is generated</span>
                   </button>
                 </div>
               )}
@@ -1419,6 +1539,9 @@ function ImageCard({
   img,
   onExpand,
   onDownload,
+  onDownloadHD,
+  onGenerateHD,
+  isGeneratingHD,
   onRegenerate,
   isRegenerating,
   onCustomUpload,
@@ -1427,20 +1550,30 @@ function ImageCard({
   img: ResultImage;
   onExpand: () => void;
   onDownload: () => void;
+  onDownloadHD?: () => void;
+  onGenerateHD?: () => void;
+  isGeneratingHD?: boolean;
   onRegenerate?: () => void;
   isRegenerating?: boolean;
   onCustomUpload?: (file: File) => void;
   isCustomUploading?: boolean;
 }) {
-  const isBusy = isRegenerating || isCustomUploading;
-  const busyLabel = isCustomUploading ? "Processing your angle..." : "Regenerating...";
+  const isBusy = isRegenerating || isCustomUploading || isGeneratingHD;
+  const busyLabel = isGeneratingHD ? "Generating HD..." : isCustomUploading ? "Processing your angle..." : "Regenerating...";
 
   return (
     <div className="group">
       {/* Label */}
-      <p className="text-[11px] sm:text-[12px] font-semibold text-[#8b7355] uppercase tracking-[0.08em] mb-2 text-center">
-        {img.label}
-      </p>
+      <div className="flex items-center justify-center gap-2 mb-2">
+        <p className="text-[11px] sm:text-[12px] font-semibold text-[#8b7355] uppercase tracking-[0.08em] text-center">
+          {img.label}
+        </p>
+        {img.hasHD && (
+          <span className="px-1.5 py-0.5 bg-[#8b7355] text-white text-[9px] font-bold rounded uppercase tracking-wider">
+            HD
+          </span>
+        )}
+      </div>
       {/* Image */}
       <div
         className={`relative overflow-hidden bg-white cursor-pointer rounded-xl border border-[#e8e5df] transition-all duration-300 ${isBusy ? "opacity-50 pointer-events-none" : "hover:shadow-lg hover:shadow-black/8 hover:-translate-y-1"}`}
@@ -1465,6 +1598,13 @@ function ImageCard({
             </span>
           </div>
         )}
+        {img.hasHD && !isBusy && (
+          <div className="absolute top-2 right-2">
+            <span className="px-2 py-1 bg-[#8b7355]/90 text-white text-[9px] font-bold rounded-lg backdrop-blur-sm uppercase tracking-wider">
+              {img.hdWidth}×{img.hdHeight}
+            </span>
+          </div>
+        )}
       </div>
       {/* Actions */}
       <div className="mt-2 sm:mt-2.5 flex gap-1.5 sm:gap-2">
@@ -1485,6 +1625,34 @@ function ImageCard({
           </button>
         )}
       </div>
+      {/* HD actions */}
+      {onDownloadHD && img.hasHD ? (
+        <button
+          onClick={(e) => { e.stopPropagation(); onDownloadHD(); }}
+          className="mt-1.5 w-full py-2.5 text-[11px] sm:text-[12px] font-bold text-white bg-[#8b7355] border border-[#8b7355] rounded-lg hover:bg-[#7a6448] transition-all duration-200 active:scale-[0.98] uppercase tracking-wide flex items-center justify-center gap-1.5"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+          Download HD ({img.hdWidth}×{img.hdHeight})
+        </button>
+      ) : onGenerateHD && !img.hasHD ? (
+        <button
+          onClick={(e) => { e.stopPropagation(); onGenerateHD(); }}
+          disabled={isBusy}
+          className="mt-1.5 w-full py-2.5 text-[11px] sm:text-[12px] font-semibold text-[#8b7355] bg-[#f5f0e8] border border-[#e8e5df] rounded-lg hover:bg-[#ede5d8] hover:border-[#c4a67d] transition-all duration-200 active:scale-[0.98] disabled:opacity-50 uppercase tracking-wide flex items-center justify-center gap-1.5"
+        >
+          {isGeneratingHD ? (
+            <>
+              <span className="w-3.5 h-3.5 border-2 border-[#8b7355] border-t-transparent rounded-full animate-spin" />
+              Generating HD...
+            </>
+          ) : (
+            <>
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+              Generate HD <span className="text-[10px] opacity-60 ml-0.5">(10 tokens)</span>
+            </>
+          )}
+        </button>
+      ) : null}
       {/* Custom angle upload option */}
       {onCustomUpload && !isBusy && (
         <label className="mt-2 flex items-center justify-center gap-1.5 py-2 text-[10px] sm:text-[11px] font-medium text-[#8b7355] bg-[#f5f0e8] border border-[#e8e5df] rounded-lg cursor-pointer hover:bg-[#ede5d8] hover:border-[#c4a67d] transition-all duration-200 active:scale-[0.98]">
@@ -1506,3 +1674,69 @@ function ImageCard({
   );
 }
 
+/* ─── Jewelry Pricing Modal ─── */
+const JEWELRY_BUNDLES = [
+  { tokens: 50, price: 500, perToken: 10, label: "Starter" },
+  { tokens: 100, price: 800, perToken: 8, label: "Popular", popular: true },
+  { tokens: 200, price: 1500, perToken: 7.5, label: "Pro" },
+  { tokens: 500, price: 3000, perToken: 6, label: "Business", best: true },
+];
+
+function JewelryPricingModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto animate-scale-in">
+        <div className="p-6 sm:p-8">
+          <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-[#f5f0e8] text-[#8b7355] hover:bg-[#e8e0d0] transition-colors">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+
+          <div className="text-center mb-5">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#f5f0e8] text-[#8b7355] text-xs font-semibold uppercase tracking-wider mb-3">Token Packs</div>
+            <h2 className="text-xl sm:text-2xl font-bold text-[#1b1b1f] tracking-tight">Jewelry Studio Tokens</h2>
+          </div>
+
+          <div className="mb-5 p-3 rounded-xl bg-[#fafaf8] border border-[#e8e5df]">
+            <p className="text-[10px] font-bold text-[#8b7355] uppercase tracking-wider mb-2">Token costs</p>
+            <div className="grid grid-cols-2 gap-y-1.5 text-xs">
+              <span className="text-[#8c8c8c]">Photo Pack (3 images)</span><span className="text-right font-semibold text-[#1b1b1f]">40 tokens</span>
+              <span className="text-[#8c8c8c]">Recolor All (3 images)</span><span className="text-right font-semibold text-[#1b1b1f]">20 tokens</span>
+              <span className="text-[#8c8c8c]">Recolor Single</span><span className="text-right font-semibold text-[#1b1b1f]">7 tokens</span>
+              <span className="text-[#8c8c8c]">HD Upscale (Print-Ready)</span><span className="text-right font-semibold text-[#1b1b1f]">10 tokens</span>
+              <span className="text-[#8c8c8c]">Listing Generation</span><span className="text-right font-semibold text-[#1b1b1f]">5 tokens</span>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {JEWELRY_BUNDLES.map((b) => (
+              <div key={b.tokens} className={`relative rounded-xl border-2 p-4 transition-all duration-200 ${b.popular ? "border-[#8b7355] bg-[#fdfbf7] shadow-md" : "border-[#e8e5df] bg-white hover:border-[#d4c5a9]"}`}>
+                {b.popular && <span className="absolute -top-2.5 left-4 px-2.5 py-0.5 bg-[#8b7355] text-white text-[10px] font-bold uppercase tracking-wider rounded-full">Most Popular</span>}
+                {b.best && <span className="absolute -top-2.5 left-4 px-2.5 py-0.5 bg-[#0a0a0a] text-white text-[10px] font-bold uppercase tracking-wider rounded-full">Best Value</span>}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-lg font-bold text-[#1b1b1f]">{b.tokens} Tokens</span>
+                    <span className="text-xs text-[#8c8c8c] ml-2">{b.label}</span>
+                    <p className="text-xs text-[#8c8c8c] mt-0.5">₹{b.perToken}/token &middot; ~{Math.floor(b.tokens / 40)} full packs</p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xl font-bold text-[#1b1b1f]">₹{b.price.toLocaleString()}</div>
+                    {b.perToken < 10 && <div className="text-[10px] font-medium text-green-600">Save {Math.round((1 - b.perToken / 10) * 100)}%</div>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-6 text-center space-y-3">
+            <a href="https://wa.me/916351068776?text=Hi%2C%20I%27d%20like%20to%20purchase%20tokens%20for%20SoraPixel%20Jewelry%20Studio." target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 w-full py-3.5 bg-[#25D366] text-white rounded-xl font-semibold text-sm transition-all duration-300 shadow-lg shadow-[#25D366]/20 hover:bg-[#1fb855] hover:shadow-xl active:scale-[0.98]">
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+              Chat on WhatsApp to Purchase
+            </a>
+            <p className="text-[11px] text-[#b0b0b0]">Tokens are added to your account instantly after payment confirmation.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
