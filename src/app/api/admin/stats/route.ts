@@ -20,7 +20,7 @@ export async function GET() {
     // Get all clients
     const { data: clients } = await sb
       .from("clients")
-      .select("id, email, company_name, contact_name, is_active, created_at")
+      .select("id, email, company_name, contact_name, is_active, listing_tokens, created_at")
       .order("created_at", { ascending: false });
 
     // Get generation counts per client
@@ -58,6 +58,7 @@ export async function GET() {
         companyName: c.company_name,
         contactName: c.contact_name,
         isActive: c.is_active,
+        listingTokens: c.listing_tokens ?? 0,
         createdAt: c.created_at,
         totalGenerations: gens.length,
         totalTokens,

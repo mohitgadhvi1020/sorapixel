@@ -151,6 +151,12 @@ export default function HomePage() {
               Jewelry
             </Link>
             <Link
+              href="/batch-listing"
+              className="px-2.5 sm:px-3 py-2 text-[12px] sm:text-[13px] font-medium text-[#4a4a4a] rounded-lg hover:text-[#0a0a0a] hover:bg-black/[0.04] transition-all duration-200"
+            >
+              Bulk Listings
+            </Link>
+            <Link
               href="/tryon"
               className="px-2.5 sm:px-3 py-2 text-[12px] sm:text-[13px] font-medium text-[#4a4a4a] rounded-lg hover:text-[#0a0a0a] hover:bg-black/[0.04] transition-all duration-200 hidden sm:block"
             >
@@ -496,6 +502,7 @@ export default function HomePage() {
               { label: "Get Help", href: "#" },
               { label: "What's New", href: "#" },
               { label: "Try SoraPixel", href: "/jewelry" },
+              { label: "Bulk Listings", href: "/batch-listing" },
             ].map((link) => (
               <Link
                 key={link.label}
@@ -578,6 +585,9 @@ export default function HomePage() {
             <div className="flex flex-wrap items-center gap-x-5 sm:gap-x-6 gap-y-2">
               <Link href="/jewelry" className="text-[12px] text-white/40 hover:text-white/70 transition-colors duration-200 tracking-wide uppercase">
                 Jewelry
+              </Link>
+              <Link href="/batch-listing" className="text-[12px] text-white/40 hover:text-white/70 transition-colors duration-200 tracking-wide uppercase">
+                Bulk Listings
               </Link>
               <Link href="/tryon" className="text-[12px] text-white/40 hover:text-white/70 transition-colors duration-200 tracking-wide uppercase">
                 Try-On

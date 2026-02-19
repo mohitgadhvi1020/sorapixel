@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 const SESSION_COOKIE = "sb-session";
 
-const PROTECTED_ROUTES = ["/jewelry", "/admin"];
+const PROTECTED_ROUTES = ["/jewelry", "/admin", "/batch-listing"];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -43,5 +43,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/jewelry/:path*", "/admin/:path*"],
+  matcher: ["/jewelry/:path*", "/admin/:path*", "/batch-listing/:path*"],
 };

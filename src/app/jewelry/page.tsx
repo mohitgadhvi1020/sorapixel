@@ -128,13 +128,13 @@ export default function JewelryPage() {
     metaDescription: string;
     altText: string;
     attributes: {
-      material: string;
-      stone: string;
-      color: string;
+      jewelryMaterial: string;
+      gemstoneType: string;
       collection: string;
       occasion: string;
-      style: string;
-      productType: string;
+      material: string;
+      stone: string;
+      closure: string;
     };
   } | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
@@ -624,13 +624,13 @@ export default function JewelryPage() {
           metaDescription: string;
           altText: string;
           attributes: {
-            material: string;
-            stone: string;
-            color: string;
+            jewelryMaterial: string;
+            gemstoneType: string;
             collection: string;
             occasion: string;
-            style: string;
-            productType: string;
+            material: string;
+            stone: string;
+            closure: string;
           };
         };
         error?: string;
@@ -726,6 +726,9 @@ export default function JewelryPage() {
               </span>
             </a>
             <div className="flex items-center gap-2 sm:gap-3">
+              <a href="/batch-listing" className="px-3 py-2 text-[13px] font-medium text-[#4a4a4a] rounded-lg hover:text-[#0a0a0a] hover:bg-black/[0.04] transition-all duration-200">
+                Bulk Listings
+              </a>
               {(imageBase64 || hasResults) && (
                 <button onClick={handleReset} className="px-3 py-2 text-[13px] font-medium text-[#4a4a4a] rounded-lg hover:text-[#0a0a0a] hover:bg-black/[0.04] transition-all duration-200">
                   Start over
@@ -1145,13 +1148,13 @@ export default function JewelryPage() {
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                           {([
-                            ["material", "Material"],
-                            ["stone", "Stones"],
-                            ["color", "Finish Color"],
+                            ["jewelryMaterial", "Jewelry Material"],
+                            ["gemstoneType", "Gemstone Type"],
                             ["collection", "Collection"],
                             ["occasion", "Occasion"],
-                            ["style", "Style"],
-                            ["productType", "Product Type"],
+                            ["material", "Material (Detail)"],
+                            ["stone", "Stones (Detail)"],
+                            ["closure", "Closure"],
                           ] as [keyof typeof listing.attributes, string][]).map(([key, label]) => (
                             <div key={key}>
                               <label className="block text-[10px] font-semibold text-[#8c8c8c] uppercase tracking-[0.08em] mb-1.5">{label}</label>
@@ -1204,18 +1207,17 @@ export default function JewelryPage() {
                             `Description (HTML):`,
                             listing.description,
                             "",
+                            `Category Metafields:`,
+                            `  Jewelry Material: ${a.jewelryMaterial}`,
+                            `  Gemstone Type: ${a.gemstoneType}`,
+                            "",
+                            `Product Metafields:`,
+                            `  Collection: ${a.collection}`,
+                            `  Occasion: ${a.occasion}`,
+                            "",
                             `Meta Description: ${listing.metaDescription}`,
                             "",
                             `Alt Text: ${listing.altText}`,
-                            "",
-                            `Attributes:`,
-                            `  Material: ${a.material}`,
-                            `  Stones: ${a.stone}`,
-                            `  Finish Color: ${a.color}`,
-                            `  Collection: ${a.collection}`,
-                            `  Occasion: ${a.occasion}`,
-                            `  Style: ${a.style}`,
-                            `  Product Type: ${a.productType}`,
                           ].join("\n");
                           copyToClipboard(full, "all");
                         }}

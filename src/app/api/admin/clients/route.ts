@@ -18,7 +18,7 @@ export async function GET() {
   const sb = getSupabaseServer();
   const { data: clients, error } = await sb
     .from("clients")
-    .select("id, email, company_name, contact_name, is_active, is_admin, created_at")
+    .select("id, email, company_name, contact_name, is_active, is_admin, listing_tokens, created_at")
     .order("created_at", { ascending: false });
 
   if (error) {

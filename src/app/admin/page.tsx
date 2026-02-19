@@ -10,6 +10,7 @@ interface ClientStat {
   companyName: string;
   contactName: string;
   isActive: boolean;
+  listingTokens: number;
   createdAt: string;
   totalGenerations: number;
   totalTokens: number;
@@ -68,6 +69,11 @@ export default function AdminPage() {
   const [createMsg, setCreateMsg] = useState<string | null>(null);
 
   const [tab, setTab] = useState<"overview" | "clients" | "activity">("overview");
+
+  // Token management
+  const [tokenClientId, setTokenClientId] = useState<string | null>(null);
+  const [tokenAmount, setTokenAmount] = useState("");
+  const [tokenLoading, setTokenLoading] = useState(false);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -143,6 +149,33 @@ export default function AdminPage() {
       }
     },
     [fetchStats]
+  );
+
+  const handleAddTokens = useCallback(
+    async (clientId: string) => {
+      const amount = parseInt(tokenAmount, 10);
+      if (!amount || tokenLoading) return;
+      setTokenLoading(true);
+      try {
+        const data = await safeFetch<{ success?: boolean; balance?: number; error?: string }>(
+          "/api/admin/listing-tokens",
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ clientId, amount }),
+          }
+        );
+        if (!data.success) throw new Error(data.error || "Failed");
+        setTokenAmount("");
+        setTokenClientId(null);
+        fetchStats();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to update tokens");
+      } finally {
+        setTokenLoading(false);
+      }
+    },
+    [tokenAmount, tokenLoading, fetchStats]
   );
 
   const handleLogout = useCallback(async () => {
@@ -400,14 +433,15 @@ export default function AdminPage() {
             {/* Clients List */}
             <div className="bg-white rounded-xl border border-[#e8e5df] overflow-hidden">
               <div className="overflow-x-auto scroll-x-mobile">
-                <table className="w-full text-sm min-w-[550px]">
+                <table className="w-full text-sm min-w-[700px]">
                   <thead>
                     <tr className="border-b border-[#e8e5df] bg-[#fafaf8]">
                       <th className="text-left px-4 py-3 text-xs font-bold text-[#8b7355] uppercase tracking-wider">Client</th>
                       <th className="text-left px-4 py-3 text-xs font-bold text-[#8b7355] uppercase tracking-wider">Company</th>
+                      <th className="text-right px-4 py-3 text-xs font-bold text-[#8b7355] uppercase tracking-wider">Listing Tokens</th>
                       <th className="text-left px-4 py-3 text-xs font-bold text-[#8b7355] uppercase tracking-wider">Joined</th>
                       <th className="text-center px-4 py-3 text-xs font-bold text-[#8b7355] uppercase tracking-wider">Status</th>
-                      <th className="text-center px-4 py-3 text-xs font-bold text-[#8b7355] uppercase tracking-wider">Action</th>
+                      <th className="text-center px-4 py-3 text-xs font-bold text-[#8b7355] uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -418,6 +452,33 @@ export default function AdminPage() {
                           <div className="text-xs text-[#8c8c8c]">{c.email}</div>
                         </td>
                         <td className="px-4 py-3 text-[#1b1b1f]">{c.companyName || "—"}</td>
+                        <td className="text-right px-4 py-3">
+                          <span className="text-[#1b1b1f] font-bold">{formatNumber(c.listingTokens)}</span>
+                          <button
+                            onClick={() => setTokenClientId(tokenClientId === c.id ? null : c.id)}
+                            className="ml-2 text-[11px] font-semibold text-[#8b7355] hover:text-[#6b5740] underline transition-colors"
+                          >
+                            {tokenClientId === c.id ? "Cancel" : "Add"}
+                          </button>
+                          {tokenClientId === c.id && (
+                            <div className="mt-2 flex items-center gap-2">
+                              <input
+                                type="number"
+                                value={tokenAmount}
+                                onChange={(e) => setTokenAmount(e.target.value)}
+                                placeholder="e.g. 100"
+                                className="w-24 px-2 py-1.5 rounded-lg border border-[#e8e5df] bg-white text-sm text-[#1b1b1f] text-right focus:outline-none focus:border-[#8b7355] transition-colors"
+                              />
+                              <button
+                                onClick={() => handleAddTokens(c.id)}
+                                disabled={!tokenAmount || tokenLoading}
+                                className="px-3 py-1.5 bg-[#0a0a0a] text-white rounded-lg text-[11px] font-semibold hover:bg-[#1a1a1a] transition-all disabled:opacity-50"
+                              >
+                                {tokenLoading ? "..." : "Add"}
+                              </button>
+                            </div>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-[#8c8c8c]">{formatDate(c.createdAt)}</td>
                         <td className="text-center px-4 py-3">
                           <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${c.isActive ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
@@ -440,7 +501,7 @@ export default function AdminPage() {
                     ))}
                     {stats.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="px-4 py-8 text-center text-[#8c8c8c]">No clients yet. Create one above.</td>
+                        <td colSpan={6} className="px-4 py-8 text-center text-[#8c8c8c]">No clients yet. Create one above.</td>
                       </tr>
                     )}
                   </tbody>
