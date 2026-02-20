@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60 * 24  # 24 hours for simplicity at 100 DAU
     refresh_token_expire_days: int = 30
 
+    # Google OAuth
+    google_client_id: str = ""
+
     # AI Services
     gemini_api_key: str = ""
     fal_key: str = ""
@@ -37,6 +40,7 @@ class Settings(BaseSettings):
 
     # Admin
     admin_phones: str = ""  # comma-separated phone numbers
+    admin_emails: str = ""  # comma-separated email addresses
 
     # Credits
     free_studio_limit: int = 9
@@ -47,6 +51,10 @@ class Settings(BaseSettings):
     @property
     def admin_phone_list(self) -> list[str]:
         return [p.strip() for p in self.admin_phones.split(",") if p.strip()]
+
+    @property
+    def admin_email_list(self) -> list[str]:
+        return [e.strip().lower() for e in self.admin_emails.split(",") if e.strip()]
 
 
 @lru_cache

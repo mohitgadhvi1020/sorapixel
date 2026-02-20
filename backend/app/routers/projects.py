@@ -17,9 +17,9 @@ async def list_projects(
     user: dict = Depends(get_current_user),
 ):
     sb = get_supabase()
-    query = sb.table("projects").select(
-        "*, images:images(id, label, storage_path, created_at)"
-    ).eq("client_id", user["id"]).order("created_at", desc=True)
+    query = sb.table("projects").select("*").eq(
+        "client_id", user["id"]
+    ).order("created_at", desc=True)
 
     if project_type:
         query = query.eq("project_type", project_type)
@@ -34,11 +34,11 @@ async def list_projects(
 @router.get("/{project_id}")
 async def get_project(project_id: str, user: dict = Depends(get_current_user)):
     sb = get_supabase()
-    result = sb.table("projects").select(
-        "*, images:images(id, label, storage_path, created_at)"
-    ).eq("id", project_id).eq("client_id", user["id"]).single().execute()
+    result = sb.table("projects").select("*").eq(
+        "id", project_id
+    ).eq("client_id", user["id"]).maybe_single().execute()
 
-    if not result.data:
+    if not result or not result.data:
         raise HTTPException(status_code=404, detail="Project not found")
     return result.data
 

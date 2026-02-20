@@ -1,37 +1,8 @@
 from __future__ import annotations
 
-"""Prompt engineering service -- ported from lib/styles.ts and lib/jewelry-styles.ts.
-Contains all prompt templates for studio, jewelry, catalogue, and try-on.
+"""Prompt engineering service — category-aware prompts for Studio + Catalogue + Branding.
+Matches Flyr's feature set: backgrounds and model interaction change per user category.
 """
-
-# ─── Studio Style Presets ───
-
-STUDIO_STYLES = {
-    "clean_white": {
-        "label": "Clean White",
-        "prompt": "Professional product photo on pure white background, studio lighting, commercial quality, centered composition",
-    },
-    "lifestyle": {
-        "label": "Lifestyle",
-        "prompt": "Lifestyle product photography, natural setting, warm ambient lighting, editorial style",
-    },
-    "luxury": {
-        "label": "Luxury",
-        "prompt": "Luxury product photography, dark moody background, dramatic lighting, premium feel, high-end commercial",
-    },
-    "nature": {
-        "label": "Nature",
-        "prompt": "Product on natural surface, botanical elements, soft daylight, organic aesthetic",
-    },
-    "minimal": {
-        "label": "Minimal",
-        "prompt": "Minimalist product shot, clean gradient background, single light source, modern aesthetic",
-    },
-    "festive": {
-        "label": "Festive",
-        "prompt": "Festive product photography, warm golden tones, bokeh lights, celebration mood",
-    },
-}
 
 PRODUCT_ISOLATION_PROMPT = (
     "CRITICAL RULES:\n"
@@ -41,205 +12,115 @@ PRODUCT_ISOLATION_PROMPT = (
     "4. Only change the BACKGROUND and LIGHTING, never the product itself"
 )
 
+# ─── Studio Backgrounds (Photo Shoot) ───
+# Each background has an id, label, color_hex (for solid), and prompt description.
+# Scene backgrounds are universal; solid colors are universal.
+# Some categories get extra category-specific backgrounds.
 
-def build_studio_prompt(style: str | None, custom_prompt: str | None, isolate: bool = True) -> str:
-    """Build the full studio generation prompt."""
-    parts = []
-
-    if custom_prompt:
-        parts.append(custom_prompt)
-    elif style and style in STUDIO_STYLES:
-        parts.append(STUDIO_STYLES[style]["prompt"])
-    else:
-        parts.append(STUDIO_STYLES["clean_white"]["prompt"])
-
-    if isolate:
-        parts.append(PRODUCT_ISOLATION_PROMPT)
-
-    return "\n\n".join(parts)
-
-
-def build_pack_prompts(style: str | None, custom_prompt: str | None, isolate: bool = True) -> list[dict]:
-    """Build prompts for a 3-image marketplace pack (hero, angle, closeup)."""
-    base = custom_prompt if custom_prompt else (STUDIO_STYLES.get(style, STUDIO_STYLES["clean_white"])["prompt"])
-    isolation = f"\n\n{PRODUCT_ISOLATION_PROMPT}" if isolate else ""
-
-    return [
-        {
-            "label": "Hero Shot",
-            "prompt": f"{base}\n\nHERO SHOT: Front-facing, perfectly centered, this is the main product listing image.{isolation}",
-        },
-        {
-            "label": "Alternate Angle",
-            "prompt": f"{base}\n\nALTERNATE ANGLE: Slight 30-degree angle, showing depth and dimension of the product.{isolation}",
-        },
-        {
-            "label": "Close-up Detail",
-            "prompt": f"{base}\n\nCLOSE-UP: Macro-style detail shot, showing texture, craftsmanship, and fine details.{isolation}",
-        },
-    ]
-
-
-# ─── Jewelry Style Presets ───
-
-JEWELRY_BACKGROUNDS = {
-    "black_velvet": "Rich black velvet background with subtle texture, dramatic studio lighting",
-    "white_marble": "Polished white marble surface, clean bright lighting, luxury feel",
-    "pure_white": "Pure white seamless background, soft even lighting, e-commerce ready",
-    "burgundy_velvet": "Deep burgundy velvet background, warm golden lighting, royal aesthetic",
-    "gold_gradient": "Warm gold gradient background, soft metallic sheen, premium presentation",
-}
-
-JEWELRY_TYPES = [
-    "ring", "necklace", "earring", "bracelet", "bangle",
-    "pendant", "brooch", "anklet", "chain", "set",
+SCENE_BACKGROUNDS = [
+    {"id": "indoor", "label": "Indoor", "thumb": "https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?w=200&h=200&fit=crop&q=80", "prompt": "a well-decorated modern indoor room, warm ambient lighting"},
+    {"id": "livingroom", "label": "Livingroom", "thumb": "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=200&h=200&fit=crop&q=80", "prompt": "a stylish modern living room with soft natural light"},
+    {"id": "brickwall", "label": "Brickwall", "thumb": "https://images.unsplash.com/photo-1517329782449-810562a4ec2f?w=200&h=200&fit=crop&q=80", "prompt": "exposed brick wall background, warm industrial aesthetic, soft spotlight"},
+    {"id": "studio", "label": "Studio", "thumb": "https://images.unsplash.com/photo-1497366216548-37526070297c?w=200&h=200&fit=crop&q=80", "prompt": "a clean professional photography studio with soft even lighting, seamless backdrop"},
+    {"id": "wooden", "label": "Wooden", "thumb": "https://images.unsplash.com/photo-1541123603104-512919d6a96c?w=200&h=200&fit=crop&q=80", "prompt": "a warm wooden surface/interior, rustic yet elegant, natural textures"},
+    {"id": "flora", "label": "Flora", "thumb": "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=200&h=200&fit=crop&q=80", "prompt": "a lush green garden or floral setting with natural sunlight filtering through"},
+    {"id": "marble", "label": "Marble", "thumb": "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=200&h=200&fit=crop&q=80", "prompt": "a polished white marble surface, clean and luxurious, soft diffused lighting"},
 ]
 
+COLOR_BACKGROUNDS = [
+    {"id": "grey", "label": "Grey", "color": "#808080", "prompt": "solid neutral grey background, even studio lighting"},
+    {"id": "green", "label": "Green", "color": "#1B5E20", "prompt": "solid rich green background, even studio lighting"},
+    {"id": "pink", "label": "Pink", "color": "#F8BBD0", "prompt": "solid soft pink background, even studio lighting"},
+    {"id": "purple", "label": "Purple", "color": "#7B1FA2", "prompt": "solid deep purple background, even studio lighting"},
+    {"id": "yellow", "label": "Yellow", "color": "#FDD835", "prompt": "solid warm golden yellow background, even studio lighting"},
+    {"id": "white", "label": "White", "color": "#FFFFFF", "prompt": "pure white seamless background, soft even lighting, e-commerce ready"},
+    {"id": "black", "label": "Black", "color": "#1A1A1A", "prompt": "solid deep black background, dramatic spotlight, premium feel"},
+]
 
-def build_jewelry_prompt(
-    jewelry_type: str,
-    background: str,
-    shot_type: str = "hero",
-    description: str = "",
-) -> str:
-    """Build jewelry photography prompt."""
-    bg_desc = JEWELRY_BACKGROUNDS.get(background, JEWELRY_BACKGROUNDS["black_velvet"])
-
-    shot_instructions = {
-        "hero": "HERO SHOT: Front-facing, perfectly centered, showing the full piece in its best light",
-        "angle": "ALTERNATE ANGLE: Slight angle showing depth, dimension, and how light plays on the metal",
-        "closeup": "CLOSE-UP: Macro detail shot showing stone settings, metalwork, and craftsmanship",
-    }
-
-    prompt = (
-        f"Professional jewelry product photography of a {jewelry_type}.\n"
-        f"Background: {bg_desc}\n"
-        f"{shot_instructions.get(shot_type, shot_instructions['hero'])}\n\n"
-        f"{'Product details: ' + description if description else ''}\n\n"
-        f"{PRODUCT_ISOLATION_PROMPT}\n\n"
-        "Additional jewelry rules:\n"
-        "- Preserve exact stone colors, metal finish, and design details\n"
-        "- Lighting should enhance sparkle and reflections naturally\n"
-        "- No props or hands unless specified\n"
-        "- The piece should look like a real photograph, not a render"
-    )
-    return prompt
-
-
-def build_recolor_prompt(jewelry_type: str, target_metal: str) -> str:
-    """Build prompt for metal recoloring."""
-    metal_descriptions = {
-        "gold": "warm yellow gold with rich metallic luster",
-        "silver": "bright polished silver with cool white metallic sheen",
-        "rose_gold": "soft warm rose gold with pink-copper metallic tones",
-    }
-    metal_desc = metal_descriptions.get(target_metal, metal_descriptions["gold"])
-
-    return (
-        f"Change the metal color of this {jewelry_type} to {metal_desc}.\n\n"
-        "CRITICAL RULES:\n"
-        "1. ONLY change the metal color — preserve ALL stone colors exactly\n"
-        "2. Keep the exact same design, shape, and details\n"
-        "3. Maintain realistic metallic reflections for the new color\n"
-        "4. Background and lighting must stay identical\n"
-        "5. This should look like the same piece in a different metal, nothing else changed"
-    )
-
-
-# ─── Try-On Prompts ───
-
-TRYON_PROMPTS = {
-    "necklace": (
-        "Place this necklace naturally on the person in the photo. "
-        "The necklace should sit perfectly on the neckline, following the natural curve. "
-        "Maintain realistic shadows, reflections, and how it drapes on the body."
-    ),
-    "earring": (
-        "Place these earrings naturally on the person in the photo. "
-        "They should hang from the earlobes naturally with proper perspective and shadows."
-    ),
-    "bracelet": (
-        "Place this bracelet on the person's wrist naturally. "
-        "It should follow the wrist curve with realistic fit and shadows."
-    ),
-    "ring": (
-        "Place this ring on the person's finger naturally. "
-        "It should fit properly with realistic shadows and perspective."
-    ),
-}
-
-JEWELRY_TRYON_PROMPTS = {
-    "necklace": (
-        "ULTRA-FIDELITY VIRTUAL TRY-ON:\n"
-        "Place this exact necklace on the person. The necklace must be pixel-perfect — "
-        "same stones, same metalwork, same design. It should drape naturally following "
-        "the neckline. Match lighting and shadows to the person photo. "
-        "Output should be indistinguishable from a real photograph."
-    ),
-    "earring": (
-        "ULTRA-FIDELITY VIRTUAL TRY-ON:\n"
-        "Place these exact earrings on the person. Pixel-perfect preservation of the jewelry. "
-        "Proper perspective, natural hang from earlobes, matching lighting."
-    ),
-    "bracelet": (
-        "ULTRA-FIDELITY VIRTUAL TRY-ON:\n"
-        "Place this exact bracelet on the person's wrist. Perfect preservation, natural fit."
-    ),
-    "ring": (
-        "ULTRA-FIDELITY VIRTUAL TRY-ON:\n"
-        "Place this exact ring on the person's finger. Perfect fit, realistic shadows."
-    ),
+CATEGORY_EXTRA_BACKGROUNDS = {
+    "jewellery": [
+        {"id": "velvet_black", "label": "Black Velvet", "thumb": "https://images.unsplash.com/photo-1528459801416-a9e53bbf4e17?w=200&h=200&fit=crop&q=80", "prompt": "rich black velvet background with subtle texture, dramatic studio lighting"},
+        {"id": "velvet_burgundy", "label": "Burgundy Velvet", "thumb": "https://images.unsplash.com/photo-1557682250-33bd709cbe85?w=200&h=200&fit=crop&q=80", "prompt": "deep burgundy velvet background, warm golden lighting, royal aesthetic"},
+        {"id": "satin_gold", "label": "Gold Satin", "thumb": "https://images.unsplash.com/photo-1574169208507-84376144848b?w=200&h=200&fit=crop&q=80", "prompt": "luxurious gold satin fabric background, warm metallic sheen"},
+    ],
+    "food-beverages": [
+        {"id": "restaurant", "label": "Restaurant", "thumb": "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=200&h=200&fit=crop&q=80", "prompt": "elegant restaurant table setting, warm ambient lighting, fine dining ambiance"},
+        {"id": "rustic_table", "label": "Rustic Table", "thumb": "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=200&h=200&fit=crop&q=80", "prompt": "rustic wooden table with napkin and utensils, warm homestyle feel"},
+    ],
+    "electronics": [
+        {"id": "tech_desk", "label": "Tech Desk", "thumb": "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=200&h=200&fit=crop&q=80", "prompt": "modern minimalist desk setup, sleek tech aesthetic, cool blue accent lighting"},
+    ],
+    "beauty-wellness": [
+        {"id": "spa", "label": "Spa", "thumb": "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=200&h=200&fit=crop&q=80", "prompt": "spa-like setting with soft towels and greenery, calm pastel tones, serene lighting"},
+    ],
 }
 
 
-# ─── Catalogue/UGC Prompts ───
+def get_studio_backgrounds(category_slug: str | None = None) -> list[dict]:
+    """Return available backgrounds for the Studio (Photo Shoot) mode."""
+    bgs = []
+    for s in SCENE_BACKGROUNDS:
+        bgs.append({"id": s["id"], "label": s["label"], "type": "scene", "thumb": s.get("thumb")})
+    if category_slug and category_slug in CATEGORY_EXTRA_BACKGROUNDS:
+        for s in CATEGORY_EXTRA_BACKGROUNDS[category_slug]:
+            bgs.append({"id": s["id"], "label": s["label"], "type": "scene", "thumb": s.get("thumb")})
+    for c in COLOR_BACKGROUNDS:
+        bgs.append({"id": c["id"], "label": c["label"], "type": "color", "color": c["color"]})
+    return bgs
 
-def build_catalogue_prompt(
-    product_description: str,
-    model_type: str,
-    pose: str,
-    background: str,
-    special_instructions: str | None = None,
-) -> str:
-    """Build prompt for catalogue/UGC generation (product on AI model)."""
-    model_descriptions = {
-        "indian_woman": "a stylish Indian woman in her late 20s",
-        "indian_man": "a well-groomed Indian man in his early 30s",
-        "indian_boy": "an Indian teenage boy, around 14-16 years old",
-        "indian_girl": "an Indian teenage girl, around 14-16 years old",
-    }
 
-    pose_descriptions = {
-        "best_match": "in a natural, confident pose that best showcases the product",
-        "standing": "standing upright in a full-body shot, confident stance",
-        "side_view": "in a side profile pose, showing how the product looks from the side",
-        "back_view": "showing the back view, looking over shoulder slightly",
-        "walking": "in a natural walking pose, mid-stride, dynamic movement",
-    }
+def _get_bg_prompt(bg_id: str, category_slug: str | None = None) -> str:
+    """Resolve a background id to its prompt description."""
+    for s in SCENE_BACKGROUNDS:
+        if s["id"] == bg_id:
+            return s["prompt"]
+    for c in COLOR_BACKGROUNDS:
+        if c["id"] == bg_id:
+            return c["prompt"]
+    if category_slug and category_slug in CATEGORY_EXTRA_BACKGROUNDS:
+        for s in CATEGORY_EXTRA_BACKGROUNDS[category_slug]:
+            if s["id"] == bg_id:
+                return s["prompt"]
+    return "a professional studio background, clean and well-lit"
 
-    bg_descriptions = {
-        "best_match": "a professional studio or lifestyle setting that complements the product",
-        "studio": "a clean professional photography studio with soft even lighting",
-        "flora": "a lush green garden or floral setting with natural light",
-        "wooden": "a warm wooden interior with natural textures",
-        "indoor": "a well-decorated modern indoor setting",
-        "livingroom": "a stylish modern living room",
-    }
 
-    model_desc = model_descriptions.get(model_type, model_descriptions["indian_woman"])
-    pose_desc = pose_descriptions.get(pose, pose_descriptions["best_match"])
-    bg_desc = bg_descriptions.get(background, bg_descriptions["best_match"])
+# ─── Category-specific product presentation ───
+
+CATEGORY_STUDIO_CONTEXT = {
+    "jewellery": "Professional jewelry product photography. Place the jewelry piece elegantly on the surface. Enhance sparkle and reflections. No hands or props unless specified.",
+    "fashion-clothing": "Professional fashion product photography. Display the garment neatly — either flat-lay on the surface or draped naturally to show its design and fabric.",
+    "accessories": "Professional accessories product photography. Place the product elegantly on the surface, showing its details, craftsmanship, and design.",
+    "kids": "Professional kids product photography. Display the product in a bright, playful, cheerful setting with soft colors.",
+    "home-living": "Professional home & living product photography. Show the product in a beautifully styled room or surface, lifestyle context.",
+    "art-craft": "Professional art & craft product photography. Display on a creative workspace surface with artistic lighting.",
+    "beauty-wellness": "Professional beauty product photography. Clean, spa-like presentation with soft diffused lighting. Premium aesthetic.",
+    "electronics": "Professional tech product photography. Sleek, modern presentation with clean lines and cool-toned lighting.",
+    "food-beverages": "Professional food photography. Beautiful plating, appetizing presentation with warm inviting lighting and styled table.",
+}
+
+CATEGORY_CATALOGUE_INTERACTION = {
+    "jewellery": "wearing the jewelry from the input image — if necklace: on the neck with natural drape; if earrings: on the ears; if ring: on the finger; if bracelet: on the wrist; if bangle set: on the forearm",
+    "fashion-clothing": "wearing the outfit/garment from the input image, showing the full outfit naturally with proper fit and drape",
+    "accessories": "using/carrying the accessory from the input image — if bag: holding it naturally; if watch: wearing on wrist; if sunglasses: wearing them; if belt: wearing it; if scarf/shawl: draped around shoulders",
+    "kids": "wearing/playing with the product from the input image in a playful, natural way",
+    "home-living": "interacting with or positioned next to the product from the input image in a styled home setting",
+    "art-craft": "using or displaying the product from the input image in a creative setting",
+    "beauty-wellness": "using/applying the beauty product from the input image in a natural, lifestyle way",
+    "electronics": "using the electronic product/gadget from the input image naturally in a modern setting",
+    "food-beverages": "seated at a dining table with the food/beverage from the input image presented beautifully",
+}
+
+
+def build_studio_prompt(background_id: str, category_slug: str | None = None, special_instructions: str | None = None) -> str:
+    """Build prompt for Studio (Photo Shoot) generation — category-aware."""
+    context = CATEGORY_STUDIO_CONTEXT.get(category_slug or "", CATEGORY_STUDIO_CONTEXT.get("accessories", "Professional product photography."))
+    bg_prompt = _get_bg_prompt(background_id, category_slug)
 
     prompt = (
-        f"Professional catalogue photography: {model_desc} wearing/holding/using the product from the input image.\n"
-        f"Pose: {pose_desc}\n"
-        f"Background: {bg_desc}\n\n"
-        f"{PRODUCT_ISOLATION_PROMPT}\n\n"
-        "Additional catalogue rules:\n"
-        "- The model should look natural and authentic\n"
-        "- Product must be clearly visible and well-lit\n"
-        "- Commercial quality, suitable for e-commerce catalogue\n"
-        "- Realistic proportions between model and product"
+        f"{context}\n"
+        f"Background: {bg_prompt}\n"
+        f"Commercial quality, high resolution, perfectly lit.\n\n"
+        f"{PRODUCT_ISOLATION_PROMPT}"
     )
 
     if special_instructions:
@@ -248,14 +129,125 @@ def build_catalogue_prompt(
     return prompt
 
 
+# ─── Catalogue / UGC ───
+
+MODEL_DESCRIPTIONS = {
+    "indian_woman": "a stylish Indian woman in her late 20s with natural beauty",
+    "indian_man": "a well-groomed Indian man in his early 30s",
+    "indian_boy": "an Indian boy, around 14-16 years old",
+    "indian_girl": "an Indian girl, around 14-16 years old",
+}
+
+POSE_DESCRIPTIONS = {
+    "best_match": "in a natural, confident pose that best showcases the product",
+    "standing": "standing upright in a full-body shot, confident stance facing camera",
+    "side_view": "in a side profile pose, showing how the product looks from the side",
+    "back_view": "showing the back view, looking over shoulder slightly",
+    "sitting": "sitting elegantly on a chair or stool, product clearly visible, poised posture",
+    "close_up": "a close-up portrait/bust shot, product prominently featured, detailed view",
+    "walking": "in a natural walking pose, mid-stride, dynamic movement",
+}
+
+CATALOGUE_BACKGROUNDS = [
+    {"id": "best_match", "label": "Best Match", "thumb": "https://images.unsplash.com/photo-1557682250-33bd709cbe85?w=200&h=200&fit=crop&q=80", "prompt": "a professional studio or lifestyle setting that complements the product"},
+    {"id": "studio", "label": "Studio", "thumb": "https://images.unsplash.com/photo-1497366216548-37526070297c?w=200&h=200&fit=crop&q=80", "prompt": "a clean professional photography studio with soft even lighting"},
+    {"id": "flora", "label": "Flora", "thumb": "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=200&h=200&fit=crop&q=80", "prompt": "a lush green garden or floral setting with natural light"},
+    {"id": "wooden", "label": "Wooden", "thumb": "https://images.unsplash.com/photo-1541123603104-512919d6a96c?w=200&h=200&fit=crop&q=80", "prompt": "a warm wooden interior with natural textures"},
+    {"id": "indoor", "label": "Indoor", "thumb": "https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?w=200&h=200&fit=crop&q=80", "prompt": "a well-decorated modern indoor setting with warm lighting"},
+    {"id": "livingroom", "label": "Living Room", "thumb": "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=200&h=200&fit=crop&q=80", "prompt": "a stylish modern living room"},
+]
+
+CATALOGUE_BG_DESCRIPTIONS = {b["id"]: b["prompt"] for b in CATALOGUE_BACKGROUNDS}
+
+CATALOGUE_POSES = [
+    {"id": "standing", "label": "Standing", "thumb": "https://images.unsplash.com/photo-1769500810141-644865a6d35c?w=160&h=220&fit=crop&q=80"},
+    {"id": "side_view", "label": "Side View", "thumb": "https://images.unsplash.com/photo-1616586169180-2671c5e1cbdc?w=160&h=220&fit=crop&q=80"},
+    {"id": "back_view", "label": "Back View", "thumb": "https://images.unsplash.com/photo-1615573678157-69c7fce87d54?w=160&h=220&fit=crop&q=80"},
+    {"id": "sitting", "label": "Sitting", "thumb": "https://images.unsplash.com/photo-1665099210693-c91e2212ba04?w=160&h=220&fit=crop&q=80"},
+    {"id": "close_up", "label": "Close Up", "thumb": "https://images.unsplash.com/photo-1594140700557-ba2bf8247150?w=160&h=220&fit=crop&q=80"},
+    {"id": "walking", "label": "Walking", "thumb": "https://images.unsplash.com/photo-1760162693478-4c96b6c99d55?w=160&h=220&fit=crop&q=80"},
+]
+
+AI_MODEL_FACES = [
+    {"id": "indian_man", "name": "Indian Man", "thumb": "https://images.unsplash.com/photo-1604763007617-34a3f6073ddb?w=200&h=200&fit=crop&q=80"},
+    {"id": "indian_woman", "name": "Indian Woman", "thumb": "https://images.unsplash.com/photo-1594140700557-ba2bf8247150?w=200&h=200&fit=crop&q=80"},
+    {"id": "indian_boy", "name": "Indian Boy", "thumb": "https://images.unsplash.com/photo-1747373354116-671ba01db71b?w=200&h=200&fit=crop&q=80"},
+    {"id": "indian_girl", "name": "Indian Girl", "thumb": "https://images.unsplash.com/photo-1688828028702-55d50a360f6f?w=200&h=200&fit=crop&q=80"},
+]
+
+
+def build_catalogue_prompt(
+    model_type: str,
+    pose: str,
+    background: str,
+    category_slug: str | None = None,
+    special_instructions: str | None = None,
+    key_highlights: str | None = None,
+    outfit_description: str | None = None,
+) -> str:
+    """Build prompt for Catalogue/UGC generation — category-aware model interaction."""
+    model_desc = MODEL_DESCRIPTIONS.get(model_type, MODEL_DESCRIPTIONS["indian_woman"])
+    pose_desc = POSE_DESCRIPTIONS.get(pose, POSE_DESCRIPTIONS["best_match"])
+    bg_desc = CATALOGUE_BG_DESCRIPTIONS.get(background, CATALOGUE_BG_DESCRIPTIONS["best_match"])
+
+    interaction = CATEGORY_CATALOGUE_INTERACTION.get(
+        category_slug or "",
+        "wearing/holding/using the product from the input image"
+    )
+
+    outfit_line = ""
+    if outfit_description:
+        outfit_line = f"Outfit: The model MUST wear exactly this outfit: {outfit_description}\n"
+
+    prompt = (
+        f"Professional catalogue photography: {model_desc} {interaction}.\n"
+        f"Pose: {pose_desc}\n"
+        f"Background: {bg_desc}\n"
+        f"{outfit_line}\n"
+        f"{PRODUCT_ISOLATION_PROMPT}\n\n"
+        "Additional rules:\n"
+        "- The model should look natural, authentic, and Indian\n"
+        "- Product must be clearly visible, well-lit, and the focal point\n"
+        "- Commercial quality, suitable for e-commerce catalogue\n"
+        "- Realistic proportions between model and product\n"
+        "- Output should look like a real professional photograph\n"
+        "- CRITICAL: The model's clothing color, style, and fabric must be EXACTLY "
+        "the same across all images in this set. Do NOT change the outfit between poses."
+    )
+
+    if key_highlights:
+        prompt += f"\n\nPRODUCT HIGHLIGHTS to emphasize visually: {key_highlights}"
+
+    if special_instructions:
+        prompt += f"\n\nSPECIAL INSTRUCTIONS: {special_instructions}"
+
+    return prompt
+
+
+def build_branding_prompt(
+    model_type: str,
+    pose: str,
+    background: str,
+    category_slug: str | None = None,
+    special_instructions: str | None = None,
+    outfit_description: str | None = None,
+) -> str:
+    """Same as catalogue but instructs to leave space at bottom for branding overlay."""
+    base = build_catalogue_prompt(model_type, pose, background, category_slug, special_instructions, outfit_description=outfit_description)
+    return base + (
+        "\n\nIMPORTANT: Leave clean space at the very bottom of the image (about 15% height) "
+        "for a branding bar to be overlaid later. The model's feet or product should NOT be "
+        "cut off at the bottom — frame the shot so there's breathing room at the bottom edge."
+    )
+
+
 # ─── Aspect Ratios ───
 
 ASPECT_RATIOS = {
-    "square": {"width": 1024, "height": 1024, "label": "Square (1:1)", "hint": "Centered, equal framing"},
-    "portrait": {"width": 768, "height": 1024, "label": "Portrait (3:4)", "hint": "Vertical, full product view"},
-    "story": {"width": 576, "height": 1024, "label": "Story (9:16)", "hint": "Tall vertical, social media story"},
-    "landscape": {"width": 1024, "height": 768, "label": "Landscape (4:3)", "hint": "Wide horizontal, banner style"},
-    "wide": {"width": 1024, "height": 576, "label": "Wide (16:9)", "hint": "Ultra-wide, cinematic"},
+    "square": {"width": 1024, "height": 1024, "label": "Square (1:1)"},
+    "portrait": {"width": 768, "height": 1024, "label": "Portrait (3:4)"},
+    "story": {"width": 576, "height": 1024, "label": "Story (9:16)"},
+    "landscape": {"width": 1024, "height": 768, "label": "Landscape (4:3)"},
 }
 
 DEFAULT_RATIO = ASPECT_RATIOS["square"]
@@ -265,28 +257,3 @@ def get_ratio(ratio_id: str | None) -> dict:
     if not ratio_id or ratio_id not in ASPECT_RATIOS:
         return DEFAULT_RATIO
     return ASPECT_RATIOS[ratio_id]
-
-
-# ─── Listing Generation (Stylika guidelines) ───
-
-def build_listing_prompt(jewelry_type: str) -> str:
-    """Build prompt for generating Shopify-ready product listing."""
-    return (
-        f"You are a professional jewelry copywriter for Stylika (Indian fashion jewelry brand).\n"
-        f"Analyze this {jewelry_type} image and generate a complete Shopify product listing.\n\n"
-        "Return a JSON object with these fields:\n"
-        '{\n'
-        '  "title": "50-65 chars, format: [Description] | Stylika",\n'
-        '  "description": "HTML with <p> and <ul><li>, 100-160 words, 2 paragraphs + bullet specs",\n'
-        '  "meta_description": "140-155 chars, SEO-optimized",\n'
-        '  "alt_text": "under 125 chars, descriptive",\n'
-        '  "attributes": { "material": "", "stone": "", "color": "", "collection": "", "occasion": "", "style": "", "product_type": "" }\n'
-        '}\n\n'
-        "CRITICAL MATERIAL LANGUAGE RULES:\n"
-        "- Never write 'gold earrings' — write 'gold-tone earrings'\n"
-        "- Never write 'silver ring' — write 'silver-tone ring'\n"
-        "- Use 'CZ' not 'diamond', 'faux pearls' not 'pearls' for fake stones\n"
-        "- Base metals: brass, alloy with plating description\n\n"
-        "BRAND VOICE: Confident, modern, accessible. Not flowery or salesy.\n"
-        "JSON only, no markdown fences."
-    )

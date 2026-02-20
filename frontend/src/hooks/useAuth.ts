@@ -1,85 +1,131 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { api, setTokens, clearTokens, getTokens } from "@/lib/api-client";
+import { useState, useEffect, useLayoutEffect, useCallback, useRef } from "react";
+import { getSupabaseBrowser } from "@/lib/supabase/client";
+import { api } from "@/lib/api-client";
+import type { Session, AuthChangeEvent } from "@supabase/supabase-js";
+
+const useIsomorphicLayoutEffect =
+  typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 interface User {
   id: string;
   phone: string;
   name: string;
+  contact_name: string;
   company_name: string;
   is_admin: boolean;
   token_balance: number;
+  category_id: string | null;
+  category_slug: string | null;
+  email: string | null;
+  business_logo_url: string | null;
+  business_website: string | null;
+  business_address: string | null;
+  apply_branding: boolean;
+  [key: string]: unknown;
 }
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const syncingRef = useRef(false);
 
-  const loadUser = useCallback(async () => {
-    const { access } = getTokens();
-    if (!access) {
-      setLoading(false);
-      return;
-    }
+  const supabase = getSupabaseBrowser();
 
+  const syncUser = useCallback(async () => {
+    if (syncingRef.current) return;
+    syncingRef.current = true;
     try {
       const data = await api.get<User>("/users/me");
       setUser(data);
       localStorage.setItem("sp_user", JSON.stringify(data));
     } catch {
-      clearTokens();
       setUser(null);
+      localStorage.removeItem("sp_user");
     } finally {
-      setLoading(false);
+      syncingRef.current = false;
     }
   }, []);
 
-  useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     const cached = localStorage.getItem("sp_user");
     if (cached) {
       try {
         setUser(JSON.parse(cached));
-      } catch { /* ignore */ }
+      } catch {
+        /* corrupted */
+      }
     }
-    loadUser();
-  }, [loadUser]);
+  }, []);
 
-  const sendOtp = async (phone: string) => {
-    return api.post<{ success: boolean; message: string }>("/auth/send-otp", { phone });
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, newSession: Session | null) => {
+      setSession(newSession);
+
+      if (newSession && (event === "INITIAL_SESSION" || event === "SIGNED_IN" || event === "TOKEN_REFRESHED")) {
+        syncUser().finally(() => setLoading(false));
+      } else if (!newSession || event === "SIGNED_OUT") {
+        setUser(null);
+        localStorage.removeItem("sp_user");
+        setLoading(false);
+      } else {
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [supabase, syncUser]);
+
+  const signInWithPhone = async (phone: string) => {
+    const { error } = await supabase.auth.signInWithOtp({
+      phone: `+91${phone}`,
+    });
+    if (error) throw new Error(error.message);
   };
 
-  const verifyOtp = async (phone: string, otp: string) => {
-    const data = await api.post<{
-      success: boolean;
-      access_token: string;
-      refresh_token: string;
-      user: User;
-    }>("/auth/verify-otp", { phone, otp });
-
-    setTokens(data.access_token, data.refresh_token);
-    setUser(data.user);
-    localStorage.setItem("sp_user", JSON.stringify(data.user));
-    document.cookie = "sp_logged_in=1; path=/; max-age=2592000"; // 30 days, for middleware
-    return data;
+  const verifyPhoneOtp = async (phone: string, otp: string) => {
+    const { error } = await supabase.auth.verifyOtp({
+      phone: `+91${phone}`,
+      token: otp,
+      type: "sms",
+    });
+    if (error) throw new Error(error.message);
   };
 
-  const logout = () => {
-    api.post("/auth/logout").catch(() => {});
-    clearTokens();
-    document.cookie = "sp_logged_in=; path=/; max-age=0";
+  const signInWithGoogle = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+    if (error) throw new Error(error.message);
+  };
+
+  const logout = async () => {
+    await supabase.auth.signOut();
     setUser(null);
+    setSession(null);
+    localStorage.removeItem("sp_user");
     window.location.href = "/login";
   };
 
   return {
     user,
+    session,
     loading,
-    isAuthenticated: !!user,
+    isAuthenticated: !!session,
     isAdmin: user?.is_admin || false,
-    sendOtp,
-    verifyOtp,
+    signInWithPhone,
+    verifyPhoneOtp,
+    signInWithGoogle,
     logout,
-    refreshUser: loadUser,
+    refreshUser: syncUser,
   };
 }

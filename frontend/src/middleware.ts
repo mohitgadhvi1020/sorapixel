@@ -1,32 +1,49 @@
+import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 
 const PROTECTED_ROUTES = ["/studio", "/jewelry", "/catalogue", "/projects", "/profile", "/admin"];
-const PUBLIC_ROUTES = ["/", "/login", "/pricing"];
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   const isProtected = PROTECTED_ROUTES.some(
-    (route) => pathname === route || pathname.startsWith(route + "/")
+    (route) => pathname === route || pathname.startsWith(route + "/"),
   );
 
   if (!isProtected) return NextResponse.next();
 
-  /* 
-   * JWT tokens are stored in localStorage (not cookies) for mobile-app compatibility.
-   * Server middleware can't read localStorage, so we use a lightweight cookie flag
-   * set by the client after login. The real auth check happens client-side via useAuth.
-   * This middleware provides a fast redirect for obviously-unauthenticated users.
-   */
-  const hasSession = req.cookies.get("sp_logged_in")?.value;
+  let supabaseResponse = NextResponse.next({ request: req });
 
-  if (!hasSession) {
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return req.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => {
+            req.cookies.set(name, value);
+          });
+          supabaseResponse = NextResponse.next({ request: req });
+          cookiesToSet.forEach(({ name, value, options }) => {
+            supabaseResponse.cookies.set(name, value, options);
+          });
+        },
+      },
+    },
+  );
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
     const loginUrl = new URL("/login", req.url);
     loginUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  return NextResponse.next();
+  return supabaseResponse;
 }
 
 export const config = {

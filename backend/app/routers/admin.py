@@ -2,12 +2,16 @@ from __future__ import annotations
 
 """Admin router -- client management, stats, tokens."""
 
-from fastapi import APIRouter, Depends, HTTPException
+import uuid
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from app.middleware.auth import require_admin
 from app.schemas.admin import CreateClientRequest, UpdateClientRequest, AddTokensRequest
 from app.database import get_supabase
 from app.services.credit_service import add_tokens
 from app.config import get_settings
+
+BUCKET = "sorapixel-images"
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -137,3 +141,67 @@ async def get_stats(admin: dict = Depends(require_admin)):
             "total_tokens": total_tokens,
         },
     }
+
+
+# ---- Image Upload ----
+
+@router.post("/upload-image")
+async def upload_feed_image(file: UploadFile = File(...), admin: dict = Depends(require_admin)):
+    """Upload an image for feed items. Returns the public URL."""
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image")
+
+    content = await file.read()
+    if len(content) > MAX_UPLOAD_SIZE:
+        raise HTTPException(status_code=400, detail="Image must be under 10 MB")
+
+    ext = (file.filename or "image.png").rsplit(".", 1)[-1].lower()
+    if ext not in ("png", "jpg", "jpeg", "webp", "gif"):
+        ext = "png"
+
+    storage_path = f"feed/{uuid.uuid4()}.{ext}"
+    content_type = file.content_type or f"image/{ext}"
+
+    sb = get_supabase()
+    sb.storage.from_(BUCKET).upload(storage_path, content, {"content-type": content_type})
+
+    url = f"{sb.supabase_url}/storage/v1/object/public/{BUCKET}/{storage_path}"
+    return {"success": True, "url": url, "storage_path": storage_path}
+
+
+# ---- Feed Examples Management ----
+
+@router.get("/feed-items")
+async def list_feed_items(admin: dict = Depends(require_admin)):
+    sb = get_supabase()
+    result = sb.table("feed_items").select("*").order("display_order").execute()
+    return {"items": result.data or []}
+
+
+@router.post("/feed-items")
+async def create_feed_item(body: dict, admin: dict = Depends(require_admin)):
+    sb = get_supabase()
+    allowed = ["category_id", "title", "before_image_url", "after_image_url",
+               "item_type", "tags", "display_order", "is_active"]
+    payload = {k: v for k, v in body.items() if k in allowed}
+    if not payload.get("category_id") or not payload.get("after_image_url"):
+        raise HTTPException(status_code=400, detail="category_id and after_image_url required")
+    result = sb.table("feed_items").insert(payload).execute()
+    return result.data[0] if result.data else {}
+
+
+@router.put("/feed-items/{item_id}")
+async def update_feed_item(item_id: str, body: dict, admin: dict = Depends(require_admin)):
+    sb = get_supabase()
+    allowed = ["category_id", "title", "before_image_url", "after_image_url",
+               "item_type", "tags", "display_order", "is_active"]
+    payload = {k: v for k, v in body.items() if k in allowed}
+    result = sb.table("feed_items").update(payload).eq("id", item_id).execute()
+    return result.data[0] if result.data else {}
+
+
+@router.delete("/feed-items/{item_id}")
+async def delete_feed_item(item_id: str, admin: dict = Depends(require_admin)):
+    sb = get_supabase()
+    sb.table("feed_items").delete().eq("id", item_id).execute()
+    return {"success": True}

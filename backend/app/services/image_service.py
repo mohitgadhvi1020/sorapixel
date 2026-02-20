@@ -12,9 +12,11 @@ from PIL import Image, ImageDraw, ImageFont
 logger = logging.getLogger(__name__)
 
 
-def b64_to_image(b64_str: str) -> Image.Image:
-    """Convert base64 string to PIL Image."""
+def b64_to_image(b64_str: str | bytes) -> Image.Image:
+    """Convert base64 string (or raw bytes) to PIL Image."""
     import re
+    if isinstance(b64_str, bytes):
+        return Image.open(io.BytesIO(b64_str))
     clean = re.sub(r"^data:image/\w+;base64,", "", b64_str)
     data = base64.b64decode(clean)
     return Image.open(io.BytesIO(data))
@@ -155,3 +157,57 @@ def center_crop_closeup(image_b64: str, zoom: float = 0.5) -> str:
     img = img.crop((left, top, left + crop_w, top + crop_h))
     img = img.resize((w, h), Image.LANCZOS)
     return image_to_b64(img)
+
+
+def add_branding_bar(
+    image_b64: str,
+    business_name: str = "",
+    phone: str = "",
+    website: str = "",
+    logo_url: str | None = None,
+) -> str:
+    """Overlay a branding bar at the bottom of the image (Flyr-style).
+    Shows: [logo] Business Name | phone | website
+    """
+    img = b64_to_image(image_b64).convert("RGBA")
+    w, h = img.size
+    bar_h = max(60, int(h * 0.12))
+
+    bar = Image.new("RGBA", (w, bar_h), (0, 0, 0, 180))
+    draw = ImageDraw.Draw(bar)
+
+    font_size = max(14, bar_h // 3)
+    small_size = max(10, bar_h // 5)
+    try:
+        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
+        font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", small_size)
+    except (OSError, IOError):
+        font = ImageFont.load_default()
+        font_small = font
+
+    text_x = int(w * 0.04)
+    logo_offset = 0
+
+    if logo_url:
+        try:
+            import httpx
+            resp = httpx.get(logo_url, timeout=5)
+            if resp.status_code == 200:
+                logo_img = Image.open(io.BytesIO(resp.content)).convert("RGBA")
+                logo_size = bar_h - 16
+                logo_img.thumbnail((logo_size, logo_size), Image.LANCZOS)
+                bar.paste(logo_img, (text_x, (bar_h - logo_img.size[1]) // 2), logo_img)
+                logo_offset = logo_img.size[0] + 10
+        except Exception:
+            pass
+
+    x = text_x + logo_offset
+    if business_name:
+        draw.text((x, bar_h // 2 - font_size // 2 - 2), business_name, fill=(255, 255, 255, 255), font=font)
+
+    details = " | ".join(filter(None, [phone, website]))
+    if details:
+        draw.text((x, bar_h // 2 + font_size // 2 - 2), details, fill=(200, 200, 200, 255), font=font_small)
+
+    img.paste(bar, (0, h - bar_h), bar)
+    return image_to_b64(img.convert("RGB"))

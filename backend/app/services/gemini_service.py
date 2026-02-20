@@ -51,7 +51,7 @@ def generate_image(prompt: str, image_b64: str, mime_type: str = "image/png") ->
     clean_b64 = re.sub(r"^data:image/\w+;base64,", "", image_b64)
 
     response = with_retry(lambda: client.models.generate_content(
-        model="gemini-2.5-flash-preview-05-20",
+        model="gemini-2.5-flash-image",
         contents=[
             {"text": prompt},
             {"inline_data": {"mime_type": mime_type, "data": clean_b64}},
@@ -67,7 +67,11 @@ def generate_image(prompt: str, image_b64: str, mime_type: str = "image/png") ->
     result_mime = "image/png"
     for part in parts:
         if hasattr(part, "inline_data") and part.inline_data:
-            result_b64 = part.inline_data.data
+            raw = part.inline_data.data
+            if isinstance(raw, bytes):
+                result_b64 = base64.b64encode(raw).decode("utf-8")
+            else:
+                result_b64 = raw
             result_mime = part.inline_data.mime_type or "image/png"
 
     if not result_b64:
@@ -97,7 +101,7 @@ def generate_image_multi(prompt: str, images: list[dict]) -> dict:
         contents.append({"inline_data": {"mime_type": img.get("mime_type", "image/png"), "data": clean}})
 
     response = with_retry(lambda: client.models.generate_content(
-        model="gemini-2.5-flash-preview-05-20",
+        model="gemini-2.5-flash-image",
         contents=contents,
         config=GenerateContentConfig(response_modalities=["IMAGE"]),
     ))
@@ -110,7 +114,11 @@ def generate_image_multi(prompt: str, images: list[dict]) -> dict:
     result_mime = "image/png"
     for part in parts:
         if hasattr(part, "inline_data") and part.inline_data:
-            result_b64 = part.inline_data.data
+            raw = part.inline_data.data
+            if isinstance(raw, bytes):
+                result_b64 = base64.b64encode(raw).decode("utf-8")
+            else:
+                result_b64 = raw
             result_mime = part.inline_data.mime_type or "image/png"
 
     if not result_b64:
@@ -139,7 +147,7 @@ def generate_text(prompt: str, image_b64: str | None = None, mime_type: str = "i
         contents.append({"inline_data": {"mime_type": mime_type, "data": clean}})
 
     response = with_retry(lambda: client.models.generate_content(
-        model="gemini-2.5-flash-preview-05-20",
+        model="gemini-2.5-flash",
         contents=contents,
     ))
 

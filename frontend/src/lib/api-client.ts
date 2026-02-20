@@ -1,7 +1,9 @@
 /**
  * Central API client for the SoraPixel FastAPI backend.
- * All frontend pages use this instead of calling Next.js API routes.
+ * Uses Supabase session tokens for authentication.
  */
+
+import { getSupabaseBrowser } from "@/lib/supabase/client";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
@@ -23,48 +25,11 @@ class ApiError extends Error {
   }
 }
 
-function getTokens(): { access: string | null; refresh: string | null } {
-  if (typeof window === "undefined") return { access: null, refresh: null };
-  return {
-    access: localStorage.getItem("sp_access_token"),
-    refresh: localStorage.getItem("sp_refresh_token"),
-  };
-}
-
-function setTokens(access: string, refresh?: string): void {
-  localStorage.setItem("sp_access_token", access);
-  if (refresh) localStorage.setItem("sp_refresh_token", refresh);
-}
-
-function clearTokens(): void {
-  localStorage.removeItem("sp_access_token");
-  localStorage.removeItem("sp_refresh_token");
-  localStorage.removeItem("sp_user");
-}
-
-async function refreshAccessToken(): Promise<string | null> {
-  const { refresh } = getTokens();
-  if (!refresh) return null;
-
-  try {
-    const resp = await fetch(`${API_BASE_URL}/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh_token: refresh }),
-    });
-
-    if (!resp.ok) {
-      clearTokens();
-      return null;
-    }
-
-    const data = await resp.json();
-    setTokens(data.access_token);
-    return data.access_token;
-  } catch {
-    clearTokens();
-    return null;
-  }
+async function getAccessToken(): Promise<string | null> {
+  if (typeof window === "undefined") return null;
+  const supabase = getSupabaseBrowser();
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token ?? null;
 }
 
 async function apiRequest<T = unknown>(endpoint: string, options: ApiOptions = {}): Promise<T> {
@@ -77,34 +42,35 @@ async function apiRequest<T = unknown>(endpoint: string, options: ApiOptions = {
   };
 
   if (!noAuth) {
-    const { access } = getTokens();
-    if (access) {
-      requestHeaders["Authorization"] = `Bearer ${access}`;
+    const token = await getAccessToken();
+    if (token) {
+      requestHeaders["Authorization"] = `Bearer ${token}`;
     }
   }
 
-  let resp = await fetch(url, {
+  const resp = await fetch(url, {
     method,
     headers: requestHeaders,
     body: body ? JSON.stringify(body) : undefined,
   });
 
   if (resp.status === 401 && !noAuth) {
-    const newToken = await refreshAccessToken();
-    if (newToken) {
-      requestHeaders["Authorization"] = `Bearer ${newToken}`;
-      resp = await fetch(url, {
-        method,
-        headers: requestHeaders,
-        body: body ? JSON.stringify(body) : undefined,
-      });
-    } else {
-      clearTokens();
-      if (typeof window !== "undefined") {
-        window.location.href = "/login";
+    if (typeof window !== "undefined") {
+      const supabase = getSupabaseBrowser();
+      const { data: { session: refreshed } } = await supabase.auth.refreshSession();
+      if (refreshed) {
+        requestHeaders["Authorization"] = `Bearer ${refreshed.access_token}`;
+        const retry = await fetch(url, {
+          method,
+          headers: requestHeaders,
+          body: body ? JSON.stringify(body) : undefined,
+        });
+        if (retry.ok) return retry.json();
       }
-      throw new ApiError("Session expired", 401);
+      await supabase.auth.signOut();
+      window.location.href = "/login";
     }
+    throw new ApiError("Session expired", 401);
   }
 
   if (!resp.ok) {
@@ -114,6 +80,35 @@ async function apiRequest<T = unknown>(endpoint: string, options: ApiOptions = {
       resp.status,
       errorData,
     );
+  }
+
+  return resp.json();
+}
+
+async function apiUpload<T = unknown>(endpoint: string, formData: FormData): Promise<T> {
+  const url = `${API_BASE_URL}${endpoint}`;
+  const headers: Record<string, string> = {};
+  const token = await getAccessToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  let resp = await fetch(url, { method: "POST", headers, body: formData });
+
+  if (resp.status === 401) {
+    const supabase = getSupabaseBrowser();
+    const { data: { session } } = await supabase.auth.refreshSession();
+    if (session) {
+      headers["Authorization"] = `Bearer ${session.access_token}`;
+      resp = await fetch(url, { method: "POST", headers, body: formData });
+    } else {
+      await supabase.auth.signOut();
+      if (typeof window !== "undefined") window.location.href = "/login";
+      throw new ApiError("Session expired", 401);
+    }
+  }
+
+  if (!resp.ok) {
+    const errorData = await resp.json().catch(() => ({}));
+    throw new ApiError(errorData.detail || `Upload failed: ${resp.status}`, resp.status, errorData);
   }
 
   return resp.json();
@@ -129,6 +124,8 @@ export const api = {
     apiRequest<T>(endpoint, { method: "PATCH", body }),
   delete: <T = unknown>(endpoint: string) =>
     apiRequest<T>(endpoint, { method: "DELETE" }),
+  upload: <T = unknown>(endpoint: string, formData: FormData) =>
+    apiUpload<T>(endpoint, formData),
 };
 
-export { ApiError, getTokens, setTokens, clearTokens, API_BASE_URL };
+export { ApiError, API_BASE_URL };

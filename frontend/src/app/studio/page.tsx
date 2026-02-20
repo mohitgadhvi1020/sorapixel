@@ -1,725 +1,310 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
-import { api, ApiError } from "@/lib/api-client";
+import { useState, useEffect, useRef } from "react";
+import { api } from "@/lib/api-client";
 import { useAuth } from "@/hooks/useAuth";
-import BottomNav from "@/components/shared/BottomNav";
+import { useRouter } from "next/navigation";
+import { shareToWhatsApp, downloadImage } from "@/lib/share";
+import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
+import Button from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
+import Modal from "@/components/ui/Modal";
 
-// ─── Types ───
-
-interface StudioCredits {
-  token_balance: number;
-  studio_free_used: number;
-  free_remaining: number;
-  is_free_tier: boolean;
-  free_limit: number;
-  tokens_per_image: number;
-}
-
-interface ResultImage {
+interface Background {
+  id: string;
   label: string;
-  base64: string;
-  mime_type: string;
+  type: "scene" | "color";
+  color?: string;
+  thumb?: string;
 }
 
-const STYLE_PRESETS = [
-  { id: "clean_white", label: "Clean White" },
-  { id: "lifestyle", label: "Lifestyle" },
-  { id: "luxury", label: "Luxury" },
-  { id: "nature", label: "Nature" },
-  { id: "minimal", label: "Minimal" },
-  { id: "festive", label: "Festive" },
+const PROGRESS_STEPS = [
+  { label: "Analyzing your product...", duration: 4000 },
+  { label: "Setting up the background...", duration: 6000 },
+  { label: "Generating studio photo...", duration: 12000 },
+  { label: "Applying finishing touches...", duration: 8000 },
+  { label: "Almost there...", duration: 30000 },
 ];
-
-const ASPECT_RATIOS = [
-  { id: "square", label: "Square" },
-  { id: "portrait", label: "Portrait" },
-  { id: "story", label: "Story" },
-  { id: "landscape", label: "Landscape" },
-  { id: "wide", label: "Wide" },
-];
-
-function extractBase64(dataUrl: string): string {
-  const match = dataUrl.match(/^data:[\w/]+;base64,(.+)$/);
-  return match ? match[1] : dataUrl;
-}
 
 export default function StudioPage() {
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
-  const { user, loading: authLoading, isAuthenticated } = useAuth();
 
-  const [imageBase64, setImageBase64] = useState<string | null>(null);
+  const [backgrounds, setBackgrounds] = useState<Background[]>([]);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
-  const [styleMode, setStyleMode] = useState<"preset" | "custom">("preset");
-  const [customRawPrompt, setCustomRawPrompt] = useState("");
-  const [customRefinedPrompt, setCustomRefinedPrompt] = useState<string | null>(null);
-  const [customIsolate, setCustomIsolate] = useState(true);
-  const [isRefining, setIsRefining] = useState(false);
-  const [isGeneratingPack, setIsGeneratingPack] = useState(false);
-  const [isGeneratingInfo, setIsGeneratingInfo] = useState<string | null>(null);
-  const [packImages, setPackImages] = useState<ResultImage[]>([]);
-  const [infoImages, setInfoImages] = useState<ResultImage[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [aspectRatio, setAspectRatio] = useState("square");
-  const [credits, setCredits] = useState<StudioCredits | null>(null);
-
-  const fetchCredits = useCallback(async () => {
-    if (!isAuthenticated) return;
-    try {
-      const data = await api.get<StudioCredits>("/studio/credits");
-      setCredits(data);
-    } catch {
-      setCredits(null);
-    }
-  }, [isAuthenticated]);
+  const [selectedBg, setSelectedBg] = useState("studio");
+  const [specialInstructions, setSpecialInstructions] = useState("");
+  const [showInstructions, setShowInstructions] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [progressStep, setProgressStep] = useState(0);
+  const [progressPct, setProgressPct] = useState(0);
+  const [elapsedSec, setElapsedSec] = useState(0);
+  const [results, setResults] = useState<{ base64: string; label: string }[]>([]);
+  const [error, setError] = useState("");
+  const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stepTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loaded = useRef(false);
 
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) router.push("/login");
-  }, [authLoading, isAuthenticated, router]);
+    if (authLoading) return;
+    if (!user) { router.push("/login"); return; }
+    if (!loaded.current) { loaded.current = true; loadBackgrounds(); }
+  }, [authLoading, user, router]);
 
-  useEffect(() => {
-    fetchCredits();
-  }, [fetchCredits]);
-
-  const canGenerate =
-    credits &&
-    credits.free_remaining + Math.floor(credits.token_balance / credits.tokens_per_image) >= 3;
-
-  const handleImageSelected = useCallback((base64: string, preview: string) => {
-    setImageBase64(base64);
-    setImagePreview(preview);
-    setPackImages([]);
-    setInfoImages([]);
-    setError(null);
-  }, []);
-
-  const handleRefinePrompt = useCallback(async () => {
-    if (!customRawPrompt.trim() || isRefining) return;
-    setIsRefining(true);
-    setError(null);
+  async function loadBackgrounds() {
     try {
-      const data = await api.post<{
-        success: boolean;
-        refined?: string;
-        isolate?: boolean;
-      }>("/studio/refine-prompt", { raw_prompt: customRawPrompt.trim() });
-      if (!data.success) throw new Error("Failed to refine prompt");
-      setCustomRefinedPrompt(data.refined ?? null);
-      setCustomIsolate(data.isolate !== false);
-    } catch (err) {
-      setError(err instanceof ApiError ? String(err.message) : "Failed to refine prompt");
-    } finally {
-      setIsRefining(false);
-    }
-  }, [customRawPrompt, isRefining]);
-
-  const handleGeneratePack = useCallback(async () => {
-    if (!imageBase64) return;
-    const isCustom = styleMode === "custom";
-    if (isCustom && !customRefinedPrompt) return;
-    if (!isCustom && !selectedStyle) return;
-
-    setIsGeneratingPack(true);
-    setError(null);
-    setPackImages([]);
-    setInfoImages([]);
-
-    try {
-      const payload: Record<string, unknown> = {
-        image_base64: extractBase64(imageBase64),
-        aspect_ratio_id: aspectRatio,
-        isolate_product: customIsolate,
-      };
-      if (isCustom) {
-        payload.custom_prompt = customRefinedPrompt!;
-      } else {
-        payload.style = selectedStyle!;
-      }
-
-      const data = await api.post<{
-        success: boolean;
-        images?: ResultImage[];
-        error?: string;
-      }>("/studio/generate-pack", payload);
-
-      if (!data.success) throw new Error(data.error || "Generation failed");
-      setPackImages(data.images ?? []);
-      fetchCredits();
-    } catch (err) {
-      setError(err instanceof ApiError ? String(err.message) : "Something went wrong");
-    } finally {
-      setIsGeneratingPack(false);
-    }
-  }, [
-    imageBase64,
-    selectedStyle,
-    styleMode,
-    customRefinedPrompt,
-    aspectRatio,
-    customIsolate,
-    fetchCredits,
-  ]);
-
-  const handleGenerateInfo = useCallback(
-    async (infoType: "features" | "dimensions") => {
-      if (!imageBase64) return;
-      setIsGeneratingInfo(infoType);
-      setError(null);
-
-      try {
-        const data = await api.post<{
-          success: boolean;
-          images?: ResultImage[];
-          error?: string;
-        }>("/studio/generate-info", {
-          image_base64: extractBase64(imageBase64),
-          info_type: infoType,
-          aspect_ratio_id: aspectRatio,
-        });
-
-        if (!data.success) throw new Error(data.error || "Generation failed");
-        setInfoImages((prev) => [...prev, ...(data.images ?? [])]);
-        fetchCredits();
-      } catch (err) {
-        setError(err instanceof ApiError ? String(err.message) : "Something went wrong");
-      } finally {
-        setIsGeneratingInfo(null);
-      }
-    },
-    [imageBase64, aspectRatio, fetchCredits]
-  );
-
-  const handleReset = useCallback(() => {
-    setImageBase64(null);
-    setImagePreview(null);
-    setSelectedStyle(null);
-    setPackImages([]);
-    setInfoImages([]);
-    setError(null);
-  }, []);
-
-  const downloadImage = useCallback((base64: string, mimeType: string, label: string) => {
-    const dataUri = `data:${mimeType};base64,${base64}`;
-    const a = document.createElement("a");
-    a.href = dataUri;
-    a.download = `sorapixel-${label.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}.png`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  }, []);
-
-  const allImages = [...packImages, ...infoImages];
-
-  const handleDownloadAll = useCallback(() => {
-    allImages.forEach((img, i) => {
-      setTimeout(
-        () => downloadImage(img.base64, img.mime_type || "image/png", img.label),
-        i * 300
-      );
-    });
-  }, [allImages, downloadImage]);
-
-  const hasResults = packImages.length > 0 || infoImages.length > 0;
-  const isGenerating = isGeneratingPack || !!isGeneratingInfo;
-
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-[var(--background)] flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-pink-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+      const data = await api.get<{ backgrounds: Background[] }>("/studio/backgrounds");
+      setBackgrounds(data.backgrounds);
+    } catch { /* silent */ }
   }
 
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setImagePreview(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const startProgress = () => {
+    setProgressStep(0); setProgressPct(0); setElapsedSec(0);
+    let step = 0;
+    const advance = () => { step++; if (step < PROGRESS_STEPS.length) { setProgressStep(step); stepTimer.current = setTimeout(advance, PROGRESS_STEPS[step].duration); } };
+    stepTimer.current = setTimeout(advance, PROGRESS_STEPS[0].duration);
+    let pct = 0; let sec = 0;
+    progressTimer.current = setInterval(() => { sec++; setElapsedSec(sec); pct = Math.min(95, pct + (95 - pct) * 0.04); setProgressPct(Math.round(pct)); }, 1000);
+  };
+
+  const stopProgress = (success: boolean) => {
+    if (stepTimer.current) clearTimeout(stepTimer.current);
+    if (progressTimer.current) clearInterval(progressTimer.current);
+    if (success) setProgressPct(100);
+  };
+
+  const handleGenerate = async () => {
+    if (!imagePreview) return;
+    setGenerating(true); setError(""); setResults([]);
+    startProgress();
+    try {
+      const data = await api.post<{ success: boolean; images: { base64: string; label: string }[]; error?: string }>(
+        "/studio/generate",
+        { image_base64: imagePreview, background_id: selectedBg, special_instructions: specialInstructions || undefined }
+      );
+      stopProgress(data.success);
+      if (data.success) setResults(data.images.filter(i => i.base64));
+      else setError(data.error || "Generation failed");
+    } catch (e: unknown) {
+      stopProgress(false);
+      setError(e instanceof Error ? e.message : "Something went wrong");
+    } finally { setGenerating(false); }
+  };
+
+  const scenes = backgrounds.filter(b => b.type === "scene");
+  const colors = backgrounds.filter(b => b.type === "color");
+
   return (
-    <div className="min-h-screen bg-[var(--background)] pb-20">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-[var(--border)]">
-        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
-          <h1 className="font-bold text-lg text-[var(--foreground)]">Studio</h1>
-          <div className="flex items-center gap-2">
-            {credits && (
-              <div className="px-3 py-1.5 rounded-lg bg-pink-50 border border-pink-200">
-                <span className="text-xs font-medium text-pink-600">
-                  {credits.is_free_tier
-                    ? `${credits.free_remaining} free left`
-                    : `${credits.token_balance} tokens`}
-                </span>
-              </div>
-            )}
-            {(imageBase64 || hasResults) && (
+    <ResponsiveLayout title="Studio">
+      <div className="max-w-3xl mx-auto space-y-8">
+        {/* Page heading */}
+        <div>
+          <h2 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight">
+            Create Studio Image
+          </h2>
+          <p className="text-text-secondary text-sm mt-1">
+            Upload your product and select a background to generate a studio-quality photo.
+          </p>
+        </div>
+
+        {/* Upload area */}
+        <Card padding="none">
+          {imagePreview ? (
+            <div className="relative">
+              <img src={imagePreview} alt="Product" className="w-full max-h-96 object-contain rounded-2xl bg-surface" />
               <button
-                onClick={handleReset}
-                className="text-sm text-[var(--muted)] hover:text-pink-500 transition-colors"
+                onClick={() => { setImagePreview(null); setResults([]); }}
+                className="absolute top-3 right-3 w-8 h-8 bg-charcoal/70 text-white rounded-lg flex items-center justify-center hover:bg-charcoal transition-colors"
               >
-                Start over
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
               </button>
-            )}
-          </div>
-        </div>
-      </header>
+            </div>
+          ) : (
+            <label className="block p-12 md:p-16 text-center cursor-pointer rounded-2xl border-2 border-dashed border-accent/30 hover:border-accent/60 hover:bg-accent-lighter/50 transition-all duration-300 group">
+              <div className="w-16 h-16 mx-auto mb-5 bg-accent-lighter rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+              </div>
+              <p className="text-sm font-semibold text-foreground">Upload your product image</p>
+              <p className="text-xs text-text-secondary mt-1.5">Drag and drop or click to browse</p>
+              <p className="text-[10px] text-text-tertiary mt-3">PNG, JPG up to 10MB</p>
+              <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+            </label>
+          )}
+        </Card>
 
-      {/* Credits exhausted banner */}
-      {credits && !canGenerate && (
-        <div className="bg-amber-50 border-b border-amber-200 px-4 py-3">
-          <div className="max-w-2xl mx-auto flex items-center justify-between">
-            <p className="text-sm text-amber-800 font-medium">
-              {credits.free_remaining === 0
-                ? `You've used all ${credits.free_limit} free generations.`
-                : "Need more credits for a pack of 3."}
-            </p>
-            <a
-              href="/pricing"
-              className="text-xs font-semibold text-white bg-pink-500 hover:bg-pink-600 px-4 py-1.5 rounded-full transition-colors"
-            >
-              View Plans
-            </a>
-          </div>
-        </div>
-      )}
-
-      <main className="max-w-2xl mx-auto px-4 py-6">
-        {/* Mobile credits badge */}
-        {credits && (
-          <div className="sm:hidden mb-4 flex justify-center">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-pink-50 border border-pink-200">
-              <span className="text-xs font-medium text-pink-600">
-                {credits.is_free_tier
-                  ? `${credits.free_remaining}/${credits.free_limit} free left`
-                  : `${credits.token_balance} tokens`}
+        {/* Special Instructions */}
+        {imagePreview && (
+          <button
+            onClick={() => setShowInstructions(true)}
+            className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-border hover:border-border-hover hover:bg-surface transition-all duration-200"
+          >
+            <div className="flex items-center gap-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+              <span className="text-sm text-text-secondary">
+                {specialInstructions ? specialInstructions : "Add special instructions"}
               </span>
             </div>
-          </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
+          </button>
         )}
 
-        {/* RESULTS VIEW */}
-        {hasResults && (
-          <div className="space-y-6 animate-in fade-in duration-300">
-            <div className="text-center">
-              <h2 className="text-xl font-bold text-[var(--foreground)]">Your Marketplace Pack</h2>
-              <p className="text-[var(--muted)] text-sm mt-1">
-                {allImages.length} image{allImages.length !== 1 ? "s" : ""} generated
-              </p>
-            </div>
+        {/* Background Selection */}
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+            Choose Background
+          </h3>
 
-            {/* Pack photos */}
-            {packImages.length > 0 && (
-              <div>
-                <h3 className="text-xs font-bold text-pink-500 uppercase tracking-widest mb-3">
-                  Product Photos
-                </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {packImages.map((img, index) => (
-                    <ImageCard
-                      key={`pack-${index}`}
-                      img={img}
-                      onDownload={() => downloadImage(img.base64, img.mime_type || "image/png", img.label)}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Info images */}
-            {infoImages.length > 0 && (
-              <div>
-                <h3 className="text-xs font-bold text-pink-500 uppercase tracking-widest mb-3">
-                  Product Info
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {infoImages.map((img, index) => (
-                    <ImageCard
-                      key={`info-${index}`}
-                      img={img}
-                      onDownload={() => downloadImage(img.base64, img.mime_type || "image/png", img.label)}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Info generation buttons */}
-            <div className="border border-[var(--border)] rounded-xl p-4 sm:p-6 bg-white space-y-4">
-              <h3 className="text-xs font-bold text-pink-500 uppercase tracking-widest">
-                Generate Info Images
-              </h3>
-              <p className="text-xs sm:text-sm text-[var(--muted)]">
-                Create feature infographics or dimension diagrams from your product image.
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => handleGenerateInfo("features")}
-                  disabled={isGenerating || !canGenerate}
-                  className="py-3 px-4 rounded-xl border-2 border-[var(--border)] bg-white hover:border-pink-300 hover:bg-pink-50 disabled:opacity-50 disabled:pointer-events-none font-medium text-sm transition-all"
-                >
-                  {isGeneratingInfo === "features" ? (
-                    <span className="inline-flex items-center gap-2">
-                      <span className="w-4 h-4 border-2 border-pink-500 border-t-transparent rounded-full animate-spin" />
-                      Generating...
-                    </span>
-                  ) : (
-                    "Features Infographic"
-                  )}
-                </button>
-                <button
-                  onClick={() => handleGenerateInfo("dimensions")}
-                  disabled={isGenerating || !canGenerate}
-                  className="py-3 px-4 rounded-xl border-2 border-[var(--border)] bg-white hover:border-pink-300 hover:bg-pink-50 disabled:opacity-50 disabled:pointer-events-none font-medium text-sm transition-all"
-                >
-                  {isGeneratingInfo === "dimensions" ? (
-                    <span className="inline-flex items-center gap-2">
-                      <span className="w-4 h-4 border-2 border-pink-500 border-t-transparent rounded-full animate-spin" />
-                      Generating...
-                    </span>
-                  ) : (
-                    "Dimensions Diagram"
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {error && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
-                <strong>Error:</strong> {error}
-              </div>
-            )}
-
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <button
-                onClick={handleDownloadAll}
-                className="px-6 py-3 bg-pink-500 text-white rounded-xl font-medium hover:bg-pink-600 transition-all"
-              >
-                Download All ({allImages.length})
-              </button>
-              <button
-                onClick={() => {
-                  setPackImages([]);
-                  setInfoImages([]);
-                  setError(null);
-                }}
-                className="px-6 py-3 bg-white text-[var(--foreground)] rounded-xl font-medium border border-[var(--border)] hover:bg-pink-50 transition-all"
-              >
-                Try Another Style
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* GENERATING */}
-        {isGeneratingPack && !hasResults && (
-          <div className="text-center py-16">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-pink-100 mb-5">
-              <div className="w-7 h-7 border-2 border-pink-500 border-t-transparent rounded-full animate-spin" />
-            </div>
-            <h2 className="text-xl font-bold text-[var(--foreground)]">
-              Creating your Marketplace Pack
-            </h2>
-            <p className="text-[var(--muted)] text-sm mt-2">
-              Generating 3 images — hero, alternate angle, and close-up
-            </p>
-            <p className="text-[var(--muted)] text-xs mt-4">This takes 15–30 seconds</p>
-          </div>
-        )}
-
-        {/* UPLOAD / IDLE */}
-        {!isGeneratingPack && !hasResults && (
-          <div className="space-y-8">
-            {/* Step 1: Image Upload */}
-            <section className="space-y-3">
-              <div className="inline-flex items-center gap-2 text-xs font-bold text-pink-500 tracking-widest uppercase mb-1">
-                <span className="w-5 h-5 rounded-full bg-pink-100 flex items-center justify-center text-[10px]">
-                  1
-                </span>
-                Product Image
-              </div>
-              <h2 className="text-lg font-bold text-[var(--foreground)]">
-                {imagePreview ? "Image uploaded" : "Upload your product image"}
-              </h2>
-              <p className="text-xs text-[var(--muted)]">Upload a photo of your product</p>
-
-              {imagePreview ? (
-                <div className="flex items-start gap-3">
-                  <div className="w-32 h-32 sm:w-48 sm:h-48 rounded-xl overflow-hidden border border-[var(--border)] bg-white flex-shrink-0">
-                    <img src={imagePreview} alt="Uploaded product" className="w-full h-full object-contain" />
-                  </div>
-                  <button
-                    onClick={() => {
-                      setImageBase64(null);
-                      setImagePreview(null);
-                    }}
-                    className="text-sm text-[var(--muted)] hover:text-pink-500 transition-colors"
-                  >
-                    Change
-                  </button>
-                </div>
-              ) : (
-                <UploadZone onImageSelected={handleImageSelected} />
-              )}
-            </section>
-
-            {/* Step 2: Style */}
-            {imagePreview && (
-              <section className="space-y-3">
-                <div className="inline-flex items-center gap-2 text-xs font-bold text-pink-500 tracking-widest uppercase mb-1">
-                  <span className="w-5 h-5 rounded-full bg-pink-100 flex items-center justify-center text-[10px]">
-                    2
-                  </span>
-                  Style
-                </div>
-                <h2 className="text-lg font-bold text-[var(--foreground)]">Choose a style</h2>
-                <p className="text-xs text-[var(--muted)]">Select a preset or describe your own scene</p>
-
-                <div className="flex bg-pink-50 rounded-lg p-1 w-fit">
-                  <button
-                    onClick={() => {
-                      setStyleMode("preset");
-                      setCustomRefinedPrompt(null);
-                    }}
-                    className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-                      styleMode === "preset"
-                        ? "bg-white text-pink-600 shadow-sm"
-                        : "text-[var(--muted)] hover:text-[var(--foreground)]"
-                    }`}
-                  >
-                    Presets
-                  </button>
-                  <button
-                    onClick={() => {
-                      setStyleMode("custom");
-                      setSelectedStyle(null);
-                    }}
-                    className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-                      styleMode === "custom"
-                        ? "bg-white text-pink-600 shadow-sm"
-                        : "text-[var(--muted)] hover:text-[var(--foreground)]"
-                    }`}
-                  >
-                    Custom
-                  </button>
-                </div>
-
-                {styleMode === "preset" ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {STYLE_PRESETS.map((style) => (
-                      <button
-                        key={style.id}
-                        onClick={() => setSelectedStyle(style.id)}
-                        className={`p-3 rounded-xl border-2 text-left transition-all ${
-                          selectedStyle === style.id
-                            ? "border-pink-500 bg-pink-50 shadow-sm"
-                            : "border-[var(--border)] bg-white hover:border-pink-200"
-                        }`}
-                      >
-                        <span className="text-sm font-semibold text-[var(--foreground)]">
-                          {style.label}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <textarea
-                      value={customRawPrompt}
-                      onChange={(e) => {
-                        setCustomRawPrompt(e.target.value);
-                        setCustomRefinedPrompt(null);
-                      }}
-                      placeholder='Describe your scene... e.g. "on a beach at sunset" or "make it look premium"'
-                      rows={3}
-                      disabled={isRefining}
-                      className="w-full px-4 py-3 rounded-xl border border-[var(--border)] bg-white text-[var(--foreground)] text-sm placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-pink-300 focus:border-pink-500 resize-none disabled:opacity-50"
-                    />
-                    <button
-                      onClick={handleRefinePrompt}
-                      disabled={!customRawPrompt.trim() || isRefining}
-                      className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${
-                        customRawPrompt.trim() && !isRefining
-                          ? "bg-pink-100 text-pink-600 hover:bg-pink-200"
-                          : "bg-gray-100 text-gray-400 cursor-not-allowed"
-                      }`}
-                    >
-                      {isRefining ? (
-                        <span className="inline-flex items-center gap-2">
-                          <span className="w-3.5 h-3.5 border-2 border-pink-500 border-t-transparent rounded-full animate-spin" />
-                          Refining...
-                        </span>
-                      ) : (
-                        "Refine with AI"
-                      )}
-                    </button>
-                    {customRefinedPrompt && (
-                      <div className="p-4 rounded-xl bg-pink-50/50 border border-pink-200">
-                        <p className="text-xs font-bold text-pink-600 uppercase tracking-wider mb-1">
-                          AI-Refined Scene
-                        </p>
-                        <p className="text-sm text-[var(--foreground)]">{customRefinedPrompt}</p>
+          {/* Scene backgrounds */}
+          {scenes.length > 0 && (
+            <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+              {scenes.map(bg => (
+                <button key={bg.id} onClick={() => setSelectedBg(bg.id)} className="flex-shrink-0 text-center group">
+                  <div className={`w-20 h-20 rounded-xl overflow-hidden border-2 transition-all duration-200 ${selectedBg === bg.id ? "border-accent shadow-[var(--shadow-accent)] ring-2 ring-accent/20" : "border-border group-hover:border-border-hover"
+                    }`}>
+                    {bg.thumb ? (
+                      <img src={bg.thumb} alt={bg.label} className="w-full h-full object-cover" loading="lazy" />
+                    ) : (
+                      <div className="w-full h-full bg-surface flex items-center justify-center text-xs text-text-secondary">
+                        {bg.label.slice(0, 3)}
                       </div>
                     )}
                   </div>
-                )}
-              </section>
-            )}
+                  <p className={`text-xs mt-1.5 truncate w-20 ${selectedBg === bg.id ? "text-accent font-medium" : "text-text-secondary"
+                    }`}>{bg.label}</p>
+                </button>
+              ))}
+            </div>
+          )}
 
-            {error && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
-                <strong>Error:</strong> {error}
-              </div>
-            )}
+          {/* Color backgrounds */}
+          {colors.length > 0 && (
+            <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+              {colors.map(bg => (
+                <button key={bg.id} onClick={() => setSelectedBg(bg.id)} className="flex-shrink-0 text-center group">
+                  <div
+                    className={`w-20 h-20 rounded-xl border-2 transition-all duration-200 ${selectedBg === bg.id ? "border-accent shadow-[var(--shadow-accent)] ring-2 ring-accent/20" : "border-border group-hover:border-border-hover"
+                      }`}
+                    style={{ backgroundColor: bg.color || "#ccc" }}
+                  />
+                  <p className={`text-xs mt-1.5 truncate w-20 ${selectedBg === bg.id ? "text-accent font-medium" : "text-text-secondary"
+                    }`}>{bg.label}</p>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
-            {/* Aspect Ratio */}
-            {imagePreview &&
-              ((styleMode === "preset" && selectedStyle) || (styleMode === "custom" && customRefinedPrompt)) && (
-                <section className="space-y-3">
-                  <h3 className="text-sm font-semibold text-[var(--foreground)]">Aspect Ratio</h3>
-                  <p className="text-xs text-[var(--muted)]">Choose a format for your target platform</p>
-                  <div className="flex flex-wrap gap-2">
-                    {ASPECT_RATIOS.map((r) => (
-                      <button
-                        key={r.id}
-                        onClick={() => setAspectRatio(r.id)}
-                        className={`px-3 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
-                          aspectRatio === r.id
-                            ? "border-pink-500 bg-pink-50 text-pink-600"
-                            : "border-[var(--border)] bg-white text-[var(--muted)] hover:border-pink-200"
-                        }`}
-                      >
-                        {r.label}
-                      </button>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-            {/* Generate */}
-            {imagePreview &&
-              ((styleMode === "preset" && selectedStyle) || (styleMode === "custom" && customRefinedPrompt)) && (
-                <div className="flex justify-center pt-4">
-                  {credits && !canGenerate ? (
-                    <a
-                      href="/pricing"
-                      className="w-full sm:w-auto px-8 py-4 bg-pink-500 text-white rounded-xl font-semibold text-center hover:bg-pink-600 transition-colors"
-                    >
-                      Buy Tokens to Generate
-                    </a>
-                  ) : (
-                    <button
-                      onClick={handleGeneratePack}
-                      disabled={isGenerating}
-                      className="w-full sm:w-auto px-8 py-4 bg-pink-500 text-white rounded-xl font-semibold hover:bg-pink-600 disabled:opacity-50 transition-all"
-                    >
-                      Generate Marketplace Pack
-                    </button>
-                  )}
-                </div>
-              )}
+        {/* Error */}
+        {error && (
+          <div className="bg-error-light border border-error/10 text-error px-4 py-3 rounded-xl text-sm">
+            {error}
           </div>
         )}
-      </main>
 
-      <BottomNav />
-    </div>
-  );
-}
+        {/* Generate button */}
+        {!generating && (
+          <Button onClick={handleGenerate} disabled={!imagePreview} fullWidth size="lg">
+            Generate Image
+          </Button>
+        )}
 
-// ─── Upload Zone ───
+        {/* Processing Overlay */}
+        {generating && (
+          <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-6">
+            <Card padding="lg" className="max-w-sm w-full text-center">
+              <div className="relative w-16 h-16 mx-auto mb-6">
+                <div className="absolute inset-0 rounded-full border-2 border-border" />
+                <div className="absolute inset-0 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+                <div className="absolute inset-3 rounded-full bg-surface flex items-center justify-center">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                  </svg>
+                </div>
+              </div>
+              <h3 className="text-base font-semibold text-foreground mb-1">Creating Your Photo</h3>
+              <p className="text-sm text-text-secondary mb-6 min-h-[20px]">{PROGRESS_STEPS[progressStep]?.label}</p>
+              <div className="w-full bg-surface rounded-full h-1.5 mb-3 overflow-hidden">
+                <div className="h-full rounded-full accent-gradient transition-all duration-1000 ease-out" style={{ width: `${progressPct}%` }} />
+              </div>
+              <div className="flex justify-between text-xs text-text-secondary">
+                <span>{progressPct}%</span>
+                <span>{elapsedSec}s</span>
+              </div>
+              <p className="text-xs text-text-secondary mt-4">Usually takes 15-30 seconds</p>
+            </Card>
+          </div>
+        )}
 
-function UploadZone({ onImageSelected }: { onImageSelected: (base64: string, preview: string) => void }) {
-  const [isDragging, setIsDragging] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  const handleFile = useCallback(
-    (file: File) => {
-      if (!file.type.startsWith("image/")) return;
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const dataUrl = e.target?.result as string;
-        onImageSelected(dataUrl, dataUrl);
-      };
-      reader.readAsDataURL(file);
-    },
-    [onImageSelected]
-  );
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      setIsDragging(false);
-      const file = e.dataTransfer.files[0];
-      if (file) handleFile(file);
-    },
-    [handleFile]
-  );
-
-  return (
-    <div
-      onDrop={handleDrop}
-      onDragOver={(e) => {
-        e.preventDefault();
-        setIsDragging(true);
-      }}
-      onDragLeave={() => setIsDragging(false)}
-      onClick={() => fileRef.current?.click()}
-      className={`relative border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-all ${
-        isDragging ? "border-pink-500 bg-pink-50 scale-[1.01]" : "border-[var(--border)] hover:border-pink-300 hover:bg-pink-50/30"
-      }`}
-    >
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) handleFile(file);
-          e.target.value = "";
-        }}
-        className="hidden"
-      />
-      <div className="flex flex-col items-center gap-3">
-        <div
-          className={`w-14 h-14 rounded-xl flex items-center justify-center ${
-            isDragging ? "bg-pink-500 text-white" : "bg-pink-100 text-pink-500"
-          }`}
-        >
-          <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
-            />
-          </svg>
-        </div>
-        <div>
-          <p className="text-sm font-semibold text-[var(--foreground)]">Drop your product image here</p>
-          <p className="text-xs text-[var(--muted)] mt-1">or tap to browse — PNG, JPG</p>
-        </div>
+        {/* Results */}
+        {results.length > 0 && (
+          <div className="space-y-6">
+            <h3 className="text-lg font-semibold text-foreground">Your Studio Image</h3>
+            {results.map((img, i) => (
+              <Card key={i} padding="none">
+                <img src={`data:image/png;base64,${img.base64}`} alt={img.label} className="w-full rounded-t-2xl" />
+                <div className="p-4 flex items-center justify-between">
+                  <span className="text-sm font-medium text-foreground">{img.label}</span>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => shareToWhatsApp(img.base64, `sorapixel-studio-${Date.now()}.png`)}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" /></svg>
+                      Share
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => downloadImage(img.base64, `sorapixel-studio-${Date.now()}.png`)}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
+                      Download
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
-    </div>
-  );
-}
 
-// ─── Image Card ───
-
-function ImageCard({ img, onDownload }: { img: ResultImage; onDownload: () => void }) {
-  const dataUri = `data:${img.mime_type || "image/png"};base64,${img.base64}`;
-  return (
-    <div className="group">
-      <div className="text-xs font-medium text-[var(--muted)] mb-1.5 text-center">{img.label}</div>
-      <div className="relative overflow-hidden bg-white rounded-xl border border-[var(--border)] shadow-sm">
-        <div style={{ paddingBottom: "100%" }} className="relative w-full">
-          <img
-            src={dataUri}
-            alt={img.label}
-            className="absolute inset-0 w-full h-full object-cover"
+      {/* Special Instructions Sheet */}
+      <Modal open={showInstructions} onClose={() => setShowInstructions(false)} title="Special Instructions" sheet>
+        <div className="space-y-4">
+          <textarea
+            value={specialInstructions}
+            onChange={e => setSpecialInstructions(e.target.value)}
+            placeholder="Write custom settings..."
+            maxLength={100}
+            className="w-full border border-border rounded-xl px-4 py-3 h-28 resize-none outline-none focus:border-charcoal text-foreground text-sm transition-colors"
           />
+          <p className="text-xs text-text-secondary">
+            {specialInstructions.split(/\s+/).filter(Boolean).length}/10 words
+          </p>
+          <div className="space-y-1.5">
+            <p className="text-sm text-text-secondary"><span className="font-medium text-foreground">Example:</span> Don&apos;t add additional items</p>
+            <p className="text-sm text-text-secondary"><span className="font-medium text-foreground">Example:</span> Don&apos;t add dupatta</p>
+          </div>
+          <Button onClick={() => setShowInstructions(false)} fullWidth>
+            Save Instructions
+          </Button>
         </div>
-      </div>
-      <button
-        onClick={onDownload}
-        className="mt-2 w-full py-2.5 text-sm font-medium text-[var(--muted)] bg-white border border-[var(--border)] rounded-lg hover:bg-pink-50 hover:text-pink-600 transition-all"
-      >
-        Download
-      </button>
-    </div>
+      </Modal>
+    </ResponsiveLayout>
   );
 }

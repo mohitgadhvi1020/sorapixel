@@ -25,6 +25,7 @@ async def get_profile(user: dict = Depends(get_current_user)):
         "business_website": user.get("business_website", ""),
         "apply_branding": user.get("apply_branding", False),
         "category_id": user.get("category_id"),
+        "category_slug": user.get("category_slug"),
         "is_admin": user.get("is_admin", False),
         "token_balance": user.get("token_balance", 0),
         "studio_free_used": user.get("studio_free_used", 0),

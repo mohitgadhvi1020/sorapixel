@@ -1,7 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useCallback } from "react";
 import { api } from "@/lib/api-client";
+import { cacheGet, cacheSet } from "@/lib/cache";
+
+// Use useLayoutEffect on client (runs before paint), useEffect on server
+const useIsomorphicLayoutEffect =
+  typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 interface CreditBalance {
   token_balance: number;
@@ -12,14 +17,27 @@ interface CreditBalance {
   daily_reward_available: boolean;
 }
 
+const CACHE_KEY = "credits_balance";
+
 export function useCredits() {
+  // Start null to match server render (no hydration mismatch)
   const [credits, setCredits] = useState<CreditBalance | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Read from cache before paint — user never sees the null state
+  useIsomorphicLayoutEffect(() => {
+    const cached = cacheGet<CreditBalance>(CACHE_KEY);
+    if (cached) {
+      setCredits(cached);
+      setLoading(false);
+    }
+  }, []);
 
   const fetchCredits = useCallback(async () => {
     try {
       const data = await api.get<CreditBalance>("/credits/balance");
       setCredits(data);
+      cacheSet(CACHE_KEY, data);
     } catch {
       setCredits(null);
     } finally {
