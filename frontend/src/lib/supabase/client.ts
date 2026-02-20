@@ -11,12 +11,11 @@ export function getSupabaseBrowser() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       auth: {
-        // Bypass Navigator.locks API which times out in some embedded browsers
-        lock: async (
+        lock: async <R,>(
           _name: string,
           _acquireTimeout: number,
-          fn: () => Promise<unknown>,
-        ) => {
+          fn: () => Promise<R>,
+        ): Promise<R> => {
           return await fn();
         },
       },
