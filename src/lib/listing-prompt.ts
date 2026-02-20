@@ -32,17 +32,25 @@ Fashion jewellery is plated/coated — NEVER imply solid precious metals.
 NEVER write → ALWAYS write:
 - "Gold earrings" → "Gold-tone earrings"
 - "Silver ring" → "Silver-tone ring"
-- "Gold necklace" → "Gold-plated brass necklace"
+- "Gold necklace" → "Gold-tone necklace" or "Gold finish necklace"
+- "Gold-plated" → "Gold-tone" or "Gold finish"
 - "Rose gold bracelet" → "Rose-gold-tone bracelet"
-- "Platinum finish" → "Rhodium-plated finish"
+- "Platinum finish" → "Rhodium finish"
 - "Diamond studs" → "CZ Diamond studs"
 - "Pearl necklace" → "Faux pearl necklace" or "Pearl necklace" (acceptable)
 - "Emerald drops" → "Green stone drops"
 
+CRITICAL: NEVER use the word "plated" or "plating" anywhere — not in title, description, or material bullets.
+Use "tone" or "finish" instead:
+- "Gold plating" → "Gold tone" or "Gold finish"
+- "Gold-plated" → "Gold-tone" or "Gold-finish"
+- "Rose-gold plated" → "Rose-gold tone"
+- "Rhodium-plated" → "Rhodium finish"
+
 Acceptable material descriptions:
-- "Material: Brass with gold plating"
+- "Material: Brass with gold-tone finish"
 - "Material: Alloy with rhodium finish"
-- "Material: Brass with rose-gold-tone plating"
+- "Material: Brass with rose-gold-tone finish"
 - "Stones: Cubic Zirconia (CZ)"
 - "Stones: Faux pearls"
 - "Stones: Glass crystals"
@@ -95,7 +103,7 @@ OUTPUT SPECIFICATION — GENERATE ALL OF THESE:
    <p>First paragraph...</p>
    <p>Second paragraph...</p>
    <ul>
-   <li>Material: [Base metal] with [plating type]</li>
+   <li>Material: [Base metal] with [tone/finish] (e.g. "Brass with Gold-Tone Finish" — NEVER use "plated" or "plating")</li>
    <li>Stones: [Stone types, if any]</li>
    <li>Closure: [type] (if relevant)</li>
    </ul>
@@ -122,7 +130,7 @@ OUTPUT SPECIFICATION — GENERATE ALL OF THESE:
    - occasion: e.g. "Everyday, Office"
 
    DESCRIPTION DETAILS (for the bullet list in HTML description):
-   - material: Detailed description — e.g. "Brass + Gold Plating"
+   - material: Detailed description — e.g. "Brass with Gold-Tone Finish"
    - stone: Detailed description — e.g. "CZ" or "Faux Pearls" or "None"
    - closure: Closure type — e.g. "Lobster Clasp", "Push Back", "Adjustable", "Slip-on", or "" if not applicable
 
@@ -138,6 +146,7 @@ EDGE CASES:
 QUALITY CHECKLIST (your output MUST pass ALL):
 ═══════════════════════════════════════
 ✓ No "gold"/"silver"/"diamond"/"pearl" without proper qualifiers
+✓ ZERO uses of "plated" or "plating" anywhere in the entire output — use "tone" or "finish" instead
 ✓ Title contains NO material/metal/stone words (no Gold-Tone, CZ, Silver, Pearl, Crystal, Brass, Plated, Diamond, etc.)
 ✓ Title is 50-65 chars, ends with " | Stylika"
 ✓ Meta description is 140-155 chars
@@ -160,7 +169,7 @@ export const LISTING_JSON_SCHEMA = `{
     "gemstoneType": "Cubic Zirconia / Pearl / Glass Crystal / empty string if none",
     "collection": "Minimal / Bold / Glam / Romance",
     "occasion": "Occasion1, Occasion2",
-    "material": "Base metal + plating (detailed for description)",
+    "material": "Base metal with tone/finish (e.g. Brass with Gold-Tone Finish)",
     "stone": "Stone type or None (detailed for description)",
     "closure": "Closure type or empty string if not applicable"
   }
