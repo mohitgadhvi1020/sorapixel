@@ -95,8 +95,8 @@ export default function ProfilePage() {
       <ResponsiveLayout title="Profile">
         <div className="max-w-2xl mx-auto space-y-6">
           <div>
-            <h2 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight">Profile</h2>
-            <p className="text-text-secondary text-sm mt-1">Manage your account and business settings.</p>
+            <h2 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Profile</h2>
+            <p className="text-[rgba(255,255,255,0.5)] text-sm mt-1">Manage your account and business settings.</p>
           </div>
 
           <div className="space-y-2">
@@ -125,7 +125,7 @@ export default function ProfilePage() {
           <div className="pt-4">
             <button
               onClick={logout}
-              className="text-error text-sm font-medium hover:text-red-700 transition-colors"
+              className="text-[#EF4444] text-sm font-medium hover:text-[#DC2626] transition-colors"
             >
               Sign Out
             </button>
@@ -140,20 +140,20 @@ export default function ProfilePage() {
       <ResponsiveLayout title="Business Profile">
         <div className="max-w-xl mx-auto space-y-6 pb-24">
           <div className="flex items-center gap-3 mb-2">
-            <button onClick={() => setSection("main")} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface transition-colors text-text-secondary">
+            <button onClick={() => setSection("main")} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[rgba(255,255,255,0.06)] transition-colors text-[rgba(255,255,255,0.5)]">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6" /></svg>
             </button>
-            <h2 className="text-xl font-semibold text-foreground">Business Profile</h2>
+            <h2 className="text-xl font-semibold text-white">Business Profile</h2>
           </div>
 
           {/* Logo upload */}
           <div>
-            <p className="text-sm font-medium text-foreground mb-2">Business Logo</p>
+            <p className="text-xs font-medium text-[rgba(255,255,255,0.5)] uppercase tracking-[0.05em] mb-2">Business Logo</p>
             <label className="inline-block cursor-pointer">
               {logoPreview ? (
-                <img src={logoPreview} alt="Logo" className="w-16 h-16 object-cover rounded-xl border border-border hover:border-accent/40 transition-colors" />
+                <img src={logoPreview} alt="Logo" className="w-16 h-16 object-cover rounded-xl border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,106,0,0.4)] transition-colors" />
               ) : (
-                <div className="w-16 h-16 border-2 border-dashed border-border rounded-xl flex items-center justify-center text-text-secondary hover:border-border-hover transition-colors">
+                <div className="w-16 h-16 border-2 border-dashed border-[rgba(255,255,255,0.1)] rounded-xl flex items-center justify-center text-[rgba(255,255,255,0.3)] hover:border-[rgba(255,255,255,0.2)] transition-colors">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
                 </div>
               )}
@@ -166,29 +166,29 @@ export default function ProfilePage() {
 
           {/* Branding toggle */}
           <div className="flex items-center justify-between py-3">
-            <p className="text-sm font-medium text-foreground">Apply Branding</p>
+            <p className="text-sm font-medium text-white">Apply Branding</p>
             <button
               onClick={() => setApplyBranding(!applyBranding)}
-              className={`w-11 h-6 rounded-full transition-colors duration-200 ${applyBranding ? "bg-accent-dark" : "bg-border"}`}
+              className={`w-11 h-6 rounded-full transition-colors duration-250 ${applyBranding ? "bg-[#FF6A00]" : "bg-[rgba(255,255,255,0.1)]"}`}
             >
-              <div className={`w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${applyBranding ? "translate-x-5" : "translate-x-0.5"}`} />
+              <div className={`w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-250 ${applyBranding ? "translate-x-5" : "translate-x-0.5"}`} />
             </button>
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-sm font-medium text-foreground">Mobile Number</label>
-            <div className="flex items-center border border-border rounded-xl px-4 py-3 bg-surface">
-              <span className="text-text-secondary mr-2 text-sm">+91</span>
-              <span className="text-foreground text-sm">{phone}</span>
+            <label className="block text-xs font-medium text-[rgba(255,255,255,0.5)] uppercase tracking-[0.05em]">Mobile Number</label>
+            <div className="flex items-center border border-[rgba(255,255,255,0.08)] rounded-[14px] px-4 py-3 bg-[rgba(255,255,255,0.04)]">
+              <span className="text-[rgba(255,255,255,0.5)] mr-2 text-sm">+91</span>
+              <span className="text-white text-sm">{phone}</span>
             </div>
-            <p className="text-xs text-text-secondary">Login number cannot be changed</p>
+            <p className="text-xs text-[rgba(255,255,255,0.3)]">Login number cannot be changed</p>
           </div>
 
           <Input label="Business Address" value={address} onChange={e => setAddress(e.target.value)} placeholder="Enter business address" />
           <Input label="Website" value={website} onChange={e => setWebsite(e.target.value)} placeholder="https://yourbusiness.com" />
           <Input label="Email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@business.com" />
 
-          <div className="fixed bottom-0 left-0 right-0 lg:left-60 bg-white border-t border-border px-5 py-4 shadow-lg z-10">
+          <div className="fixed bottom-0 left-0 right-0 bg-[#0E0F14] border-t border-[rgba(255,255,255,0.06)] px-5 py-4 z-10">
             <div className="max-w-xl mx-auto">
               <Button onClick={saveProfile} loading={saving} fullWidth size="lg">
                 Save Changes
@@ -205,10 +205,10 @@ export default function ProfilePage() {
       <ResponsiveLayout title="Category">
         <div className="max-w-xl mx-auto space-y-6 pb-24">
           <div className="flex items-center gap-3 mb-2">
-            <button onClick={() => setSection("main")} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface transition-colors text-text-secondary">
+            <button onClick={() => setSection("main")} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[rgba(255,255,255,0.06)] transition-colors text-[rgba(255,255,255,0.5)]">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6" /></svg>
             </button>
-            <h2 className="text-xl font-semibold text-foreground">Category Selection</h2>
+            <h2 className="text-xl font-semibold text-white">Category Selection</h2>
           </div>
 
           <div className="space-y-2">
@@ -216,21 +216,21 @@ export default function ProfilePage() {
               <button
                 key={cat.id}
                 onClick={() => setSelectedCategory(cat.id)}
-                className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all duration-200 text-left min-h-[52px] ${selectedCategory === cat.id
-                  ? "border-accent bg-accent-light"
-                  : "border-border hover:border-border-hover hover:bg-surface"
+                className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all duration-250 text-left min-h-[52px] ${selectedCategory === cat.id
+                  ? "border-[#FF6A00] bg-[rgba(255,106,0,0.08)]"
+                  : "border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.14)] hover:bg-[rgba(255,255,255,0.04)]"
                   }`}
               >
-                <p className="font-medium text-sm text-foreground">{cat.name}</p>
-                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${selectedCategory === cat.id ? "border-accent" : "border-border"
+                <p className="font-medium text-sm text-white">{cat.name}</p>
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-250 ${selectedCategory === cat.id ? "border-[#FF6A00]" : "border-[rgba(255,255,255,0.15)]"
                   }`}>
-                  {selectedCategory === cat.id && <div className="w-2.5 h-2.5 rounded-full bg-accent" />}
+                  {selectedCategory === cat.id && <div className="w-2.5 h-2.5 rounded-full bg-[#FF6A00]" />}
                 </div>
               </button>
             ))}
           </div>
 
-          <div className="fixed bottom-0 left-0 right-0 lg:left-60 bg-white border-t border-border px-5 py-4 shadow-lg z-10">
+          <div className="fixed bottom-0 left-0 right-0 bg-[#0E0F14] border-t border-[rgba(255,255,255,0.06)] px-5 py-4 z-10">
             <div className="max-w-xl mx-auto">
               <Button onClick={saveCategory} loading={saving} fullWidth size="lg">
                 Save
@@ -247,19 +247,19 @@ export default function ProfilePage() {
       <ResponsiveLayout title="Daily Rewards">
         <div className="max-w-md mx-auto text-center space-y-6">
           <div className="flex items-center gap-3 mb-2">
-            <button onClick={() => setSection("main")} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface transition-colors text-text-secondary">
+            <button onClick={() => setSection("main")} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[rgba(255,255,255,0.06)] transition-colors text-[rgba(255,255,255,0.5)]">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6" /></svg>
             </button>
           </div>
           <Card padding="lg" className="text-center">
-            <div className="w-16 h-16 mx-auto bg-accent-lighter rounded-2xl flex items-center justify-center mb-5">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <div className="w-16 h-16 mx-auto bg-[rgba(255,106,0,0.1)] rounded-2xl flex items-center justify-center mb-5">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#FF6A00" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M20 12v10H4V12M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" />
               </svg>
             </div>
-            <h2 className="text-xl font-bold text-foreground">Daily Image Boost</h2>
-            <p className="text-text-secondary text-sm mt-2 mb-6">
-              Claim <span className="font-semibold text-foreground">2 free</span> image credits every day.
+            <h2 className="text-xl font-bold text-white">Daily Image Boost</h2>
+            <p className="text-[rgba(255,255,255,0.5)] text-sm mt-2 mb-6">
+              Claim <span className="font-semibold text-white">2 free</span> image credits every day.
             </p>
             <Button
               onClick={async () => { try { await api.post("/credits/claim-daily", {}); } catch { } }}
@@ -279,35 +279,35 @@ export default function ProfilePage() {
     <ResponsiveLayout title="Settings">
       <div className="max-w-xl mx-auto space-y-6">
         <div className="flex items-center gap-3 mb-2">
-          <button onClick={() => setSection("main")} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface transition-colors text-text-secondary">
+          <button onClick={() => setSection("main")} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[rgba(255,255,255,0.06)] transition-colors text-[rgba(255,255,255,0.5)]">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6" /></svg>
           </button>
-          <h2 className="text-xl font-semibold text-foreground">Settings</h2>
+          <h2 className="text-xl font-semibold text-white">Settings</h2>
         </div>
 
         <div className="space-y-2">
           <a href="mailto:support@sorapixel.com">
             <Card hover padding="md" className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-foreground">Support</p>
-                <p className="text-xs text-text-secondary mt-0.5">Contact us for help</p>
+                <p className="text-sm font-medium text-white">Support</p>
+                <p className="text-xs text-[rgba(255,255,255,0.4)] mt-0.5">Contact us for help</p>
               </div>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
             </Card>
           </a>
           <Card padding="md" className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-foreground">Refund Policy</p>
-              <p className="text-xs text-text-secondary mt-0.5">View our refund policy</p>
+              <p className="text-sm font-medium text-white">Refund Policy</p>
+              <p className="text-xs text-[rgba(255,255,255,0.4)] mt-0.5">View our refund policy</p>
             </div>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
           </Card>
           <Card padding="md" className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-foreground">Privacy Policy</p>
-              <p className="text-xs text-text-secondary mt-0.5">View our privacy policy</p>
+              <p className="text-sm font-medium text-white">Privacy Policy</p>
+              <p className="text-xs text-[rgba(255,255,255,0.4)] mt-0.5">View our privacy policy</p>
             </div>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
           </Card>
         </div>
       </div>
@@ -319,10 +319,10 @@ function ProfileMenuItem({ label, description, onClick }: { label: string; descr
   return (
     <Card hover onClick={onClick} padding="md" className="flex items-center justify-between">
       <div>
-        <p className="text-sm font-medium text-foreground">{label}</p>
-        <p className="text-xs text-text-secondary mt-0.5">{description}</p>
+        <p className="text-sm font-medium text-white">{label}</p>
+        <p className="text-xs text-[rgba(255,255,255,0.4)] mt-0.5">{description}</p>
       </div>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
     </Card>
   );
 }

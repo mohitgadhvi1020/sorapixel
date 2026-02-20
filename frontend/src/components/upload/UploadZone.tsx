@@ -70,11 +70,10 @@ export default function UploadZone({
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onClick={() => fileRef.current?.click()}
-        className={`relative border-2 border-dashed rounded-2xl p-8 sm:p-14 text-center transition-all duration-300 cursor-pointer ${
-          isDragging
-            ? "border-pink-500 bg-pink-50/50 scale-[1.01]"
-            : "border-gray-200 hover:border-pink-300 hover:bg-pink-50/30"
-        }`}
+        className={`relative border-2 border-dashed rounded-[20px] p-8 sm:p-14 text-center transition-all duration-300 cursor-pointer ${isDragging
+            ? "border-[#FF6A00] bg-[rgba(255,106,0,0.08)] scale-[1.01] shadow-[0_0_30px_rgba(255,106,0,0.15)]"
+            : "border-[rgba(255,255,255,0.1)] hover:border-[rgba(255,106,0,0.4)] hover:bg-[rgba(255,255,255,0.02)]"
+          }`}
       >
         <input
           ref={fileRef}
@@ -86,9 +85,10 @@ export default function UploadZone({
         />
         <div className="flex flex-col items-center gap-3 sm:gap-4">
           <div
-            className={`w-12 h-12 sm:w-14 sm:h-14 rounded-xl flex items-center justify-center transition-all duration-300 ${
-              isDragging ? "bg-pink-500 text-white scale-110" : "bg-pink-50 text-pink-500"
-            }`}
+            className={`w-12 h-12 sm:w-14 sm:h-14 rounded-xl flex items-center justify-center transition-all duration-300 ${isDragging
+                ? "bg-gradient-to-br from-[#FF6A00] to-[#FF8A3D] text-white scale-110 shadow-[0_0_20px_rgba(255,106,0,0.3)]"
+                : "bg-[rgba(255,106,0,0.1)] text-[#FF8A3D]"
+              }`}
           >
             <svg
               className="w-6 h-6 sm:w-7 sm:h-7"
@@ -105,10 +105,10 @@ export default function UploadZone({
             </svg>
           </div>
           <div>
-            <p className="text-sm sm:text-base font-semibold text-gray-900">
-              Drop your jewelry photo here
+            <p className="text-sm sm:text-base font-semibold text-white">
+              Drop your product photo here
             </p>
-            <p className="text-xs sm:text-sm text-gray-500 mt-1">
+            <p className="text-xs sm:text-sm text-[rgba(255,255,255,0.4)] mt-1">
               or click to browse — PNG, JPG up to 10MB
             </p>
           </div>

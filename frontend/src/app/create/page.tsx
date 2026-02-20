@@ -8,16 +8,16 @@ export default function CreatePage() {
 
   return (
     <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm animate-fade-in" onClick={() => router.back()} />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => router.back()} />
 
-      {/* Desktop: centered modal. Mobile: bottom sheet */}
+      {/* Desktop: centered modal */}
       <div className="hidden md:flex absolute inset-0 items-center justify-center p-4">
-        <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-xl animate-fade-in">
-          <div className="p-6 border-b border-border flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-foreground">Create New</h2>
+        <div className="relative w-full max-w-lg bg-[#1A1B22] rounded-[20px] shadow-[0_20px_60px_rgba(0,0,0,0.6)] border border-[rgba(255,255,255,0.08)] animate-scale-in">
+          <div className="p-6 border-b border-[rgba(255,255,255,0.06)] flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-white">Create New</h2>
             <button
               onClick={() => router.back()}
-              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface transition-colors text-text-secondary"
+              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[rgba(255,255,255,0.06)] transition-colors text-[rgba(255,255,255,0.5)]"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                 <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -52,12 +52,12 @@ export default function CreatePage() {
       </div>
 
       {/* Mobile: bottom sheet */}
-      <div className="md:hidden absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl animate-slide-up">
+      <div className="md:hidden absolute bottom-0 left-0 right-0 bg-[#1A1B22] rounded-t-2xl animate-slide-up border-t border-[rgba(255,255,255,0.08)]">
         <div className="px-6 pt-4 pb-2 flex justify-center">
-          <div className="w-8 h-1 bg-border rounded-full" />
+          <div className="w-8 h-1 bg-[rgba(255,255,255,0.15)] rounded-full" />
         </div>
         <div className="px-6 pb-2">
-          <h2 className="text-lg font-semibold text-foreground">Create New</h2>
+          <h2 className="text-lg font-semibold text-white">Create New</h2>
         </div>
         <div className="px-6 pb-8 grid grid-cols-2 gap-3">
           <OptionCard
@@ -99,11 +99,11 @@ function OptionCard({ label, description, icon, onClick }: {
       padding="md"
       className="text-center group"
     >
-      <div className="w-14 h-14 mx-auto rounded-2xl bg-surface flex items-center justify-center text-text-secondary group-hover:text-foreground transition-colors mb-3">
+      <div className="w-14 h-14 mx-auto rounded-2xl bg-[rgba(255,255,255,0.06)] flex items-center justify-center text-[rgba(255,255,255,0.5)] group-hover:text-[#FF8A3D] group-hover:bg-[rgba(255,106,0,0.1)] transition-all duration-250 mb-3">
         {icon}
       </div>
-      <p className="font-semibold text-sm text-foreground">{label}</p>
-      <p className="text-xs text-text-secondary mt-1">{description}</p>
+      <p className="font-semibold text-sm text-white">{label}</p>
+      <p className="text-xs text-[rgba(255,255,255,0.4)] mt-1">{description}</p>
     </Card>
   );
 }

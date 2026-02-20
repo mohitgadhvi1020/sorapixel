@@ -34,7 +34,6 @@ export default function HomePage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  // Initialize from cache so data shows instantly on re-visit
   const cachedCategories = cacheGet<Category[]>(CATEGORIES_CACHE_KEY);
   const [categories, setCategories] = useState<Category[]>(cachedCategories ?? []);
   const [activeCategory, setActiveCategory] = useState<string | null>(
@@ -42,7 +41,6 @@ export default function HomePage() {
   );
   const [activeSubTab, setActiveSubTab] = useState("photoshoot");
 
-  // Try to load cached feed for the default selection
   const initialFeedKey = cachedCategories?.[0]?.id
     ? feedCacheKey(cachedCategories[0].id, "photoshoot")
     : null;
@@ -69,7 +67,6 @@ export default function HomePage() {
       cacheSet(CATEGORIES_CACHE_KEY, data.categories);
       if (data.categories.length > 0) {
         const firstId = data.categories[0].id;
-        // Only update if we don't already have an active category from cache
         if (!activeCategory) {
           setActiveCategory(firstId);
         }
@@ -82,9 +79,7 @@ export default function HomePage() {
     const key = feedCacheKey(categoryId, subTab);
     const cached = cacheGet<FeedItem[]>(key);
 
-    // If we have cached data and it's already being displayed, just refresh in background
     if (cached && feedItems.length > 0) {
-      // Background refresh — don't show loading spinner
       try {
         const data = await api.get<{ items: FeedItem[] }>(`/feed/?category=${categoryId}&item_type=${subTab}`);
         const items = (data.items || []).map(item => ({
@@ -95,7 +90,6 @@ export default function HomePage() {
         cacheSet(key, items);
       } catch { /* keep existing data */ }
     } else {
-      // First load — show spinner only if no cached data
       if (!cached) setLoading(true);
       if (cached) setFeedItems(cached);
 
@@ -116,7 +110,6 @@ export default function HomePage() {
 
   function selectCategory(id: string) {
     setActiveCategory(id);
-    // Show cached data immediately if available
     const key = feedCacheKey(id, activeSubTab);
     const cached = cacheGet<FeedItem[]>(key);
     if (cached) setFeedItems(cached);
@@ -126,7 +119,6 @@ export default function HomePage() {
   function selectSubTab(id: string) {
     setActiveSubTab(id);
     if (activeCategory) {
-      // Show cached data immediately if available
       const key = feedCacheKey(activeCategory, id);
       const cached = cacheGet<FeedItem[]>(key);
       if (cached) setFeedItems(cached);
@@ -145,8 +137,8 @@ export default function HomePage() {
 
   if (authLoading || !user) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-accent/20 border-t-accent rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#0E0F14] flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-[rgba(255,106,0,0.2)] border-t-[#FF6A00] rounded-full animate-spin" />
       </div>
     );
   }
@@ -161,9 +153,9 @@ export default function HomePage() {
             <button
               key={cat.id}
               onClick={() => selectCategory(cat.id)}
-              className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 whitespace-nowrap ${activeCategory === cat.id
-                ? "bg-accent text-white shadow-[var(--shadow-accent)]"
-                : "bg-white text-text-secondary hover:text-foreground hover:bg-surface-hover border border-border"
+              className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all duration-250 whitespace-nowrap ${activeCategory === cat.id
+                ? "bg-gradient-to-r from-[#FF6A00] to-[#FF8A3D] text-white shadow-[0_4px_16px_rgba(255,106,0,0.3)]"
+                : "bg-[rgba(255,255,255,0.04)] text-[rgba(255,255,255,0.5)] hover:text-white hover:bg-[rgba(255,255,255,0.08)] border border-[rgba(255,255,255,0.08)]"
                 }`}
             >
               {cat.name}
@@ -172,19 +164,19 @@ export default function HomePage() {
         </div>
 
         {/* Sub tabs */}
-        <div className="flex border-b border-border">
+        <div className="flex border-b border-[rgba(255,255,255,0.06)]">
           {SUB_TABS.map(tab => (
             <button
               key={tab.id}
               onClick={() => selectSubTab(tab.id)}
-              className={`relative px-4 py-2.5 text-sm font-medium transition-all duration-200 ${activeSubTab === tab.id
-                ? "text-foreground"
-                : "text-text-secondary hover:text-foreground"
+              className={`relative px-4 py-2.5 text-sm font-medium transition-all duration-250 ${activeSubTab === tab.id
+                ? "text-white"
+                : "text-[rgba(255,255,255,0.4)] hover:text-white"
                 }`}
             >
               {tab.label}
               {activeSubTab === tab.id && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent rounded-t-full" />
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#FF6A00] to-[#FF8A3D] rounded-t-full" />
               )}
             </button>
           ))}
@@ -194,8 +186,8 @@ export default function HomePage() {
       {/* Quick action banner */}
       <Card variant="accent" className="mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4" padding="md">
         <div>
-          <h3 className="text-sm font-semibold text-foreground">Ready to create?</h3>
-          <p className="text-xs text-text-secondary mt-0.5">
+          <h3 className="text-sm font-semibold text-white">Ready to create?</h3>
+          <p className="text-xs text-[rgba(255,255,255,0.5)] mt-0.5">
             Transform your product photos with AI-powered studio quality.
           </p>
         </div>
@@ -213,7 +205,7 @@ export default function HomePage() {
       <div className="space-y-6">
         {loading ? (
           <div className="flex justify-center py-20">
-            <div className="w-6 h-6 border-2 border-accent/20 border-t-accent rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-[rgba(255,106,0,0.2)] border-t-[#FF6A00] rounded-full animate-spin" />
           </div>
         ) : feedItems.length === 0 ? (
           <EmptyFeed onTry={() => router.push("/studio")} />
@@ -232,17 +224,17 @@ export default function HomePage() {
 function EmptyFeed({ onTry }: { onTry: () => void }) {
   return (
     <Card padding="lg" className="text-center max-w-md mx-auto">
-      <div className="w-14 h-14 rounded-2xl bg-accent-lighter flex items-center justify-center mx-auto mb-5">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <div className="w-14 h-14 rounded-2xl bg-[rgba(255,106,0,0.1)] flex items-center justify-center mx-auto mb-5">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#FF6A00" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           <rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" />
         </svg>
       </div>
-      <h3 className="text-base font-semibold text-foreground">No examples yet</h3>
-      <p className="text-sm text-text-secondary mt-1 mb-6">
-        Examples are coming soon for this category.
+      <h3 className="text-lg font-bold text-white">Create your first studio transformation</h3>
+      <p className="text-sm text-[rgba(255,255,255,0.5)] mt-2 mb-6">
+        Upload a product photo and watch AI transform it into studio-quality imagery.
       </p>
-      <Button onClick={onTry} size="md">
-        Create Your First Image
+      <Button onClick={onTry} size="lg">
+        Start Creating
       </Button>
     </Card>
   );
@@ -271,7 +263,7 @@ function FeedCard({ item, onTryIt }: { item: FeedItem; onTryIt: () => void }) {
     <Card padding="none" hover>
       {/* Image section */}
       <div
-        className="relative cursor-pointer select-none"
+        className="relative cursor-pointer select-none group"
         onClick={() => setShowBefore(!showBefore)}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
@@ -279,20 +271,22 @@ function FeedCard({ item, onTryIt }: { item: FeedItem; onTryIt: () => void }) {
         <img
           src={showBefore ? item.before_image_url : item.after_image_url}
           alt={showBefore ? "Before" : "After"}
-          className="w-full aspect-square object-cover rounded-t-2xl transition-opacity duration-200"
+          className="w-full aspect-square object-cover rounded-t-[20px] transition-opacity duration-200"
           loading="lazy"
         />
-        <span className={`absolute top-3 left-3 text-xs px-2.5 py-1 rounded-lg font-medium ${showBefore ? "bg-charcoal/70 text-white" : "bg-white/90 text-foreground"
+        {/* Gradient overlay on hover */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-t-[20px]" />
+        <span className={`absolute top-3 left-3 text-xs px-2.5 py-1 rounded-lg font-medium ${showBefore ? "bg-black/60 text-white backdrop-blur-sm" : "bg-[rgba(255,106,0,0.9)] text-white"
           }`}>
           {showBefore ? "Before" : "After"}
         </span>
-        <div className="absolute bottom-3 right-3 bg-black/40 backdrop-blur-sm text-white text-[10px] px-2.5 py-1 rounded-lg flex items-center gap-1.5">
+        <div className="absolute bottom-3 right-3 bg-black/50 backdrop-blur-sm text-white text-[10px] px-2.5 py-1 rounded-lg flex items-center gap-1.5">
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="8 4 16 12 8 20" /></svg>
           Tap to toggle
         </div>
         <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
-          <div className={`w-1.5 h-1.5 rounded-full transition-all ${!showBefore ? "bg-white w-3" : "bg-white/50"}`} />
-          <div className={`w-1.5 h-1.5 rounded-full transition-all ${showBefore ? "bg-white w-3" : "bg-white/50"}`} />
+          <div className={`w-1.5 h-1.5 rounded-full transition-all ${!showBefore ? "bg-[#FF6A00] w-3" : "bg-white/40"}`} />
+          <div className={`w-1.5 h-1.5 rounded-full transition-all ${showBefore ? "bg-[#FF6A00] w-3" : "bg-white/40"}`} />
         </div>
       </div>
 
@@ -300,11 +294,11 @@ function FeedCard({ item, onTryIt }: { item: FeedItem; onTryIt: () => void }) {
       <div className="p-4 space-y-3">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-[10px] font-medium text-accent uppercase tracking-wider">{typeLabel}</span>
+            <span className="text-[10px] font-medium text-[#FF8A3D] uppercase tracking-wider">{typeLabel}</span>
           </div>
-          <p className="text-sm font-medium text-foreground">{item.title}</p>
+          <p className="text-sm font-medium text-white">{item.title}</p>
           {description !== item.title && (
-            <p className="text-xs text-text-secondary mt-0.5 line-clamp-2">{description}</p>
+            <p className="text-xs text-[rgba(255,255,255,0.5)] mt-0.5 line-clamp-2">{description}</p>
           )}
         </div>
 
@@ -312,13 +306,13 @@ function FeedCard({ item, onTryIt }: { item: FeedItem; onTryIt: () => void }) {
         <div className="flex gap-2">
           <button
             onClick={(e) => { e.stopPropagation(); setShowBefore(false); }}
-            className={`flex-1 rounded-xl overflow-hidden border transition-all duration-200 ${!showBefore ? "border-accent" : "border-border"}`}
+            className={`flex-1 rounded-xl overflow-hidden border transition-all duration-250 ${!showBefore ? "border-[#FF6A00]" : "border-[rgba(255,255,255,0.08)]"}`}
           >
             <img src={item.after_image_url} alt="After" className="w-full aspect-video object-cover" loading="lazy" />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); setShowBefore(true); }}
-            className={`flex-1 rounded-xl overflow-hidden border transition-all duration-200 ${showBefore ? "border-accent" : "border-border"}`}
+            className={`flex-1 rounded-xl overflow-hidden border transition-all duration-250 ${showBefore ? "border-[#FF6A00]" : "border-[rgba(255,255,255,0.08)]"}`}
           >
             <img src={item.before_image_url} alt="Before" className="w-full aspect-video object-cover" loading="lazy" />
           </button>

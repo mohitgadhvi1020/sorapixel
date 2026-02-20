@@ -19,9 +19,13 @@ export default function RootLayout({
   return (
     <html lang="en" data-scroll-behavior="smooth">
       <head>
+        <link
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Syne:wght@700;800&display=swap"
+          rel="stylesheet"
+        />
         <script src="https://checkout.razorpay.com/v1/checkout.js" async />
       </head>
-      <body className="antialiased">
+      <body className="antialiased bg-[#0E0F14] text-white">
         {children}
       </body>
     </html>

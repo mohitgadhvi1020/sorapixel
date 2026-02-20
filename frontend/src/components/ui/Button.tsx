@@ -14,20 +14,20 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    "bg-accent text-white hover:bg-accent-dark active:bg-[#4b28c4] shadow-[0_2px_8px_rgba(108,71,255,0.25)] hover:shadow-[0_4px_14px_rgba(108,71,255,0.35)] disabled:bg-border disabled:text-text-secondary disabled:shadow-none",
+    "bg-gradient-to-r from-[#FF6A00] to-[#FF8A3D] text-white shadow-[0_4px_20px_rgba(255,106,0,0.3)] hover:shadow-[0_6px_30px_rgba(255,106,0,0.45)] hover:-translate-y-0.5 active:scale-[0.97] disabled:from-[rgba(255,255,255,0.1)] disabled:to-[rgba(255,255,255,0.1)] disabled:text-[rgba(255,255,255,0.3)] disabled:shadow-none",
   secondary:
-    "bg-white border border-border text-foreground hover:bg-surface-hover hover:border-border-hover active:bg-border disabled:opacity-50",
+    "bg-transparent border border-[rgba(255,255,255,0.1)] text-white hover:bg-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.2)] hover:shadow-[0_0_16px_rgba(255,255,255,0.05)] active:bg-[rgba(255,255,255,0.08)] disabled:opacity-40",
   ghost:
-    "bg-transparent text-text-secondary hover:text-foreground hover:bg-surface-hover active:bg-border disabled:opacity-50",
+    "bg-transparent text-[rgba(255,255,255,0.6)] hover:text-white hover:bg-[rgba(255,255,255,0.06)] active:bg-[rgba(255,255,255,0.08)] disabled:opacity-40",
   danger:
-    "bg-error text-white hover:bg-red-600 active:bg-red-700 shadow-[0_2px_8px_rgba(239,68,68,0.25)] disabled:opacity-50",
+    "bg-[#EF4444] text-white hover:bg-[#DC2626] active:bg-[#B91C1C] shadow-[0_4px_16px_rgba(239,68,68,0.3)] disabled:opacity-40",
   accent:
-    "bg-accent text-white hover:bg-accent-dark active:bg-[#4b28c4] shadow-[0_2px_8px_rgba(108,71,255,0.25)] disabled:opacity-50",
+    "bg-gradient-to-r from-[#FF6A00] to-[#FF8A3D] text-white shadow-[0_4px_20px_rgba(255,106,0,0.3)] hover:shadow-[0_6px_30px_rgba(255,106,0,0.45)] hover:-translate-y-0.5 disabled:opacity-40",
 };
 
 const sizeStyles: Record<ButtonSize, string> = {
   sm: "px-3.5 py-2 text-xs rounded-[10px] gap-1.5",
-  md: "px-5 py-2.5 text-sm rounded-xl gap-2",
+  md: "px-5 py-2.5 text-sm rounded-[14px] gap-2",
   lg: "px-6 py-3.5 text-[15px] rounded-2xl gap-2",
 };
 
@@ -37,7 +37,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       <button
         ref={ref}
         disabled={disabled || loading}
-        className={`inline-flex items-center justify-center font-semibold transition-all duration-200 cursor-pointer select-none ${variantStyles[variant]
+        className={`inline-flex items-center justify-center font-semibold transition-all duration-250 cursor-pointer select-none ${variantStyles[variant]
           } ${sizeStyles[size]} ${fullWidth ? "w-full" : ""} ${disabled || loading ? "cursor-not-allowed" : ""
           } ${className}`}
         {...props}

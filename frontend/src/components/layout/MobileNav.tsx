@@ -91,21 +91,21 @@ export default function MobileNav({ open, onClose, isAdmin = false }: MobileNavP
 
   return (
     <div className="fixed inset-0 z-50 lg:hidden">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm animate-fade-in" onClick={onClose} />
-      <div className="absolute left-0 top-0 bottom-0 w-72 bg-white animate-slide-in-left flex flex-col shadow-xl">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={onClose} />
+      <div className="absolute left-0 top-0 bottom-0 w-72 bg-[#13141A] animate-slide-in-left flex flex-col shadow-2xl border-r border-[rgba(255,255,255,0.06)]">
         {/* Logo */}
-        <div className="h-16 flex items-center justify-between px-5 border-b border-border">
+        <div className="h-16 flex items-center justify-between px-5 border-b border-[rgba(255,255,255,0.06)]">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl accent-gradient flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#FF6A00] to-[#FF8A3D] flex items-center justify-center shadow-[0_0_12px_rgba(255,106,0,0.3)]">
               <span className="text-white text-xs font-bold tracking-tight">SP</span>
             </div>
-            <span className="text-[15px] font-bold tracking-tight text-foreground">
+            <span className="text-[15px] font-bold tracking-tight text-white">
               SoraPixel
             </span>
           </div>
           <button
             onClick={onClose}
-            className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-surface-hover transition-colors"
+            className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-[rgba(255,255,255,0.06)] transition-colors text-[rgba(255,255,255,0.5)]"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <line x1="18" y1="6" x2="6" y2="18" />
@@ -116,7 +116,7 @@ export default function MobileNav({ open, onClose, isAdmin = false }: MobileNavP
 
         {/* Nav Items */}
         <nav className="flex-1 py-3 px-3 overflow-y-auto">
-          <p className="px-3 pt-2 pb-1.5 text-[10px] font-semibold text-text-tertiary uppercase tracking-[0.08em]">Create</p>
+          <p className="px-3 pt-2 pb-1.5 text-[10px] font-semibold text-[rgba(255,255,255,0.3)] uppercase tracking-[0.08em]">Create</p>
           {CREATE_ITEMS.map((item) => {
             const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
             return (
@@ -124,21 +124,21 @@ export default function MobileNav({ open, onClose, isAdmin = false }: MobileNavP
                 key={item.href}
                 href={item.href}
                 onClick={onClose}
-                className={`relative flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 min-h-[44px] ${isActive
-                  ? "bg-accent/8 text-accent font-medium"
-                  : "text-text-secondary hover:text-foreground hover:bg-surface-hover"
+                className={`relative flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-250 min-h-[44px] ${isActive
+                  ? "bg-[rgba(255,106,0,0.1)] text-[#FF8A3D] font-medium"
+                  : "text-[rgba(255,255,255,0.5)] hover:text-white hover:bg-[rgba(255,255,255,0.06)]"
                   }`}
               >
                 {isActive && (
-                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-accent rounded-r-full" />
+                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[#FF6A00] rounded-r-full" />
                 )}
-                <span className={isActive ? "text-accent" : ""}>{item.icon}</span>
+                <span className={isActive ? "text-[#FF8A3D]" : ""}>{item.icon}</span>
                 <span className="text-sm">{item.label}</span>
               </Link>
             );
           })}
 
-          <p className="px-3 pt-5 pb-1.5 text-[10px] font-semibold text-text-tertiary uppercase tracking-[0.08em]">Manage</p>
+          <p className="px-3 pt-5 pb-1.5 text-[10px] font-semibold text-[rgba(255,255,255,0.3)] uppercase tracking-[0.08em]">Manage</p>
           {manageItems.map((item) => {
             const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
             return (
@@ -146,15 +146,15 @@ export default function MobileNav({ open, onClose, isAdmin = false }: MobileNavP
                 key={item.href}
                 href={item.href}
                 onClick={onClose}
-                className={`relative flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 min-h-[44px] ${isActive
-                  ? "bg-accent/8 text-accent font-medium"
-                  : "text-text-secondary hover:text-foreground hover:bg-surface-hover"
+                className={`relative flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-250 min-h-[44px] ${isActive
+                  ? "bg-[rgba(255,106,0,0.1)] text-[#FF8A3D] font-medium"
+                  : "text-[rgba(255,255,255,0.5)] hover:text-white hover:bg-[rgba(255,255,255,0.06)]"
                   }`}
               >
                 {isActive && (
-                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-accent rounded-r-full" />
+                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[#FF6A00] rounded-r-full" />
                 )}
-                <span className={isActive ? "text-accent" : ""}>{item.icon}</span>
+                <span className={isActive ? "text-[#FF8A3D]" : ""}>{item.icon}</span>
                 <span className="text-sm">{item.label}</span>
               </Link>
             );
@@ -162,10 +162,10 @@ export default function MobileNav({ open, onClose, isAdmin = false }: MobileNavP
         </nav>
 
         {/* Footer */}
-        <div className="p-4 border-t border-border">
-          <div className="accent-gradient-light rounded-xl p-3.5">
-            <p className="text-[11px] font-medium text-accent">Need help?</p>
-            <a href="mailto:support@sorapixel.com" className="text-[11px] font-semibold text-accent hover:underline">
+        <div className="p-4 border-t border-[rgba(255,255,255,0.06)]">
+          <div className="bg-[rgba(255,106,0,0.08)] rounded-xl p-3.5">
+            <p className="text-[11px] font-medium text-[#FF8A3D]">Need help?</p>
+            <a href="mailto:support@sorapixel.com" className="text-[11px] font-semibold text-[#FF8A3D] hover:underline">
               Contact Support →
             </a>
           </div>

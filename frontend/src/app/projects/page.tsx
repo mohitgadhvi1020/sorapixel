@@ -96,20 +96,20 @@ export default function ProjectsPage() {
         {/* Header section */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h2 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight">
+            <h2 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
               My Projects
             </h2>
-            <p className="text-text-secondary text-sm mt-1">
+            <p className="text-[rgba(255,255,255,0.5)] text-sm mt-1">
               All your generated images in one place.
             </p>
           </div>
           {credits !== null && (
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 px-4 py-2 bg-surface rounded-xl border border-border">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round">
+              <div className="flex items-center gap-2 px-4 py-2 bg-[rgba(255,255,255,0.04)] rounded-xl border border-[rgba(255,255,255,0.08)]">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FF6A00" strokeWidth="2" strokeLinecap="round">
                   <circle cx="12" cy="12" r="10" /><path d="M12 6v12M8 10h8" />
                 </svg>
-                <span className="text-sm font-semibold text-foreground">{credits} images left</span>
+                <span className="text-sm font-semibold text-white">{credits} images left</span>
               </div>
               <Button variant="accent" size="sm" onClick={() => router.push("/pricing")}>
                 Buy More
@@ -119,17 +119,17 @@ export default function ProjectsPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-border">
+        <div className="flex border-b border-[rgba(255,255,255,0.06)]">
           {(["photoshoot", "catalogue"] as const).map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`relative px-5 py-2.5 text-sm font-medium transition-all duration-200 capitalize ${tab === t ? "text-foreground" : "text-text-secondary hover:text-foreground"
+              className={`relative px-5 py-2.5 text-sm font-medium transition-all duration-250 capitalize ${tab === t ? "text-white" : "text-[rgba(255,255,255,0.4)] hover:text-white"
                 }`}
             >
               {t}
               {tab === t && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent rounded-t-full" />
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#FF6A00] to-[#FF8A3D] rounded-t-full" />
               )}
             </button>
           ))}
@@ -138,20 +138,20 @@ export default function ProjectsPage() {
         {/* Projects grid */}
         {loadingProjects ? (
           <div className="flex justify-center py-20">
-            <div className="w-6 h-6 border-2 border-accent/20 border-t-accent rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-[rgba(255,106,0,0.2)] border-t-[#FF6A00] rounded-full animate-spin" />
           </div>
         ) : projects.length === 0 ? (
           <Card padding="lg" className="text-center max-w-md mx-auto">
-            <div className="w-14 h-14 rounded-2xl bg-accent-lighter flex items-center justify-center mx-auto mb-5">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round">
+            <div className="w-14 h-14 rounded-2xl bg-[rgba(255,106,0,0.1)] flex items-center justify-center mx-auto mb-5">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#FF6A00" strokeWidth="1.5" strokeLinecap="round">
                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
               </svg>
             </div>
-            <h3 className="text-base font-semibold text-foreground">No {tab} projects yet</h3>
-            <p className="text-sm text-text-secondary mt-1 mb-6">
+            <h3 className="text-lg font-bold text-white">No {tab} projects yet</h3>
+            <p className="text-sm text-[rgba(255,255,255,0.5)] mt-2 mb-6">
               Start creating to see your images here.
             </p>
-            <Button onClick={() => router.push("/create")} size="md">
+            <Button onClick={() => router.push("/create")} size="lg">
               Create Your First
             </Button>
           </Card>
@@ -161,41 +161,43 @@ export default function ProjectsPage() {
               <Card key={proj.id} padding="none" hover>
                 {/* Project images */}
                 {proj.metadata?.images && proj.metadata.images.length > 0 ? (
-                  <div>
+                  <div className="relative group">
                     {proj.metadata.images.slice(0, 1).map((img, idx) => {
                       const imgUrl = storageUrl(img.storage_path);
                       return (
                         <div key={idx} className="relative">
-                          <img src={imgUrl} alt={img.label} className="w-full aspect-square object-cover rounded-t-2xl" loading="lazy" />
-                          <span className="absolute top-3 left-3 bg-charcoal/60 text-white text-[10px] px-2 py-0.5 rounded-lg font-medium">{img.label}</span>
+                          <img src={imgUrl} alt={img.label} className="w-full aspect-square object-cover rounded-t-[20px]" loading="lazy" />
+                          {/* Gradient overlay on hover */}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-t-[20px]" />
+                          <span className="absolute top-3 left-3 bg-black/50 backdrop-blur-sm text-white text-[10px] px-2.5 py-1 rounded-lg font-medium">{img.label}</span>
                         </div>
                       );
                     })}
                   </div>
                 ) : (
-                  <div className="aspect-square bg-surface rounded-t-2xl flex items-center justify-center">
-                    <p className="text-text-secondary text-sm">No images</p>
+                  <div className="aspect-square bg-[rgba(255,255,255,0.04)] rounded-t-[20px] flex items-center justify-center">
+                    <p className="text-[rgba(255,255,255,0.3)] text-sm">No images</p>
                   </div>
                 )}
 
                 {/* Project info */}
                 <div className="p-4">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-semibold text-foreground truncate pr-2">{proj.title}</h3>
-                    <span className="text-[10px] text-text-secondary whitespace-nowrap">{new Date(proj.created_at).toLocaleDateString()}</span>
+                    <h3 className="text-sm font-semibold text-white truncate pr-2">{proj.title}</h3>
+                    <span className="text-[10px] text-[rgba(255,255,255,0.3)] whitespace-nowrap">{new Date(proj.created_at).toLocaleDateString()}</span>
                   </div>
 
                   {/* Image count + thumbnails */}
                   {proj.metadata?.images && proj.metadata.images.length > 1 && (
                     <div className="flex gap-1.5 mb-3">
                       {proj.metadata.images.slice(1, 4).map((img, idx) => (
-                        <div key={idx} className="w-10 h-10 rounded-lg overflow-hidden border border-border">
+                        <div key={idx} className="w-10 h-10 rounded-lg overflow-hidden border border-[rgba(255,255,255,0.08)]">
                           <img src={storageUrl(img.storage_path)} alt={img.label} className="w-full h-full object-cover" loading="lazy" />
                         </div>
                       ))}
                       {proj.metadata.images.length > 4 && (
-                        <div className="w-10 h-10 rounded-lg bg-surface border border-border flex items-center justify-center">
-                          <span className="text-[10px] text-text-secondary font-medium">+{proj.metadata.images.length - 4}</span>
+                        <div className="w-10 h-10 rounded-lg bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] flex items-center justify-center">
+                          <span className="text-[10px] text-[rgba(255,255,255,0.4)] font-medium">+{proj.metadata.images.length - 4}</span>
                         </div>
                       )}
                     </div>

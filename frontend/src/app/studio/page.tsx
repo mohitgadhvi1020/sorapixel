@@ -19,11 +19,11 @@ interface Background {
 }
 
 const PROGRESS_STEPS = [
-  { label: "Analyzing your product...", duration: 4000 },
-  { label: "Setting up the background...", duration: 6000 },
-  { label: "Generating studio photo...", duration: 12000 },
-  { label: "Applying finishing touches...", duration: 8000 },
-  { label: "Almost there...", duration: 30000 },
+  { label: "Enhancing lighting…", duration: 4000 },
+  { label: "Setting up the background…", duration: 6000 },
+  { label: "Correcting shadows…", duration: 12000 },
+  { label: "Refining textures…", duration: 8000 },
+  { label: "Almost there…", duration: 30000 },
 ];
 
 export default function StudioPage() {
@@ -107,10 +107,10 @@ export default function StudioPage() {
       <div className="max-w-3xl mx-auto space-y-8">
         {/* Page heading */}
         <div>
-          <h2 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight">
+          <h2 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
             Create Studio Image
           </h2>
-          <p className="text-text-secondary text-sm mt-1">
+          <p className="text-[rgba(255,255,255,0.5)] text-sm mt-1">
             Upload your product and select a background to generate a studio-quality photo.
           </p>
         </div>
@@ -119,10 +119,10 @@ export default function StudioPage() {
         <Card padding="none">
           {imagePreview ? (
             <div className="relative">
-              <img src={imagePreview} alt="Product" className="w-full max-h-96 object-contain rounded-2xl bg-surface" />
+              <img src={imagePreview} alt="Product" className="w-full max-h-96 object-contain rounded-[20px] bg-[rgba(255,255,255,0.04)]" />
               <button
                 onClick={() => { setImagePreview(null); setResults([]); }}
-                className="absolute top-3 right-3 w-8 h-8 bg-charcoal/70 text-white rounded-lg flex items-center justify-center hover:bg-charcoal transition-colors"
+                className="absolute top-3 right-3 w-8 h-8 bg-black/60 backdrop-blur-sm text-white rounded-lg flex items-center justify-center hover:bg-black/80 transition-colors"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                   <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -130,15 +130,15 @@ export default function StudioPage() {
               </button>
             </div>
           ) : (
-            <label className="block p-12 md:p-16 text-center cursor-pointer rounded-2xl border-2 border-dashed border-accent/30 hover:border-accent/60 hover:bg-accent-lighter/50 transition-all duration-300 group">
-              <div className="w-16 h-16 mx-auto mb-5 bg-accent-lighter rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <label className="block p-12 md:p-16 text-center cursor-pointer rounded-[20px] border-2 border-dashed border-[rgba(255,106,0,0.2)] hover:border-[rgba(255,106,0,0.5)] hover:bg-[rgba(255,106,0,0.03)] transition-all duration-300 group">
+              <div className="w-16 h-16 mx-auto mb-5 bg-[rgba(255,106,0,0.1)] rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#FF6A00" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
                 </svg>
               </div>
-              <p className="text-sm font-semibold text-foreground">Upload your product image</p>
-              <p className="text-xs text-text-secondary mt-1.5">Drag and drop or click to browse</p>
-              <p className="text-[10px] text-text-tertiary mt-3">PNG, JPG up to 10MB</p>
+              <p className="text-sm font-semibold text-white">Upload your product image</p>
+              <p className="text-xs text-[rgba(255,255,255,0.4)] mt-1.5">Drag and drop or click to browse</p>
+              <p className="text-[10px] text-[rgba(255,255,255,0.25)] mt-3">PNG, JPG up to 10MB</p>
               <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
             </label>
           )}
@@ -148,59 +148,57 @@ export default function StudioPage() {
         {imagePreview && (
           <button
             onClick={() => setShowInstructions(true)}
-            className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-border hover:border-border-hover hover:bg-surface transition-all duration-200"
+            className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.14)] hover:bg-[rgba(255,255,255,0.04)] transition-all duration-250"
           >
             <div className="flex items-center gap-2">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
               </svg>
-              <span className="text-sm text-text-secondary">
+              <span className="text-sm text-[rgba(255,255,255,0.5)]">
                 {specialInstructions ? specialInstructions : "Add special instructions"}
               </span>
             </div>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
           </button>
         )}
 
         {/* Background Selection */}
         <div className="space-y-4">
-          <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+          <h3 className="text-xs font-semibold text-[rgba(255,255,255,0.4)] uppercase tracking-wider">
             Choose Background
           </h3>
 
-          {/* Scene backgrounds */}
           {scenes.length > 0 && (
             <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
               {scenes.map(bg => (
                 <button key={bg.id} onClick={() => setSelectedBg(bg.id)} className="flex-shrink-0 text-center group">
-                  <div className={`w-20 h-20 rounded-xl overflow-hidden border-2 transition-all duration-200 ${selectedBg === bg.id ? "border-accent shadow-[var(--shadow-accent)] ring-2 ring-accent/20" : "border-border group-hover:border-border-hover"
+                  <div className={`w-20 h-20 rounded-xl overflow-hidden border-2 transition-all duration-250 ${selectedBg === bg.id ? "border-[#FF6A00] shadow-[0_0_16px_rgba(255,106,0,0.25)] ring-2 ring-[rgba(255,106,0,0.15)]" : "border-[rgba(255,255,255,0.08)] group-hover:border-[rgba(255,255,255,0.14)]"
                     }`}>
                     {bg.thumb ? (
                       <img src={bg.thumb} alt={bg.label} className="w-full h-full object-cover" loading="lazy" />
                     ) : (
-                      <div className="w-full h-full bg-surface flex items-center justify-center text-xs text-text-secondary">
+                      <div className="w-full h-full bg-[rgba(255,255,255,0.04)] flex items-center justify-center text-xs text-[rgba(255,255,255,0.4)]">
                         {bg.label.slice(0, 3)}
                       </div>
                     )}
                   </div>
-                  <p className={`text-xs mt-1.5 truncate w-20 ${selectedBg === bg.id ? "text-accent font-medium" : "text-text-secondary"
+                  <p className={`text-xs mt-1.5 truncate w-20 ${selectedBg === bg.id ? "text-[#FF8A3D] font-medium" : "text-[rgba(255,255,255,0.4)]"
                     }`}>{bg.label}</p>
                 </button>
               ))}
             </div>
           )}
 
-          {/* Color backgrounds */}
           {colors.length > 0 && (
             <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
               {colors.map(bg => (
                 <button key={bg.id} onClick={() => setSelectedBg(bg.id)} className="flex-shrink-0 text-center group">
                   <div
-                    className={`w-20 h-20 rounded-xl border-2 transition-all duration-200 ${selectedBg === bg.id ? "border-accent shadow-[var(--shadow-accent)] ring-2 ring-accent/20" : "border-border group-hover:border-border-hover"
+                    className={`w-20 h-20 rounded-xl border-2 transition-all duration-250 ${selectedBg === bg.id ? "border-[#FF6A00] shadow-[0_0_16px_rgba(255,106,0,0.25)] ring-2 ring-[rgba(255,106,0,0.15)]" : "border-[rgba(255,255,255,0.08)] group-hover:border-[rgba(255,255,255,0.14)]"
                       }`}
                     style={{ backgroundColor: bg.color || "#ccc" }}
                   />
-                  <p className={`text-xs mt-1.5 truncate w-20 ${selectedBg === bg.id ? "text-accent font-medium" : "text-text-secondary"
+                  <p className={`text-xs mt-1.5 truncate w-20 ${selectedBg === bg.id ? "text-[#FF8A3D] font-medium" : "text-[rgba(255,255,255,0.4)]"
                     }`}>{bg.label}</p>
                 </button>
               ))}
@@ -210,7 +208,7 @@ export default function StudioPage() {
 
         {/* Error */}
         {error && (
-          <div className="bg-error-light border border-error/10 text-error px-4 py-3 rounded-xl text-sm">
+          <div className="bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.2)] text-[#EF4444] px-4 py-3 rounded-xl text-sm">
             {error}
           </div>
         )}
@@ -222,42 +220,32 @@ export default function StudioPage() {
           </Button>
         )}
 
-        {/* Processing Overlay */}
+        {/* AI Processing Overlay */}
         {generating && (
-          <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-6">
-            <Card padding="lg" className="max-w-sm w-full text-center">
-              <div className="relative w-16 h-16 mx-auto mb-6">
-                <div className="absolute inset-0 rounded-full border-2 border-border" />
-                <div className="absolute inset-0 rounded-full border-2 border-accent border-t-transparent animate-spin" />
-                <div className="absolute inset-3 rounded-full bg-surface flex items-center justify-center">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round">
-                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-                  </svg>
-                </div>
-              </div>
-              <h3 className="text-base font-semibold text-foreground mb-1">Creating Your Photo</h3>
-              <p className="text-sm text-text-secondary mb-6 min-h-[20px]">{PROGRESS_STEPS[progressStep]?.label}</p>
-              <div className="w-full bg-surface rounded-full h-1.5 mb-3 overflow-hidden">
-                <div className="h-full rounded-full accent-gradient transition-all duration-1000 ease-out" style={{ width: `${progressPct}%` }} />
-              </div>
-              <div className="flex justify-between text-xs text-text-secondary">
-                <span>{progressPct}%</span>
-                <span>{elapsedSec}s</span>
-              </div>
-              <p className="text-xs text-text-secondary mt-4">Usually takes 15-30 seconds</p>
-            </Card>
+          <div className="ai-overlay">
+            <div className="glow-ring mb-8" />
+            <h3 className="text-xl font-bold text-white mb-2">Creating Your Photo</h3>
+            <p className="text-sm text-[rgba(255,255,255,0.6)] mb-8 min-h-[20px]">{PROGRESS_STEPS[progressStep]?.label}</p>
+            <div className="w-64 bg-[rgba(255,255,255,0.06)] rounded-full h-1.5 mb-3 overflow-hidden">
+              <div className="h-full rounded-full bg-gradient-to-r from-[#FF6A00] to-[#FF8A3D] transition-all duration-1000 ease-out" style={{ width: `${progressPct}%` }} />
+            </div>
+            <div className="flex justify-between text-xs text-[rgba(255,255,255,0.4)] w-64">
+              <span>{progressPct}%</span>
+              <span>{elapsedSec}s</span>
+            </div>
+            <p className="text-xs text-[rgba(255,255,255,0.3)] mt-6">Usually takes 15-30 seconds</p>
           </div>
         )}
 
         {/* Results */}
         {results.length > 0 && (
           <div className="space-y-6">
-            <h3 className="text-lg font-semibold text-foreground">Your Studio Image</h3>
+            <h3 className="text-lg font-semibold text-white">Your Studio Image</h3>
             {results.map((img, i) => (
               <Card key={i} padding="none">
-                <img src={`data:image/png;base64,${img.base64}`} alt={img.label} className="w-full rounded-t-2xl" />
+                <img src={`data:image/png;base64,${img.base64}`} alt={img.label} className="w-full rounded-t-[20px]" />
                 <div className="p-4 flex items-center justify-between">
-                  <span className="text-sm font-medium text-foreground">{img.label}</span>
+                  <span className="text-sm font-medium text-white">{img.label}</span>
                   <div className="flex gap-2">
                     <Button
                       variant="ghost"
@@ -291,14 +279,14 @@ export default function StudioPage() {
             onChange={e => setSpecialInstructions(e.target.value)}
             placeholder="Write custom settings..."
             maxLength={100}
-            className="w-full border border-border rounded-xl px-4 py-3 h-28 resize-none outline-none focus:border-charcoal text-foreground text-sm transition-colors"
+            className="w-full border border-[rgba(255,255,255,0.08)] rounded-[14px] px-4 py-3 h-28 resize-none outline-none focus:border-[#FF6A00] focus:shadow-[0_0_0_3px_rgba(255,106,0,0.15)] bg-[rgba(255,255,255,0.04)] text-white text-sm transition-all duration-250 placeholder:text-[rgba(255,255,255,0.25)]"
           />
-          <p className="text-xs text-text-secondary">
+          <p className="text-xs text-[rgba(255,255,255,0.4)]">
             {specialInstructions.split(/\s+/).filter(Boolean).length}/10 words
           </p>
           <div className="space-y-1.5">
-            <p className="text-sm text-text-secondary"><span className="font-medium text-foreground">Example:</span> Don&apos;t add additional items</p>
-            <p className="text-sm text-text-secondary"><span className="font-medium text-foreground">Example:</span> Don&apos;t add dupatta</p>
+            <p className="text-sm text-[rgba(255,255,255,0.5)]"><span className="font-medium text-white">Example:</span> Don&apos;t add additional items</p>
+            <p className="text-sm text-[rgba(255,255,255,0.5)]"><span className="font-medium text-white">Example:</span> Don&apos;t add dupatta</p>
           </div>
           <Button onClick={() => setShowInstructions(false)} fullWidth>
             Save Instructions

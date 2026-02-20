@@ -61,7 +61,7 @@ export default function PricingPage() {
           router.refresh();
         },
         prefill: { contact: user?.phone || "" },
-        theme: { color: "#1E1E1E" },
+        theme: { color: "#FF6A00" },
       };
 
       const rzp = new (window as unknown as { Razorpay: new (opts: unknown) => { open: () => void } }).Razorpay(options);
@@ -81,10 +81,10 @@ export default function PricingPage() {
       <div className="max-w-3xl mx-auto space-y-10">
         {/* Header */}
         <div className="text-center">
-          <h2 className="text-2xl md:text-4xl font-bold text-foreground tracking-tight">
+          <h2 className="text-3xl md:text-5xl font-bold text-white tracking-tight">
             Plans & Pricing
           </h2>
-          <p className="text-text-secondary text-sm md:text-base mt-2 max-w-lg mx-auto">
+          <p className="text-[rgba(255,255,255,0.5)] text-sm md:text-base mt-3 max-w-lg mx-auto">
             Choose the plan that works best for your business.
           </p>
         </div>
@@ -92,18 +92,18 @@ export default function PricingPage() {
         {/* Current balance */}
         <Card padding="md" className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
-            <p className="text-xs text-text-secondary uppercase tracking-wider font-medium">Current Balance</p>
-            <p className="text-2xl font-bold text-foreground mt-0.5">
-              {credits?.token_balance || 0} <span className="text-base font-normal text-text-secondary">tokens</span>
+            <p className="text-xs text-[rgba(255,255,255,0.4)] uppercase tracking-wider font-medium">Current Balance</p>
+            <p className="text-2xl font-bold text-white mt-0.5">
+              {credits?.token_balance || 0} <span className="text-base font-normal text-[rgba(255,255,255,0.5)]">tokens</span>
             </p>
             {credits?.is_free_tier && (
-              <p className="text-xs text-text-secondary mt-1">
+              <p className="text-xs text-[rgba(255,255,255,0.4)] mt-1">
                 Free tier: {(credits?.free_limit || 9) - (credits?.studio_free_used || 0)} / {credits?.free_limit || 9} remaining
               </p>
             )}
           </div>
-          <div className="w-12 h-12 rounded-xl bg-accent-lighter flex items-center justify-center flex-shrink-0">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round">
+          <div className="w-12 h-12 rounded-xl bg-[rgba(255,106,0,0.1)] flex items-center justify-center flex-shrink-0">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FF6A00" strokeWidth="2" strokeLinecap="round">
               <circle cx="12" cy="12" r="10" /><path d="M12 6v12M8 10h8" />
             </svg>
           </div>
@@ -111,38 +111,40 @@ export default function PricingPage() {
 
         {loading ? (
           <div className="flex justify-center py-16">
-            <div className="w-6 h-6 border-2 border-accent/20 border-t-accent rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-[rgba(255,106,0,0.2)] border-t-[#FF6A00] rounded-full animate-spin" />
           </div>
         ) : (
           <div className="space-y-10">
             {/* Subscriptions */}
             {subscriptions.length > 0 && (
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-foreground">Subscriptions</h3>
+                <h3 className="text-lg font-semibold text-white">Subscriptions</h3>
                 {subscriptions.map((plan) => (
-                  <Card key={plan.id} padding="md" className="border-accent/20 bg-accent-lighter/30">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <Card key={plan.id} padding="md" variant="accent" className="relative overflow-hidden">
+                    {/* Glowing border */}
+                    <div className="absolute inset-0 rounded-[20px] border border-[#FF6A00] shadow-[0_0_20px_rgba(255,106,0,0.15)] pointer-events-none" />
+                    <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          <h4 className="text-base font-semibold text-foreground">{plan.name}</h4>
-                          <span className="text-[10px] font-semibold text-white bg-accent px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                          <h4 className="text-base font-semibold text-white">{plan.name}</h4>
+                          <span className="text-[10px] font-semibold text-white bg-gradient-to-r from-[#FF6A00] to-[#FF8A3D] px-2.5 py-0.5 rounded-full uppercase tracking-wider">
                             Recommended
                           </span>
                         </div>
-                        <p className="text-sm text-text-secondary mt-1">{plan.description}</p>
+                        <p className="text-sm text-[rgba(255,255,255,0.5)] mt-1">{plan.description}</p>
                       </div>
                       <div className="text-right flex-shrink-0">
-                        <p className="text-2xl font-bold text-foreground">
+                        <p className="text-2xl font-bold text-white">
                           <span className="text-lg">&#8377;</span>{plan.price_inr}
                         </p>
-                        <p className="text-xs text-text-secondary">{plan.tokens} tokens</p>
+                        <p className="text-xs text-[rgba(255,255,255,0.5)]">{plan.tokens} tokens</p>
                       </div>
                     </div>
                     <Button
                       onClick={() => handlePurchase(plan.id)}
                       loading={purchasing === plan.id}
                       fullWidth
-                      className="mt-4"
+                      className="mt-4 relative"
                     >
                       Get Started
                     </Button>
@@ -153,13 +155,13 @@ export default function PricingPage() {
 
             {/* Token Packs */}
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-foreground">Token Packs</h3>
+              <h3 className="text-lg font-semibold text-white">Token Packs</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {tokenPacks.map((plan) => (
                   <Card key={plan.id} padding="md" hover className="text-center">
-                    <p className="text-2xl font-bold text-foreground">{plan.tokens}</p>
-                    <p className="text-xs text-text-secondary mt-0.5">tokens</p>
-                    <p className="text-lg font-bold text-foreground mt-2">
+                    <p className="text-2xl font-bold text-white">{plan.tokens}</p>
+                    <p className="text-xs text-[rgba(255,255,255,0.4)] mt-0.5">tokens</p>
+                    <p className="text-lg font-bold text-white mt-2">
                       <span className="text-sm">&#8377;</span>{plan.price_inr}
                     </p>
                     <Button

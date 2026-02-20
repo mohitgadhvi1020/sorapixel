@@ -333,8 +333,8 @@ export default function AdminPage() {
 
   if (authLoading || (isAdmin && loading)) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-border border-t-charcoal rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#0E0F14] flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-[rgba(255,106,0,0.2)] border-t-[#FF6A00] rounded-full animate-spin" />
       </div>
     );
   }
@@ -352,11 +352,10 @@ export default function AdminPage() {
           </div>
         )}
         {createMsg && (
-          <div className={`px-4 py-3 rounded-xl text-sm border flex items-center justify-between ${
-            createMsg.includes("success")
+          <div className={`px-4 py-3 rounded-xl text-sm border flex items-center justify-between ${createMsg.includes("success")
               ? "bg-success-light border-success/10 text-success"
               : "bg-error-light border-error/10 text-error"
-          }`}>
+            }`}>
             {createMsg}
             <button onClick={() => setCreateMsg(null)} className="font-medium text-xs">Dismiss</button>
           </div>
@@ -371,13 +370,12 @@ export default function AdminPage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`relative px-5 py-2.5 text-sm font-medium transition-all duration-200 ${
-                activeTab === tab.id ? "text-foreground" : "text-text-secondary hover:text-foreground"
-              }`}
+              className={`relative px-5 py-2.5 text-sm font-medium transition-all duration-200 ${activeTab === tab.id ? "text-foreground" : "text-text-secondary hover:text-foreground"
+                }`}
             >
               {tab.label}
               {activeTab === tab.id && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-charcoal rounded-t-full" />
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#FF6A00] to-[#FF8A3D] rounded-t-full" />
               )}
             </button>
           ))}
@@ -451,9 +449,8 @@ export default function AdminPage() {
                   <thead>
                     <tr className="border-b border-border bg-surface">
                       {["Phone", "Company", "Status", "Tokens", "Sections", "Actions"].map(h => (
-                        <th key={h} className={`px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider ${
-                          ["Status", "Tokens", "Sections", "Actions"].includes(h) ? "text-center" : "text-left"
-                        }`}>{h}</th>
+                        <th key={h} className={`px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider ${["Status", "Tokens", "Sections", "Actions"].includes(h) ? "text-center" : "text-left"
+                          }`}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -466,9 +463,8 @@ export default function AdminPage() {
                         </td>
                         <td className="px-4 py-3 text-foreground text-sm">{c.company_name || c.contact_name || "—"}</td>
                         <td className="text-center px-4 py-3">
-                          <span className={`text-xs font-medium px-2 py-0.5 rounded-lg ${
-                            c.is_active ? "bg-success-light text-success" : "bg-error-light text-error"
-                          }`}>{c.is_active ? "Active" : "Inactive"}</span>
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded-lg ${c.is_active ? "bg-success-light text-success" : "bg-error-light text-error"
+                            }`}>{c.is_active ? "Active" : "Inactive"}</span>
                         </td>
                         <td className="text-center px-4 py-3">
                           <span className="text-sm font-bold text-accent">{c.token_balance}</span>
@@ -479,11 +475,10 @@ export default function AdminPage() {
                               <button
                                 key={section}
                                 onClick={() => handleToggleSections(c.id, c.allowed_sections || [], section)}
-                                className={`text-[10px] font-semibold px-2 py-0.5 rounded-lg border transition-colors capitalize ${
-                                  (c.allowed_sections || []).includes(section)
+                                className={`text-[10px] font-semibold px-2 py-0.5 rounded-lg border transition-colors capitalize ${(c.allowed_sections || []).includes(section)
                                     ? "bg-accent-light border-accent/30 text-accent"
                                     : "bg-surface border-border text-text-secondary"
-                                }`}
+                                  }`}
                               >{section}</button>
                             ))}
                           </div>
@@ -514,7 +509,7 @@ export default function AdminPage() {
                                   value={tokenAmount}
                                   onChange={(e) => setTokenAmount(e.target.value)}
                                   placeholder="Amount"
-                                  className="w-20 px-2 py-1.5 rounded-lg border border-border bg-surface text-sm text-center outline-none focus:border-charcoal"
+                                  className="w-20 px-2 py-1.5 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] text-white text-sm text-center outline-none focus:border-[#FF6A00] transition-colors"
                                 />
                                 <Button size="sm" onClick={handleAddTokens} loading={addingTokens} disabled={!tokenAmount.trim()}>
                                   Add
@@ -547,9 +542,8 @@ export default function AdminPage() {
                   <thead>
                     <tr className="border-b border-border bg-surface">
                       {["Time", "Client", "Type", "Tokens", "Model", "Status"].map(h => (
-                        <th key={h} className={`px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider ${
-                          ["Tokens"].includes(h) ? "text-right" : ["Status"].includes(h) ? "text-center" : "text-left"
-                        }`}>{h}</th>
+                        <th key={h} className={`px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider ${["Tokens"].includes(h) ? "text-right" : ["Status"].includes(h) ? "text-center" : "text-left"
+                          }`}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -594,7 +588,7 @@ export default function AdminPage() {
 
             {feedLoading ? (
               <div className="flex justify-center py-16">
-                <div className="w-6 h-6 border-2 border-border border-t-charcoal rounded-full animate-spin" />
+                <div className="w-6 h-6 border-2 border-[rgba(255,106,0,0.2)] border-t-[#FF6A00] rounded-full animate-spin" />
               </div>
             ) : feedItems.length === 0 ? (
               <Card padding="lg" className="text-center">
@@ -614,12 +608,11 @@ export default function AdminPage() {
                       )}
                       {/* Status badge */}
                       <div className="absolute top-2 left-2 flex gap-1.5">
-                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-lg ${
-                          item.is_active ? "bg-success-light text-success" : "bg-error-light text-error"
-                        }`}>
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-lg ${item.is_active ? "bg-success-light text-success" : "bg-error-light text-error"
+                          }`}>
                           {item.is_active ? "Active" : "Hidden"}
                         </span>
-                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-lg bg-charcoal/60 text-white capitalize">
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-lg bg-black/50 backdrop-blur-sm text-white capitalize">
                           {item.item_type}
                         </span>
                       </div>
@@ -687,7 +680,7 @@ export default function AdminPage() {
             <select
               value={feedForm.category_id}
               onChange={(e) => setFeedForm(f => ({ ...f, category_id: e.target.value }))}
-              className="w-full px-4 py-3 rounded-xl border border-border bg-white text-foreground text-sm outline-none focus:border-charcoal transition-colors"
+              className="w-full px-4 py-3 rounded-[14px] border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] text-white text-sm outline-none focus:border-[#FF6A00] focus:shadow-[0_0_0_3px_rgba(255,106,0,0.15)] transition-all duration-250"
             >
               <option value="">Select category...</option>
               {categories.map(c => (
@@ -703,11 +696,10 @@ export default function AdminPage() {
                 <button
                   key={t}
                   onClick={() => setFeedForm(f => ({ ...f, item_type: t }))}
-                  className={`py-2 rounded-xl border text-sm font-medium transition-all duration-200 capitalize ${
-                    feedForm.item_type === t
+                  className={`py-2 rounded-xl border text-sm font-medium transition-all duration-200 capitalize ${feedForm.item_type === t
                       ? "border-accent bg-accent-light text-accent"
                       : "border-border text-text-secondary hover:border-border-hover"
-                  }`}
+                    }`}
                 >
                   {t}
                 </button>
@@ -729,14 +721,14 @@ export default function AdminPage() {
                     <button
                       type="button"
                       onClick={() => afterInputRef.current?.click()}
-                      className="px-3 py-1.5 bg-white rounded-lg text-xs font-medium text-foreground shadow-sm"
+                      className="px-3 py-1.5 bg-[rgba(255,255,255,0.1)] backdrop-blur-sm rounded-lg text-xs font-medium text-white shadow-sm"
                     >
                       Replace
                     </button>
                     <button
                       type="button"
                       onClick={() => setFeedForm(f => ({ ...f, after_image_url: "" }))}
-                      className="px-3 py-1.5 bg-white rounded-lg text-xs font-medium text-error shadow-sm"
+                      className="px-3 py-1.5 bg-[rgba(255,255,255,0.1)] backdrop-blur-sm rounded-lg text-xs font-medium text-[#EF4444] shadow-sm"
                     >
                       Remove
                     </button>
@@ -750,11 +742,11 @@ export default function AdminPage() {
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => handleFileDrop(e, "after_image_url")}
                 disabled={afterUploading}
-                className="w-full py-8 rounded-xl border-2 border-dashed border-border hover:border-charcoal/40 bg-surface/50 transition-all flex flex-col items-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-wait"
+                className="w-full py-8 rounded-xl border-2 border-dashed border-[rgba(255,255,255,0.1)] hover:border-[rgba(255,106,0,0.3)] bg-[rgba(255,255,255,0.02)] transition-all flex flex-col items-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-wait"
               >
                 {afterUploading ? (
                   <>
-                    <div className="w-5 h-5 border-2 border-border border-t-charcoal rounded-full animate-spin" />
+                    <div className="w-5 h-5 border-2 border-[rgba(255,106,0,0.2)] border-t-[#FF6A00] rounded-full animate-spin" />
                     <span className="text-xs text-text-secondary">Uploading...</span>
                   </>
                 ) : (
@@ -784,14 +776,14 @@ export default function AdminPage() {
                     <button
                       type="button"
                       onClick={() => beforeInputRef.current?.click()}
-                      className="px-3 py-1.5 bg-white rounded-lg text-xs font-medium text-foreground shadow-sm"
+                      className="px-3 py-1.5 bg-[rgba(255,255,255,0.1)] backdrop-blur-sm rounded-lg text-xs font-medium text-white shadow-sm"
                     >
                       Replace
                     </button>
                     <button
                       type="button"
                       onClick={() => setFeedForm(f => ({ ...f, before_image_url: "" }))}
-                      className="px-3 py-1.5 bg-white rounded-lg text-xs font-medium text-error shadow-sm"
+                      className="px-3 py-1.5 bg-[rgba(255,255,255,0.1)] backdrop-blur-sm rounded-lg text-xs font-medium text-[#EF4444] shadow-sm"
                     >
                       Remove
                     </button>
@@ -805,11 +797,11 @@ export default function AdminPage() {
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => handleFileDrop(e, "before_image_url")}
                 disabled={beforeUploading}
-                className="w-full py-6 rounded-xl border-2 border-dashed border-border hover:border-charcoal/40 bg-surface/50 transition-all flex flex-col items-center gap-1.5 cursor-pointer disabled:opacity-60 disabled:cursor-wait"
+                className="w-full py-6 rounded-xl border-2 border-dashed border-[rgba(255,255,255,0.1)] hover:border-[rgba(255,106,0,0.3)] bg-[rgba(255,255,255,0.02)] transition-all flex flex-col items-center gap-1.5 cursor-pointer disabled:opacity-60 disabled:cursor-wait"
               >
                 {beforeUploading ? (
                   <>
-                    <div className="w-5 h-5 border-2 border-border border-t-charcoal rounded-full animate-spin" />
+                    <div className="w-5 h-5 border-2 border-[rgba(255,106,0,0.2)] border-t-[#FF6A00] rounded-full animate-spin" />
                     <span className="text-xs text-text-secondary">Uploading...</span>
                   </>
                 ) : (
@@ -839,18 +831,17 @@ export default function AdminPage() {
                 type="number"
                 value={feedForm.display_order}
                 onChange={(e) => setFeedForm(f => ({ ...f, display_order: parseInt(e.target.value) || 0 }))}
-                className="w-full px-4 py-3 rounded-xl border border-border bg-white text-foreground text-sm outline-none focus:border-charcoal transition-colors"
+                className="w-full px-4 py-3 rounded-[14px] border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] text-white text-sm outline-none focus:border-[#FF6A00] focus:shadow-[0_0_0_3px_rgba(255,106,0,0.15)] transition-all duration-250"
               />
             </div>
             <div className="space-y-1.5">
               <label className="block text-sm font-medium text-foreground">Visible</label>
               <button
                 onClick={() => setFeedForm(f => ({ ...f, is_active: !f.is_active }))}
-                className={`w-full py-3 rounded-xl border text-sm font-medium transition-all duration-200 ${
-                  feedForm.is_active
+                className={`w-full py-3 rounded-xl border text-sm font-medium transition-all duration-200 ${feedForm.is_active
                     ? "border-success bg-success-light text-success"
                     : "border-border text-text-secondary"
-                }`}
+                  }`}
               >
                 {feedForm.is_active ? "Active" : "Hidden"}
               </button>
