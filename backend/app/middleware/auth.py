@@ -64,10 +64,12 @@ def _ensure_client_record(supabase_user: dict) -> dict:
     if email and email.lower() in settings.admin_email_list:
         is_admin = True
 
+    clean_phone = phone.lstrip("+").lstrip("91") if phone else None
+
     new_record = {
         "id": user_id,
-        "email": email,
-        "phone": phone.lstrip("+").lstrip("91") if phone else "",
+        "email": email or None,
+        "phone": clean_phone if clean_phone else None,
         "company_name": "",
         "contact_name": name,
         "is_active": True,
@@ -79,9 +81,18 @@ def _ensure_client_record(supabase_user: dict) -> dict:
         "apply_branding": False,
     }
 
-    sb.table("clients").upsert(new_record, on_conflict="id").execute()
-    result = sb.table("clients").select("*").eq("id", user_id).single().execute()
-    return result.data
+    try:
+        sb.table("clients").upsert(new_record, on_conflict="id").execute()
+    except Exception as e:
+        logger.warning("Upsert failed (likely duplicate phone/email), trying insert without phone: %s", e)
+        new_record.pop("phone", None)
+        try:
+            sb.table("clients").insert(new_record).execute()
+        except Exception:
+            pass
+
+    result = sb.table("clients").select("*").eq("id", user_id).maybe_single().execute()
+    return result.data if result else None
 
 
 async def get_current_user(
