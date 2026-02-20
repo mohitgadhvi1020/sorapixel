@@ -1,4 +1,6 @@
-#!/Users/mohit/Documents/soraipixel/backend/venv/bin/python3
+#!/bin/sh
+'''exec' "/Users/mohit/Documents/soraipixel apps/sorapixel/backend/venv/bin/python3" "$0" "$@"
+' '''
 # -*- coding: utf-8 -*-
 import re
 import sys
