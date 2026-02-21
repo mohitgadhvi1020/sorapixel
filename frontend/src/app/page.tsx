@@ -16,7 +16,13 @@ interface FeedItem {
   before_image_url: string;
   after_image_url: string;
   item_type: string;
-  tags: { prompt_type?: string; background?: string; model?: string; description?: string };
+  tags: {
+    prompt_type?: string;
+    background?: string;
+    model?: string;
+    description?: string;
+    poses?: string[];
+  };
 }
 
 const SUB_TABS = [
@@ -128,7 +134,12 @@ export default function HomePage() {
 
   function handleTryIt(item: FeedItem) {
     if (item.item_type === "catalogue" || item.item_type === "branding") {
-      router.push("/catalogue");
+      const params = new URLSearchParams();
+      if (item.tags?.model) params.set("model", item.tags.model);
+      if (item.tags?.background) params.set("bg", item.tags.background);
+      if (item.tags?.poses?.length) params.set("poses", item.tags.poses.join(","));
+      const qs = params.toString();
+      router.push(`/catalogue${qs ? `?${qs}` : ""}`);
     } else {
       const bg = item.tags?.background || "";
       router.push(`/studio${bg ? `?bg=${bg}` : ""}`);

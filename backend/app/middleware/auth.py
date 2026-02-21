@@ -64,12 +64,24 @@ def _ensure_client_record(supabase_user: dict) -> dict:
     if email and email.lower() in settings.admin_email_list:
         is_admin = True
 
-    clean_phone = phone.lstrip("+").lstrip("91") if phone else None
+    clean_phone = None
+    if phone:
+        p = phone.lstrip("+")
+        if p.startswith("91"):
+            p = p[2:]
+        clean_phone = p
+    
+    # The database requires an email, so we generate a dummy one for phone-only logins
+    final_email = email
+    if not final_email and clean_phone:
+        final_email = f"{clean_phone}@phone.sorapixel.com"
+    elif not final_email:
+        final_email = f"{user_id}@placeholder.sorapixel.com"
 
     new_record = {
         "id": user_id,
-        "email": email or None,
-        "phone": clean_phone if clean_phone else None,
+        "email": final_email,
+        "phone": clean_phone,
         "company_name": "",
         "contact_name": name,
         "is_active": True,

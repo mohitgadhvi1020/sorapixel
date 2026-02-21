@@ -139,13 +139,13 @@ MODEL_DESCRIPTIONS = {
 }
 
 POSE_DESCRIPTIONS = {
-    "best_match": "in a natural, confident pose that best showcases the product",
-    "standing": "standing upright in a full-body shot, confident stance facing camera",
-    "side_view": "in a side profile pose, showing how the product looks from the side",
-    "back_view": "showing the back view, looking over shoulder slightly",
-    "sitting": "sitting elegantly on a chair or stool, product clearly visible, poised posture",
-    "close_up": "a close-up portrait/bust shot, product prominently featured, detailed view",
-    "walking": "in a natural walking pose, mid-stride, dynamic movement",
+    "best_match": "in a natural, confident pose that best showcases the product, framed from head to mid-thigh with space above the head",
+    "standing": "standing upright in a full-body shot from head to toe, confident stance facing camera — ensure the full head including hair is visible with clear space above it",
+    "side_view": "in a side profile pose from head to knees, showing how the product looks from the side — the model's full head and hair must be within the frame",
+    "back_view": "showing the back view from head to knees, looking over shoulder slightly — ensure the top of the head is not cropped",
+    "sitting": "sitting elegantly on a chair or stool, framed from above the head to the knees, product clearly visible, poised posture",
+    "close_up": "a close-up portrait shot from chest/shoulders up to above the head, product prominently featured, detailed view — leave clear space above the model's head",
+    "walking": "in a natural walking pose, full-body mid-stride shot from head to feet, dynamic movement — ensure the entire head is within the frame",
 }
 
 CATALOGUE_BACKGROUNDS = [
@@ -160,19 +160,19 @@ CATALOGUE_BACKGROUNDS = [
 CATALOGUE_BG_DESCRIPTIONS = {b["id"]: b["prompt"] for b in CATALOGUE_BACKGROUNDS}
 
 CATALOGUE_POSES = [
-    {"id": "standing", "label": "Standing", "thumb": "https://images.unsplash.com/photo-1769500810141-644865a6d35c?w=160&h=220&fit=crop&q=80"},
-    {"id": "side_view", "label": "Side View", "thumb": "https://images.unsplash.com/photo-1616586169180-2671c5e1cbdc?w=160&h=220&fit=crop&q=80"},
-    {"id": "back_view", "label": "Back View", "thumb": "https://images.unsplash.com/photo-1615573678157-69c7fce87d54?w=160&h=220&fit=crop&q=80"},
-    {"id": "sitting", "label": "Sitting", "thumb": "https://images.unsplash.com/photo-1665099210693-c91e2212ba04?w=160&h=220&fit=crop&q=80"},
-    {"id": "close_up", "label": "Close Up", "thumb": "https://images.unsplash.com/photo-1594140700557-ba2bf8247150?w=160&h=220&fit=crop&q=80"},
-    {"id": "walking", "label": "Walking", "thumb": "https://images.unsplash.com/photo-1760162693478-4c96b6c99d55?w=160&h=220&fit=crop&q=80"},
+    {"id": "standing", "label": "Standing", "thumb": "/thumbnails/pose_standing.png"},
+    {"id": "side_view", "label": "Side View", "thumb": "/thumbnails/pose_side_view.png"},
+    {"id": "back_view", "label": "Back View", "thumb": "/thumbnails/pose_back_view.png"},
+    {"id": "sitting", "label": "Sitting", "thumb": "/thumbnails/pose_sitting.png"},
+    {"id": "close_up", "label": "Close Up", "thumb": "/thumbnails/pose_close_up.png"},
+    {"id": "walking", "label": "Walking", "thumb": "/thumbnails/pose_walking.png"},
 ]
 
 AI_MODEL_FACES = [
-    {"id": "indian_man", "name": "Indian Man", "thumb": "https://images.unsplash.com/photo-1604763007617-34a3f6073ddb?w=200&h=200&fit=crop&q=80"},
-    {"id": "indian_woman", "name": "Indian Woman", "thumb": "https://images.unsplash.com/photo-1594140700557-ba2bf8247150?w=200&h=200&fit=crop&q=80"},
-    {"id": "indian_boy", "name": "Indian Boy", "thumb": "https://images.unsplash.com/photo-1747373354116-671ba01db71b?w=200&h=200&fit=crop&q=80"},
-    {"id": "indian_girl", "name": "Indian Girl", "thumb": "https://images.unsplash.com/photo-1688828028702-55d50a360f6f?w=200&h=200&fit=crop&q=80"},
+    {"id": "indian_man", "name": "Indian Man", "thumb": "/thumbnails/model_indian_man.png"},
+    {"id": "indian_woman", "name": "Indian Woman", "thumb": "/thumbnails/model_indian_woman.png"},
+    {"id": "indian_boy", "name": "Indian Boy", "thumb": "/thumbnails/model_indian_boy.png"},
+    {"id": "indian_girl", "name": "Indian Girl", "thumb": "/thumbnails/model_indian_girl.png"},
 ]
 
 
@@ -206,11 +206,14 @@ def build_catalogue_prompt(
         f"{outfit_line}\n"
         f"{PRODUCT_ISOLATION_PROMPT}\n\n"
         "Additional rules:\n"
+        "- FRAMING: ALWAYS include the model's FULL HEAD including all hair in the frame. "
+        "Leave visible breathing room (at least 5-10%% of image height) above the top of the head. "
+        "NEVER crop or cut off the top of the model's head, forehead, or hair.\n"
         "- The model should look natural, authentic, and Indian\n"
         "- Product must be clearly visible, well-lit, and the focal point\n"
         "- Commercial quality, suitable for e-commerce catalogue\n"
         "- Realistic proportions between model and product\n"
-        "- Output should look like a real professional photograph\n"
+        "- Output should look like a real professional photograph, properly framed like a studio shoot\n"
         "- CRITICAL: The model's clothing color, style, and fabric must be EXACTLY "
         "the same across all images in this set. Do NOT change the outfit between poses."
     )

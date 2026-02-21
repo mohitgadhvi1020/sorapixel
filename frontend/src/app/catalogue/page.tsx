@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { api } from "@/lib/api-client";
 import { useAuth } from "@/hooks/useAuth";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { shareToWhatsApp, downloadImage } from "@/lib/share";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 import Button from "@/components/ui/Button";
@@ -27,15 +27,23 @@ const PROGRESS_STEPS = [
 export default function CataloguePage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Read pre-selection from URL query params (from feed "Try This Style")
+  const paramModel = searchParams.get("model");
+  const paramBg = searchParams.get("bg");
+  const paramPoses = searchParams.get("poses");
 
   const [models, setModels] = useState<ModelOption[]>([]);
   const [poses, setPoses] = useState<PoseOption[]>([]);
   const [backgrounds, setBackgrounds] = useState<BackgroundOption[]>([]);
 
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [selectedModel, setSelectedModel] = useState("indian_woman");
-  const [selectedPoses, setSelectedPoses] = useState<string[]>(["standing", "side_view", "back_view", "sitting"]);
-  const [selectedBg, setSelectedBg] = useState("best_match");
+  const [selectedModel, setSelectedModel] = useState(paramModel || "indian_woman");
+  const [selectedPoses, setSelectedPoses] = useState<string[]>(
+    paramPoses ? paramPoses.split(",").filter(Boolean) : ["standing", "side_view", "back_view", "sitting"]
+  );
+  const [selectedBg, setSelectedBg] = useState(paramBg || "best_match");
   const [keyHighlights, setKeyHighlights] = useState("");
   const [specialInstructions, setSpecialInstructions] = useState("");
   const [addBranding, setAddBranding] = useState(false);

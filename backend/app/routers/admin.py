@@ -3,12 +3,23 @@ from __future__ import annotations
 """Admin router -- client management, stats, tokens."""
 
 import uuid
+import base64 as b64lib
+import random
+import logging
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from app.middleware.auth import require_admin
 from app.schemas.admin import CreateClientRequest, UpdateClientRequest, AddTokensRequest
 from app.database import get_supabase
 from app.services.credit_service import add_tokens
 from app.config import get_settings
+from app.services.gemini_service import generate_image, generate_image_multi
+from app.services.image_service import crop_to_ratio
+from app.services.prompt_service import (
+    build_catalogue_prompt, build_branding_prompt, get_ratio,
+    CATALOGUE_BACKGROUNDS, CATALOGUE_POSES, AI_MODEL_FACES,
+)
+
+logger = logging.getLogger(__name__)
 
 BUCKET = "sorapixel-images"
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
@@ -205,3 +216,81 @@ async def delete_feed_item(item_id: str, admin: dict = Depends(require_admin)):
     sb = get_supabase()
     sb.table("feed_items").delete().eq("id", item_id).execute()
     return {"success": True}
+
+
+# ---- Admin Catalogue Generation for Feed Seeding ----
+
+OUTFIT_OPTIONS = [
+    "a simple elegant navy blue dress with minimal accessories",
+    "a classic black fitted dress, clean and professional",
+    "a sophisticated maroon/wine-colored outfit, elegant draping",
+    "a crisp white blouse with dark formal trousers",
+    "a deep emerald green ethnic kurta with subtle gold accents",
+]
+
+
+@router.post("/generate-catalogue")
+async def admin_generate_catalogue(body: dict, admin: dict = Depends(require_admin)):
+    """Generate catalogue images for feed seeding — no credit deduction.
+
+    Accepts the same payload as /catalogue/generate:
+      image_base64, model_type, poses (list), background, special_instructions,
+      key_highlights, aspect_ratio_id, category_slug
+    Returns a list of {url, label, pose} with Supabase storage public URLs.
+    """
+    sb = get_supabase()
+
+    image_base64: str = body.get("image_base64", "")
+    if not image_base64:
+        raise HTTPException(status_code=400, detail="image_base64 is required")
+
+    model_type: str = body.get("model_type", "indian_woman")
+    poses: list[str] = body.get("poses", ["standing", "side_view", "back_view", "sitting"])[:4]
+    background: str = body.get("background", "best_match")
+    special_instructions: str | None = body.get("special_instructions")
+    key_highlights: str | None = body.get("key_highlights")
+    aspect_ratio_id: str | None = body.get("aspect_ratio_id")
+    category_slug: str | None = body.get("category_slug")
+
+    ratio = get_ratio(aspect_ratio_id)
+    outfit = random.choice(OUTFIT_OPTIONS)
+
+    images = []
+    for pose in poses:
+        prompt = build_catalogue_prompt(
+            model_type=model_type,
+            pose=pose,
+            background=background,
+            category_slug=category_slug,
+            special_instructions=special_instructions,
+            key_highlights=key_highlights,
+            outfit_description=outfit,
+        )
+
+        try:
+            result = generate_image(prompt, image_base64)
+            image_b64 = result["base64"]
+
+            try:
+                image_b64 = crop_to_ratio(image_b64, ratio["width"], ratio["height"])
+            except Exception:
+                pass
+
+            # Upload to storage and return public URL
+            raw_bytes = b64lib.b64decode(image_b64)
+            storage_path = f"feed/catalogue/{uuid.uuid4()}.png"
+            sb.storage.from_(BUCKET).upload(storage_path, raw_bytes, {"content-type": "image/png"})
+            public_url = f"{sb.supabase_url}/storage/v1/object/public/{BUCKET}/{storage_path}"
+
+            images.append({
+                "url": public_url,
+                "label": pose.replace("_", " ").title(),
+                "pose": pose,
+                "storage_path": storage_path,
+            })
+        except Exception as e:
+            logger.error(f"Admin catalogue generation error (pose={pose}): {e}")
+            images.append({"url": "", "label": pose.replace("_", " ").title(), "pose": pose, "error": str(e)})
+
+    valid = [img for img in images if img.get("url")]
+    return {"success": bool(valid), "images": images}

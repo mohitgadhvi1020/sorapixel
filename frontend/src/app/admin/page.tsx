@@ -72,15 +72,21 @@ interface Category {
   slug: string;
 }
 
+interface ModelOption { id: string; name: string; thumb: string; }
+interface PoseOption { id: string; label: string; thumb: string; }
+interface BackgroundOption { id: string; label: string; thumb: string; }
+interface GenResult { url: string; label: string; pose: string; error?: string; }
+
 const SECTIONS = ["studio", "jewelry"];
 const ITEM_TYPES = ["photoshoot", "catalogue", "branding"];
+const MAX_POSES = 4;
 
 const EMPTY_FEED_FORM = {
   category_id: "",
   title: "",
   before_image_url: "",
   after_image_url: "",
-  item_type: "photoshoot",
+  item_type: "catalogue",
   tags: "",
   display_order: 0,
   is_active: true,
@@ -123,6 +129,25 @@ export default function AdminPage() {
   const afterInputRef = useRef<HTMLInputElement>(null);
   const beforeInputRef = useRef<HTMLInputElement>(null);
 
+  // Admin Catalogue Generation state
+  const [showGenModal, setShowGenModal] = useState(false);
+  const [genModels, setGenModels] = useState<ModelOption[]>([]);
+  const [genPoses, setGenPoses] = useState<PoseOption[]>([]);
+  const [genBackgrounds, setGenBackgrounds] = useState<BackgroundOption[]>([]);
+  const [genImage, setGenImage] = useState<string | null>(null);
+  const [genModel, setGenModel] = useState("indian_woman");
+  const [genSelectedPoses, setGenSelectedPoses] = useState<string[]>(["standing", "side_view", "back_view", "sitting"]);
+  const [genBg, setGenBg] = useState("best_match");
+  const [genSpecialInstructions, setGenSpecialInstructions] = useState("");
+  const [genKeyHighlights, setGenKeyHighlights] = useState("");
+  const [genGenerating, setGenGenerating] = useState(false);
+  const [genResults, setGenResults] = useState<GenResult[]>([]);
+  const [genActiveResult, setGenActiveResult] = useState(0);
+  const [genStep, setGenStep] = useState<"upload" | "configure" | "results">("upload");
+  const [genSaving, setGenSaving] = useState(false);
+  const [genSaveForm, setGenSaveForm] = useState({ title: "", category_id: "", display_order: 0 });
+  const genFileRef = useRef<HTMLInputElement>(null);
+
   const fetchData = useCallback(async () => {
     try {
       setError(null);
@@ -153,6 +178,19 @@ export default function AdminPage() {
     } finally {
       setFeedLoading(false);
     }
+  }, []);
+
+  const loadCatalogueOptions = useCallback(async () => {
+    try {
+      const [m, p, b] = await Promise.all([
+        api.get<{ models: ModelOption[] }>("/catalogue/models"),
+        api.get<{ poses: PoseOption[] }>("/catalogue/poses"),
+        api.get<{ backgrounds: BackgroundOption[] }>("/catalogue/backgrounds"),
+      ]);
+      setGenModels(m.models || []);
+      setGenPoses(p.poses || []);
+      setGenBackgrounds(b.backgrounds || []);
+    } catch { /* silent */ }
   }, []);
 
   useEffect(() => {
@@ -224,6 +262,94 @@ export default function AdminPage() {
     setFeedForm(EMPTY_FEED_FORM);
     setEditingFeedId(null);
     setShowFeedModal(true);
+  };
+
+  // Admin Catalogue Generation handlers
+  const openGenModal = () => {
+    setGenStep("upload");
+    setGenImage(null);
+    setGenResults([]);
+    setGenActiveResult(0);
+    setGenSpecialInstructions("");
+    setGenKeyHighlights("");
+    setGenSaveForm({ title: "", category_id: "", display_order: 0 });
+    if (genModels.length === 0) loadCatalogueOptions();
+    setShowGenModal(true);
+  };
+
+  const handleGenImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setGenImage(reader.result as string);
+      setGenStep("configure");
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const toggleGenPose = (poseId: string) => {
+    setGenSelectedPoses(prev => {
+      if (prev.includes(poseId)) return prev.filter(p => p !== poseId);
+      if (prev.length >= MAX_POSES) return prev;
+      return [...prev, poseId];
+    });
+  };
+
+  const handleAdminGenerate = async () => {
+    if (!genImage || genSelectedPoses.length === 0) return;
+    setGenGenerating(true);
+    setError("");
+    try {
+      const data = await api.post<{ success: boolean; images: GenResult[] }>(
+        "/admin/generate-catalogue",
+        {
+          image_base64: genImage,
+          model_type: genModel,
+          poses: genSelectedPoses,
+          background: genBg,
+          special_instructions: genSpecialInstructions || undefined,
+          key_highlights: genKeyHighlights || undefined,
+        }
+      );
+      const valid = (data.images || []).filter(i => i.url);
+      setGenResults(valid);
+      setGenActiveResult(0);
+      setGenStep("results");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Generation failed");
+    } finally {
+      setGenGenerating(false);
+    }
+  };
+
+  const handleSaveCatFeedItem = async () => {
+    if (!genResults[genActiveResult]?.url) return;
+    if (!genSaveForm.category_id) { setError("Please select a category"); return; }
+    setGenSaving(true);
+    try {
+      await api.post("/admin/feed-items", {
+        category_id: genSaveForm.category_id,
+        title: genSaveForm.title || genResults[genActiveResult].label,
+        after_image_url: genResults[genActiveResult].url,
+        item_type: "catalogue",
+        display_order: genSaveForm.display_order,
+        is_active: true,
+        tags: {
+          model: genModel,
+          poses: genSelectedPoses,
+          background: genBg,
+          description: genResults[genActiveResult].label,
+        },
+      });
+      setShowGenModal(false);
+      fetchFeed();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save feed item");
+    } finally {
+      setGenSaving(false);
+    }
   };
 
   const openEditFeed = (item: FeedItem) => {
@@ -353,8 +479,8 @@ export default function AdminPage() {
         )}
         {createMsg && (
           <div className={`px-4 py-3 rounded-xl text-sm border flex items-center justify-between ${createMsg.includes("success")
-              ? "bg-success-light border-success/10 text-success"
-              : "bg-error-light border-error/10 text-error"
+            ? "bg-success-light border-success/10 text-success"
+            : "bg-error-light border-error/10 text-error"
             }`}>
             {createMsg}
             <button onClick={() => setCreateMsg(null)} className="font-medium text-xs">Dismiss</button>
@@ -476,8 +602,8 @@ export default function AdminPage() {
                                 key={section}
                                 onClick={() => handleToggleSections(c.id, c.allowed_sections || [], section)}
                                 className={`text-[10px] font-semibold px-2 py-0.5 rounded-lg border transition-colors capitalize ${(c.allowed_sections || []).includes(section)
-                                    ? "bg-accent-light border-accent/30 text-accent"
-                                    : "bg-surface border-border text-text-secondary"
+                                  ? "bg-accent-light border-accent/30 text-accent"
+                                  : "bg-surface border-border text-text-secondary"
                                   }`}
                               >{section}</button>
                             ))}
@@ -580,10 +706,16 @@ export default function AdminPage() {
                 <h2 className="text-lg font-semibold text-foreground">Feed Items</h2>
                 <p className="text-sm text-text-secondary">Manage the demo photos shown on the Home page.</p>
               </div>
-              <Button onClick={openCreateFeed} size="sm">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                Add Feed Item
-              </Button>
+              <div className="flex gap-2">
+                <Button onClick={openGenModal} size="sm" variant="secondary">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>
+                  Generate Catalogue
+                </Button>
+                <Button onClick={openCreateFeed} size="sm">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                  Add Feed Item
+                </Button>
+              </div>
             </div>
 
             {feedLoading ? (
@@ -697,8 +829,8 @@ export default function AdminPage() {
                   key={t}
                   onClick={() => setFeedForm(f => ({ ...f, item_type: t }))}
                   className={`py-2 rounded-xl border text-sm font-medium transition-all duration-200 capitalize ${feedForm.item_type === t
-                      ? "border-accent bg-accent-light text-accent"
-                      : "border-border text-text-secondary hover:border-border-hover"
+                    ? "border-accent bg-accent-light text-accent"
+                    : "border-border text-text-secondary hover:border-border-hover"
                     }`}
                 >
                   {t}
@@ -839,8 +971,8 @@ export default function AdminPage() {
               <button
                 onClick={() => setFeedForm(f => ({ ...f, is_active: !f.is_active }))}
                 className={`w-full py-3 rounded-xl border text-sm font-medium transition-all duration-200 ${feedForm.is_active
-                    ? "border-success bg-success-light text-success"
-                    : "border-border text-text-secondary"
+                  ? "border-success bg-success-light text-success"
+                  : "border-border text-text-secondary"
                   }`}
               >
                 {feedForm.is_active ? "Active" : "Hidden"}
@@ -855,6 +987,245 @@ export default function AdminPage() {
           </div>
         </div>
       </Modal>
+
+      {/* ===== GENERATE CATALOGUE MODAL ===== */}
+      <Modal open={showGenModal} onClose={() => !genGenerating && setShowGenModal(false)} title="Generate Catalogue for Feed" sheet>
+        <input ref={genFileRef} type="file" accept="image/*" className="hidden" onChange={handleGenImageUpload} />
+
+        {/* Step indicator */}
+        <div className="flex items-center gap-1.5 mb-5">
+          {(["upload", "configure", "results"] as const).map((s, i) => {
+            const STEPS = ["upload", "configure", "results"];
+            const currentIdx = STEPS.indexOf(genStep);
+            const isDone = currentIdx > i;
+            const isActive = genStep === s;
+            return (
+              <div key={s} className="flex items-center gap-1.5">
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold transition-all ${isDone ? "bg-success text-white" : isActive ? "bg-accent text-white shadow-[0_0_10px_rgba(255,106,0,0.4)]" : "bg-surface border border-border text-text-secondary"
+                  }`}>
+                  {isDone ? (
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>
+                  ) : i + 1}
+                </div>
+                <span className={`text-xs font-medium capitalize ${isActive ? "text-foreground" : isDone ? "text-success" : "text-text-secondary"
+                  }`}>{s}</span>
+                {i < 2 && <div className={`w-6 h-px mx-0.5 ${isDone ? "bg-success" : "bg-border"}`} />}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* STEP 1: Upload */}
+        {genStep === "upload" && (
+          <button
+            onClick={() => genFileRef.current?.click()}
+            className="w-full py-16 rounded-xl border-2 border-dashed border-[rgba(255,106,0,0.2)] hover:border-[rgba(255,106,0,0.5)] hover:bg-[rgba(255,106,0,0.03)] transition-all flex flex-col items-center gap-3"
+          >
+            <div className="w-14 h-14 bg-[rgba(255,106,0,0.1)] rounded-2xl flex items-center justify-center">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FF6A00" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-foreground">Upload Product Image</p>
+              <p className="text-xs text-text-secondary mt-1">PNG, JPG up to 10 MB</p>
+            </div>
+          </button>
+        )}
+
+        {/* STEP 2: Configure + Generate */}
+        {genStep === "configure" && (
+          <div className="space-y-5">
+            {/* Product preview */}
+            {genImage && (
+              <div className="relative rounded-xl overflow-hidden border border-border">
+                <img src={genImage} alt="Product" className="w-full max-h-40 object-contain bg-surface" />
+                <button
+                  onClick={() => { setGenImage(null); setGenStep("upload"); }}
+                  className="absolute top-2 right-2 w-7 h-7 bg-black/60 rounded-lg flex items-center justify-center text-white text-xs hover:bg-black/80"
+                >✕</button>
+              </div>
+            )}
+
+            {/* Model */}
+            <div>
+              <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">Model</p>
+              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                {genModels.map(m => (
+                  <button key={m.id} onClick={() => setGenModel(m.id)} className="flex-shrink-0 text-center">
+                    <div className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-all ${genModel === m.id ? "border-accent shadow-[0_0_12px_rgba(255,106,0,0.25)]" : "border-border"}`}>
+                      <img src={m.thumb} alt={m.name} className="w-full h-full object-cover" loading="lazy" />
+                    </div>
+                    <p className={`text-[10px] mt-1 truncate w-16 ${genModel === m.id ? "text-accent font-semibold" : "text-text-secondary"}`}>{m.name}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Poses */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Poses (up to {MAX_POSES})</p>
+                <span className="text-xs text-accent font-medium">{genSelectedPoses.length}/{MAX_POSES} selected</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {genPoses.map(p => {
+                  const sel = genSelectedPoses.includes(p.id);
+                  return (
+                    <button key={p.id} onClick={() => toggleGenPose(p.id)} className="text-center group relative">
+                      <div className={`relative rounded-xl overflow-hidden border-2 aspect-[3/4] transition-all ${sel ? "border-accent shadow-[0_0_12px_rgba(255,106,0,0.25)]" : "border-border"}`}>
+                        <img src={p.thumb} alt={p.label} className="w-full h-full object-cover" loading="lazy" />
+                        {sel && (
+                          <div className="absolute top-1 left-1 w-5 h-5 bg-accent rounded-full flex items-center justify-center">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>
+                          </div>
+                        )}
+                      </div>
+                      <p className={`text-[10px] mt-1 ${sel ? "text-accent font-semibold" : "text-text-secondary"}`}>{p.label}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Background */}
+            <div>
+              <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">Background</p>
+              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                {genBackgrounds.map(bg => (
+                  <button key={bg.id} onClick={() => setGenBg(bg.id)} className="flex-shrink-0 text-center">
+                    <div className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-all ${genBg === bg.id ? "border-accent shadow-[0_0_12px_rgba(255,106,0,0.25)]" : "border-border"}`}>
+                      <img src={bg.thumb} alt={bg.label} className="w-full h-full object-cover" loading="lazy" />
+                    </div>
+                    <p className={`text-[10px] mt-1 truncate w-16 ${genBg === bg.id ? "text-accent font-semibold" : "text-text-secondary"}`}>{bg.label}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Optional instructions */}
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-text-secondary mb-1">Key Highlights <span className="text-text-secondary/50">(optional)</span></label>
+                <input
+                  value={genKeyHighlights}
+                  onChange={e => setGenKeyHighlights(e.target.value)}
+                  placeholder="e.g. Premium gold plating, adjustable sizing"
+                  className="w-full px-4 py-2.5 rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] text-white text-sm outline-none focus:border-accent transition-colors"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-text-secondary mb-1">Special Instructions <span className="text-text-secondary/50">(optional)</span></label>
+                <input
+                  value={genSpecialInstructions}
+                  onChange={e => setGenSpecialInstructions(e.target.value)}
+                  placeholder="e.g. Focus on neckline, show intricate details"
+                  className="w-full px-4 py-2.5 rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] text-white text-sm outline-none focus:border-accent transition-colors"
+                />
+              </div>
+            </div>
+
+            {/* Generate button */}
+            {genGenerating ? (
+              <div className="flex flex-col items-center gap-3 py-6">
+                <div className="w-8 h-8 border-2 border-[rgba(255,106,0,0.2)] border-t-[#FF6A00] rounded-full animate-spin" />
+                <p className="text-sm text-text-secondary">Generating {genSelectedPoses.length} image{genSelectedPoses.length > 1 ? "s" : ""}… this takes 30–60 seconds</p>
+              </div>
+            ) : (
+              <Button onClick={handleAdminGenerate} disabled={!genImage || genSelectedPoses.length === 0} fullWidth>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>
+                Generate {genSelectedPoses.length} Image{genSelectedPoses.length > 1 ? "s" : ""}
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* STEP 3: Results + Save */}
+        {genStep === "results" && genResults.length > 0 && (
+          <div className="space-y-4">
+            {/* Thumbnail strip */}
+            <div className="flex gap-2.5 overflow-x-auto no-scrollbar pb-1">
+              {genResults.map((img, i) => (
+                <button
+                  key={i}
+                  onClick={() => setGenActiveResult(i)}
+                  className={`flex-shrink-0 relative rounded-xl overflow-hidden border-2 transition-all ${genActiveResult === i
+                    ? "border-accent shadow-[0_0_16px_rgba(255,106,0,0.3)] ring-2 ring-[rgba(255,106,0,0.15)]"
+                    : "border-border hover:border-border-hover"
+                    }`}
+                  style={{ width: 72, height: 96 }}
+                >
+                  <img src={img.url} alt={img.label} className="w-full h-full object-cover" />
+                  {genActiveResult === i && (
+                    <div className="absolute bottom-1 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-md bg-accent text-white text-[9px] font-bold whitespace-nowrap">
+                      Selected
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* Active image preview — full width */}
+            <div className="rounded-2xl overflow-hidden border border-border bg-surface">
+              <img
+                src={genResults[genActiveResult]?.url}
+                alt={genResults[genActiveResult]?.label}
+                className="w-full max-h-[480px] object-contain"
+              />
+              {/* Pose label badge */}
+              <div className="px-3 py-2 border-t border-border flex items-center justify-between">
+                <span className="text-xs font-semibold text-foreground">{genResults[genActiveResult]?.label}</span>
+                <span className="text-[10px] text-text-secondary">{genActiveResult + 1} of {genResults.length}</span>
+              </div>
+            </div>
+
+            {/* Save as feed item form */}
+            <div className="rounded-2xl border border-border bg-surface/50 p-4 space-y-3">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-1 h-4 bg-accent rounded-full" />
+                <p className="text-sm font-semibold text-foreground">Save as Feed Item</p>
+              </div>
+
+              {/* Category + Title side by side */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-text-secondary">Category <span className="text-error">*</span></label>
+                  <select
+                    value={genSaveForm.category_id}
+                    onChange={e => setGenSaveForm(f => ({ ...f, category_id: e.target.value }))}
+                    className="w-full px-3 py-2.5 rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] text-white text-sm outline-none focus:border-accent transition-all"
+                  >
+                    <option value="">Select category…</option>
+                    {categories.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-text-secondary">Title</label>
+                  <input
+                    value={genSaveForm.title}
+                    onChange={e => setGenSaveForm(f => ({ ...f, title: e.target.value }))}
+                    placeholder={genResults[genActiveResult]?.label || "Catalogue – Standing"}
+                    className="w-full px-3 py-2.5 rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] text-white text-sm outline-none focus:border-accent transition-all placeholder:text-text-secondary/40"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <Button variant="ghost" onClick={() => setGenStep("configure")} size="sm">← Back</Button>
+                <Button onClick={handleSaveCatFeedItem} loading={genSaving} disabled={!genSaveForm.category_id} fullWidth>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>
+                  Save as Feed Item
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
+
     </ResponsiveLayout>
+
   );
 }
