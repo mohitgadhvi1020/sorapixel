@@ -320,7 +320,7 @@ export default function BrandSettingsPage() {
         {/* Save */}
         <div className="flex items-center justify-between pt-2 pb-8">
           <p className="text-xs text-[rgba(255,255,255,0.3)]">
-            {brand ? `Last updated: ${new Date(brand.config?.updatedAt || Date.now()).toLocaleDateString()}` : "New brand profile"}
+            {brand ? "Brand profile saved" : "New brand profile"}
           </p>
           <Button onClick={handleSave} loading={saving} size="lg">
             {brand ? "Save Changes" : "Create Brand Profile"}
