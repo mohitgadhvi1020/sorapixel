@@ -9,7 +9,13 @@ class Settings(BaseSettings):
     app_name: str = "SoraPixel API"
     debug: bool = False
     api_v1_prefix: str = "/api/v1"
-    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:3001"]
+    cors_origins: list[str] = [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "https://soraipixel.com",
+        "https://www.soraipixel.com",
+        "https://sorapixelnew.vercel.app",
+    ]
 
     # Supabase
     supabase_url: str = ""
