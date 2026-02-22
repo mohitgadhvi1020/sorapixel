@@ -90,17 +90,24 @@ function parseListingResponse(text: string): ListingOutput {
   };
 }
 
-async function generateListing(imageBase64: string): Promise<{
+async function generateListing(imageBase64: string, batchDescription?: string): Promise<{
   listing: ListingOutput;
   tokenUsage?: { inputTokens: number; outputTokens: number; totalTokens: number };
 }> {
   const ai = getClient();
 
+  const jewelryTypeInstruction = batchDescription && batchDescription.trim()
+    ? `JEWELRY TYPE (USER-CONFIRMED — MANDATORY): The user has explicitly confirmed that this product is: "${batchDescription.trim()}"
+You MUST use this product type in the title, description, category, and all attributes.
+Do NOT override, change, or second-guess this classification — even if the image looks ambiguous.
+The title MUST reflect this is a ${batchDescription.trim()}.`
+    : `JEWELRY TYPE (auto-detect): Analyze the image to determine the jewelry type.`;
+
   const prompt = `${STYLIKA_PROMPT}
 
 TASK: Analyze the product image and generate a COMPLETE Shopify-ready listing following ALL guidelines above.
 
-JEWELRY TYPE (auto-detect): Analyze the image to determine the jewelry type.
+${jewelryTypeInstruction}
 
 Look at the image carefully. Identify the metal finish, stones, design style, closure type, and complexity. Then generate the full listing.
 
@@ -129,10 +136,10 @@ ${LISTING_JSON_SCHEMA}`;
   const usage = response.usageMetadata;
   const tokenUsage = usage
     ? {
-        inputTokens: usage.promptTokenCount ?? 0,
-        outputTokens: usage.candidatesTokenCount ?? 0,
-        totalTokens: usage.totalTokenCount ?? 0,
-      }
+      inputTokens: usage.promptTokenCount ?? 0,
+      outputTokens: usage.candidatesTokenCount ?? 0,
+      totalTokens: usage.totalTokenCount ?? 0,
+    }
     : undefined;
 
   return { listing, tokenUsage };
@@ -152,7 +159,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (mode === "generate") {
-      const { imageBase64, filename, batchId } = body;
+      const { imageBase64, filename, batchId, batchDescription } = body;
       if (!imageBase64 || !batchId) {
         return NextResponse.json(
           { success: false, error: "Missing required fields" },
@@ -173,7 +180,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const { listing, tokenUsage } = await generateListing(imageBase64);
+      const { listing, tokenUsage } = await generateListing(imageBase64, batchDescription);
 
       const newBalance = await deductTokens(clientId);
 
@@ -188,6 +195,7 @@ export async function POST(req: NextRequest) {
           .insert({
             client_id: clientId,
             batch_id: batchId,
+            batch_description: batchDescription || "",
             image_storage_path: uploaded.path,
             original_filename: filename || "unknown",
             title: listing.title,
@@ -230,7 +238,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (mode === "regenerate") {
-      const { itemId, imageBase64 } = body;
+      const { itemId, imageBase64, batchDescription } = body;
       if (!imageBase64) {
         return NextResponse.json(
           { success: false, error: "Image is required for regeneration" },
@@ -251,7 +259,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const { listing, tokenUsage } = await generateListing(imageBase64);
+      const { listing, tokenUsage } = await generateListing(imageBase64, batchDescription);
 
       const newBalance = await deductTokens(clientId, TOKENS_PER_REGEN);
 

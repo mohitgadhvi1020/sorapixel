@@ -10,7 +10,7 @@ const SESSION_COOKIE = "sb-session";
  * Returns null if not authenticated or Supabase not configured.
  */
 export async function getClientId(): Promise<string | null> {
-  if (!isSupabaseConfigured()) return null;
+  if (!isSupabaseConfigured()) return "local-dev";
   try {
     const cookieStore = await cookies();
     const raw = cookieStore.get(SESSION_COOKIE)?.value;

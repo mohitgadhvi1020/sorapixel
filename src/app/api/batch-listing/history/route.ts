@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await sb
     .from("batch_listings")
-    .select("id, batch_id, image_storage_path, original_filename, title, description, meta_description, alt_text, attributes, status, created_at")
+    .select("id, batch_id, batch_description, image_storage_path, original_filename, title, description, meta_description, alt_text, attributes, status, created_at")
     .eq("client_id", clientId)
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
@@ -53,6 +53,7 @@ export async function GET(req: NextRequest) {
       return {
         id: row.id,
         batchId: row.batch_id,
+        batchDescription: row.batch_description || "",
         imageUrl,
         filename: row.original_filename,
         title: row.title,

@@ -42,6 +42,7 @@ interface ApiItem {
 interface HistoryItem {
   id: string;
   batchId: string;
+  batchDescription: string;
   imageUrl: string;
   filename: string;
   title: string;
@@ -92,6 +93,7 @@ export default function BatchListingPage() {
   const [phase, setPhase] = useState<Phase>("upload");
   const [items, setItems] = useState<BatchItem[]>([]);
   const [batchId] = useState(() => crypto.randomUUID());
+  const [batchDescription, setBatchDescription] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [processedCount, setProcessedCount] = useState(0);
   const cancelRef = useRef(false);
@@ -101,6 +103,17 @@ export default function BatchListingPage() {
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
+
+  // Shopify integration
+  const [shopifyConnected, setShopifyConnected] = useState(false);
+  const [shopifyStoreUrl, setShopifyStoreUrl] = useState("");
+  const [shopifyInputUrl, setShopifyInputUrl] = useState("");
+  const [shopifyInputToken, setShopifyInputToken] = useState("");
+  const [shopifyConnecting, setShopifyConnecting] = useState(false);
+  const [shopifyShowForm, setShopifyShowForm] = useState(false);
+  const [pushingToShopify, setPushingToShopify] = useState<string | null>(null);
+  const [pushedToShopify, setPushedToShopify] = useState<Set<string>>(new Set());
+  const [pushingAll, setPushingAll] = useState(false);
 
   // Toast
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -119,8 +132,104 @@ export default function BatchListingPage() {
   useEffect(() => {
     safeFetch<{ authenticated: boolean; user?: { isAdmin: boolean } }>("/api/auth/me")
       .then((d) => { if (d.user?.isAdmin) setIsAdmin(true); })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
+
+  // Fetch Shopify connection status
+  const fetchShopifyStatus = useCallback(() => {
+    safeFetch<{ connected: boolean; storeUrl: string }>("/api/shopify/credentials")
+      .then((d) => {
+        setShopifyConnected(d.connected);
+        setShopifyStoreUrl(d.storeUrl || "");
+      })
+      .catch(() => { });
+  }, []);
+  useEffect(() => { fetchShopifyStatus(); }, [fetchShopifyStatus]);
+
+  // Connect Shopify
+  const connectShopify = useCallback(async () => {
+    if (!shopifyInputUrl.trim() || !shopifyInputToken.trim()) {
+      showToast("Please enter both store URL and access token", "warning");
+      return;
+    }
+    setShopifyConnecting(true);
+    try {
+      const result = await safeFetch<{ success?: boolean; connected?: boolean; storeUrl?: string; error?: string }>(
+        "/api/shopify/credentials",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ storeUrl: shopifyInputUrl.trim(), accessToken: shopifyInputToken.trim() }),
+        }
+      );
+      if (result.connected) {
+        setShopifyConnected(true);
+        setShopifyStoreUrl(result.storeUrl || shopifyInputUrl.trim());
+        setShopifyShowForm(false);
+        setShopifyInputUrl("");
+        setShopifyInputToken("");
+        showToast("Shopify store connected successfully!", "success");
+      } else {
+        showToast(result.error || "Failed to connect", "error");
+      }
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to connect to Shopify", "error");
+    } finally {
+      setShopifyConnecting(false);
+    }
+  }, [shopifyInputUrl, shopifyInputToken, showToast]);
+
+  // Push single item to Shopify
+  const pushToShopify = useCallback(async (localId: string) => {
+    if (!shopifyConnected) {
+      showToast("Connect your Shopify store first (scroll up to the Shopify Integration section)", "warning");
+      return;
+    }
+    const item = items.find((i) => i.localId === localId);
+    if (!item || item.status !== "completed" || pushingToShopify) return;
+
+    setPushingToShopify(localId);
+    try {
+      const base64 = await readFileAsBase64(item.file);
+      const result = await safeFetch<{ success?: boolean; product?: { adminUrl: string }; error?: string }>(
+        "/api/shopify/push",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: item.title,
+            description: item.description,
+            metaDescription: item.metaDescription,
+            altText: item.altText,
+            attributes: item.attributes,
+            imageUrl: base64,
+          }),
+        }
+      );
+      if (result.success) {
+        setPushedToShopify((prev) => new Set(prev).add(localId));
+        showToast("Product added to Shopify as draft!", "success");
+      } else {
+        showToast(result.error || "Failed to push to Shopify", "error");
+      }
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to push to Shopify", "error");
+    } finally {
+      setPushingToShopify(null);
+    }
+  }, [items, shopifyConnected, pushingToShopify, showToast]);
+
+  // Push all completed items to Shopify
+  const pushAllToShopify = useCallback(async () => {
+    const completed = items.filter((i) => i.status === "completed" && !pushedToShopify.has(i.localId));
+    if (completed.length === 0) return;
+    setPushingAll(true);
+    for (const item of completed) {
+      await pushToShopify(item.localId);
+    }
+    setPushingAll(false);
+    showToast(`Finished pushing ${completed.length} product(s) to Shopify`, "success");
+  }, [items, pushedToShopify, pushToShopify, showToast]);
 
   // Token balance
   const COST_PER_IMAGE = 5;
@@ -129,7 +238,7 @@ export default function BatchListingPage() {
   const fetchTokenBalance = useCallback(() => {
     safeFetch<{ balance: number; costPerImage: number; costPerRegen: number }>("/api/listing-tokens")
       .then((d) => setTokenBalance(d.balance))
-      .catch(() => {});
+      .catch(() => { });
   }, []);
   useEffect(() => { fetchTokenBalance(); }, [fetchTokenBalance]);
 
@@ -329,6 +438,7 @@ export default function BatchListingPage() {
             imageBase64: base64,
             filename: item.file.name,
             batchId,
+            batchDescription,
           }),
           signal: abortRef.current?.signal,
         });
@@ -371,7 +481,7 @@ export default function BatchListingPage() {
     );
     abortRef.current = null;
     setPhase("done");
-  }, [items, batchId, updateItem, tokenBalance, showToast]);
+  }, [items, batchId, batchDescription, updateItem, tokenBalance, showToast]);
 
   const cancelProcessing = useCallback(() => {
     cancelRef.current = true;
@@ -409,6 +519,7 @@ export default function BatchListingPage() {
             mode: "regenerate",
             itemId: item.dbId,
             imageBase64: base64,
+            batchDescription,
           }),
         });
 
@@ -439,7 +550,7 @@ export default function BatchListingPage() {
         setRegeneratingId(null);
       }
     },
-    [items, regeneratingId, updateItem, showToast]
+    [items, regeneratingId, batchDescription, updateItem, showToast]
   );
 
   /* ─── Retry Failed ──────────────────────────────────────── */
@@ -470,6 +581,7 @@ export default function BatchListingPage() {
             imageBase64: base64,
             filename: item.file.name,
             batchId,
+            batchDescription,
           }),
         });
 
@@ -493,7 +605,7 @@ export default function BatchListingPage() {
     }
 
     setPhase("done");
-  }, [items, batchId, updateItem]);
+  }, [items, batchId, batchDescription, updateItem]);
 
   /* ─── Export CSV ─────────────────────────────────────────── */
 
@@ -585,6 +697,7 @@ export default function BatchListingPage() {
     setPhase("upload");
     setProcessedCount(0);
     cancelRef.current = false;
+    setBatchDescription("");
   }, [items]);
 
   /* ─── Derived state ─────────────────────────────────────── */
@@ -617,15 +730,14 @@ export default function BatchListingPage() {
           {toasts.map((toast) => (
             <div
               key={toast.id}
-              className={`pointer-events-auto px-4 py-3 rounded-xl shadow-lg border text-[13px] font-medium animate-slide-up-sm flex items-start gap-3 ${
-                toast.type === "error"
-                  ? "bg-red-50 border-red-200 text-red-700"
-                  : toast.type === "warning"
-                    ? "bg-amber-50 border-amber-200 text-amber-700"
-                    : toast.type === "success"
-                      ? "bg-green-50 border-green-200 text-green-700"
-                      : "bg-blue-50 border-blue-200 text-blue-700"
-              }`}
+              className={`pointer-events-auto px-4 py-3 rounded-xl shadow-lg border text-[13px] font-medium animate-slide-up-sm flex items-start gap-3 ${toast.type === "error"
+                ? "bg-red-50 border-red-200 text-red-700"
+                : toast.type === "warning"
+                  ? "bg-amber-50 border-amber-200 text-amber-700"
+                  : toast.type === "success"
+                    ? "bg-green-50 border-green-200 text-green-700"
+                    : "bg-blue-50 border-blue-200 text-blue-700"
+                }`}
             >
               <span className="flex-shrink-0 mt-0.5">
                 {toast.type === "error" ? "✕" : toast.type === "warning" ? "⚠" : toast.type === "success" ? "✓" : "ℹ"}
@@ -705,17 +817,108 @@ export default function BatchListingPage() {
               )}
             </div>
 
+            {/* Batch Description Input */}
+            <div className="rounded-xl border border-[#e8e5df] bg-white p-5">
+              <label className="block text-[11px] font-semibold text-[#8b7355] uppercase tracking-[0.12em] mb-2">
+                What type of product is in this batch? *
+              </label>
+              <input
+                type="text"
+                value={batchDescription}
+                onChange={(e) => setBatchDescription(e.target.value)}
+                placeholder="e.g., Bracelet, Anklet, Necklace, Earrings, Ring..."
+                className="w-full rounded-lg border border-[#e8e5df] bg-[#f7f7f5] px-4 py-3 text-[15px] text-[#0a0a0a] placeholder:text-[#b0b0b0] focus:outline-none focus:ring-2 focus:ring-[#8b7355]/20 focus:border-[#8b7355] transition-all duration-200"
+              />
+              <p className="text-[11px] text-[#8c8c8c] mt-2">
+                This ensures the AI correctly identifies the product type. All images in this batch should be the same type of product.
+              </p>
+            </div>
+
+            {/* Shopify Connection */}
+            <div className="rounded-xl border border-[#e8e5df] bg-white p-5">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-[11px] font-semibold text-[#8b7355] uppercase tracking-[0.12em]">
+                  Shopify Integration
+                </label>
+                {shopifyConnected && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-50 border border-green-200 rounded-full">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                    <span className="text-[11px] font-medium text-green-700">Connected</span>
+                  </span>
+                )}
+              </div>
+
+              {shopifyConnected && !shopifyShowForm ? (
+                <div className="flex items-center justify-between">
+                  <p className="text-[13px] text-[#0a0a0a]">
+                    Connected to <span className="font-semibold">{shopifyStoreUrl}</span>
+                  </p>
+                  <button
+                    onClick={() => setShopifyShowForm(true)}
+                    className="text-[11px] text-[#8c8c8c] hover:text-[#8b7355] underline transition-colors"
+                  >
+                    Change
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-[11px] text-[#8c8c8c]">
+                    Connect your Shopify store to push listings directly. You&apos;ll need your store URL and an Admin API access token.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      value={shopifyInputUrl}
+                      onChange={(e) => setShopifyInputUrl(e.target.value)}
+                      placeholder="mystore.myshopify.com"
+                      className="rounded-lg border border-[#e8e5df] bg-[#f7f7f5] px-3 py-2.5 text-[13px] text-[#0a0a0a] placeholder:text-[#b0b0b0] focus:outline-none focus:ring-2 focus:ring-[#8b7355]/20 focus:border-[#8b7355] transition-all"
+                    />
+                    <input
+                      type="password"
+                      value={shopifyInputToken}
+                      onChange={(e) => setShopifyInputToken(e.target.value)}
+                      placeholder="Admin API access token"
+                      className="rounded-lg border border-[#e8e5df] bg-[#f7f7f5] px-3 py-2.5 text-[13px] text-[#0a0a0a] placeholder:text-[#b0b0b0] focus:outline-none focus:ring-2 focus:ring-[#8b7355]/20 focus:border-[#8b7355] transition-all"
+                    />
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={connectShopify}
+                      disabled={shopifyConnecting}
+                      className="px-5 py-2.5 bg-[#96bf48] text-white rounded-lg font-semibold text-[13px] hover:bg-[#7ba33a] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {shopifyConnecting ? (
+                        <span className="flex items-center gap-2">
+                          <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          Verifying...
+                        </span>
+                      ) : (
+                        "Connect Shopify"
+                      )}
+                    </button>
+                    {shopifyShowForm && shopifyConnected && (
+                      <button
+                        onClick={() => setShopifyShowForm(false)}
+                        className="text-[12px] text-[#8c8c8c] hover:text-[#4a4a4a] transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Drop Zone */}
             <div
               onDrop={handleDrop}
               onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
               onDragLeave={() => setIsDragging(false)}
               onClick={() => fileInputRef.current?.click()}
-              className={`relative border-2 border-dashed rounded-2xl p-8 sm:p-14 text-center transition-all duration-300 cursor-pointer ${
-                isDragging
-                  ? "border-[#8b7355] bg-[#f5f0e8]/50 scale-[1.01]"
-                  : "border-[#e8e5df] hover:border-[#c4a67d] hover:bg-[#f5f0e8]/30"
-              }`}
+              className={`relative border-2 border-dashed rounded-2xl p-8 sm:p-14 text-center transition-all duration-300 cursor-pointer ${isDragging
+                ? "border-[#8b7355] bg-[#f5f0e8]/50 scale-[1.01]"
+                : "border-[#e8e5df] hover:border-[#c4a67d] hover:bg-[#f5f0e8]/30"
+                }`}
             >
               <input
                 ref={fileInputRef}
@@ -726,9 +929,8 @@ export default function BatchListingPage() {
                 className="hidden"
               />
               <div className="flex flex-col items-center gap-3 sm:gap-4">
-                <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-xl flex items-center justify-center transition-all duration-300 ${
-                  isDragging ? "bg-[#8b7355] text-white scale-110" : "bg-[#f5f0e8] text-[#8b7355]"
-                }`}>
+                <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-xl flex items-center justify-center transition-all duration-300 ${isDragging ? "bg-[#8b7355] text-white scale-110" : "bg-[#f5f0e8] text-[#8b7355]"
+                  }`}>
                   <svg className="w-6 h-6 sm:w-7 sm:h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
                   </svg>
@@ -799,9 +1001,14 @@ export default function BatchListingPage() {
                       Need {items.length * COST_PER_IMAGE} tokens ({items.length} × {COST_PER_IMAGE}) — you have {tokenBalance}. Contact admin to add more.
                     </p>
                   )}
+                  {!batchDescription.trim() && (
+                    <p className="text-[13px] text-amber-600 font-medium">
+                      Please specify the product type above before generating.
+                    </p>
+                  )}
                   <button
                     onClick={processAll}
-                    disabled={tokenBalance !== null && tokenBalance < items.length * COST_PER_IMAGE}
+                    disabled={!batchDescription.trim() || (tokenBalance !== null && tokenBalance < items.length * COST_PER_IMAGE)}
                     className="w-full sm:w-auto px-10 py-4 bg-[#0a0a0a] text-white rounded-full font-semibold text-[15px] hover:bg-[#1a1a1a] transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Generate Listings for {items.length} Image{items.length > 1 ? "s" : ""} ({items.length * COST_PER_IMAGE} tokens)
@@ -825,6 +1032,12 @@ export default function BatchListingPage() {
                   ? `Generating ${processedCount} of ${items.length}...`
                   : `${completedCount} Listing${completedCount !== 1 ? "s" : ""} Generated`}
               </h1>
+              {batchDescription.trim() && (
+                <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 bg-[#f5f0e8] border border-[#e8e5df] rounded-full">
+                  <span className="text-[11px] text-[#8c8c8c]">Product type:</span>
+                  <span className="text-[12px] font-semibold text-[#8b7355]">{batchDescription.trim()}</span>
+                </div>
+              )}
               {failedCount > 0 && phase === "done" && (
                 <p className="text-[13px] text-red-500 mt-2">
                   {failedCount} failed —{" "}
@@ -872,6 +1085,24 @@ export default function BatchListingPage() {
                 >
                   Export CSV ({completedCount})
                 </button>
+                {(true) && (
+                  <button
+                    onClick={pushAllToShopify}
+                    disabled={pushingAll || pushedToShopify.size >= completedCount}
+                    className="px-6 py-3 bg-[#96bf48] text-white rounded-full font-semibold text-[13px] hover:bg-[#7ba33a] transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {pushingAll ? (
+                      <span className="flex items-center gap-2">
+                        <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Pushing to Shopify...
+                      </span>
+                    ) : pushedToShopify.size >= completedCount ? (
+                      "All Pushed to Shopify ✓"
+                    ) : (
+                      `Push All to Shopify (${completedCount - pushedToShopify.size})`
+                    )}
+                  </button>
+                )}
                 <button
                   onClick={startOver}
                   className="px-6 py-3 bg-white border border-[#e8e5df] text-[#4a4a4a] rounded-full font-medium text-[13px] hover:bg-[#f5f0e8] hover:border-[#c4a67d] transition-all duration-200 active:scale-[0.97]"
@@ -890,8 +1121,12 @@ export default function BatchListingPage() {
                   index={idx}
                   isSelected={selectedId === item.localId}
                   isRegenerating={regeneratingId === item.localId}
+                  isPushingToShopify={pushingToShopify === item.localId}
+                  isPushedToShopify={pushedToShopify.has(item.localId)}
+                  shopifyConnected={shopifyConnected}
                   onSelect={() => selectItem(item.localId)}
                   onRegenerate={() => regenerateItem(item.localId)}
+                  onPushToShopify={() => pushToShopify(item.localId)}
                 />
               ))}
             </div>
@@ -905,8 +1140,12 @@ export default function BatchListingPage() {
                   isSaving={savingId === selectedItem.localId}
                   isSaved={savedId === selectedItem.localId}
                   copiedField={copiedField}
+                  shopifyConnected={shopifyConnected}
+                  isPushingToShopify={pushingToShopify === selectedItem.localId}
+                  isPushedToShopify={pushedToShopify.has(selectedItem.localId)}
                   onUpdate={(updates) => updateItem(selectedItem.localId, updates)}
                   onRegenerate={() => regenerateItem(selectedItem.localId)}
+                  onPushToShopify={() => pushToShopify(selectedItem.localId)}
                   onCopy={copyToClipboard}
                   onClose={() => setSelectedId(null)}
                 />
@@ -945,66 +1184,114 @@ export default function BatchListingPage() {
               </div>
             )}
 
-            {!historyLoading && historyItems.length > 0 && (
-              <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {historyItems.map((hi) => (
-                    <div
-                      key={hi.id}
-                      onClick={() => setHistorySelected(historySelected?.id === hi.id ? null : hi)}
-                      className={`rounded-xl border bg-white overflow-hidden transition-all duration-200 cursor-pointer ${
-                        historySelected?.id === hi.id
-                          ? "border-[#8b7355] ring-2 ring-[#8b7355]/20 shadow-md"
-                          : "border-[#e8e5df] hover:border-[#c4a67d] hover:shadow-md"
-                      }`}
-                    >
-                      <div className="flex gap-3 p-3">
-                        <div className="w-20 h-20 sm:w-24 sm:h-24 flex-shrink-0 rounded-lg overflow-hidden border border-[#e8e5df] bg-[#f7f7f5]">
-                          {hi.imageUrl ? (
-                            <img src={hi.imageUrl} alt={hi.filename} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-[#b0b0b0] text-[10px]">No image</div>
-                          )}
+            {!historyLoading && historyItems.length > 0 && (() => {
+              // Group history items by batchId
+              const grouped: { batchId: string; batchDescription: string; items: HistoryItem[]; createdAt: string }[] = [];
+              const batchMap = new Map<string, number>();
+              for (const hi of historyItems) {
+                const idx = batchMap.get(hi.batchId);
+                if (idx !== undefined) {
+                  grouped[idx].items.push(hi);
+                } else {
+                  batchMap.set(hi.batchId, grouped.length);
+                  grouped.push({
+                    batchId: hi.batchId,
+                    batchDescription: hi.batchDescription || "",
+                    items: [hi],
+                    createdAt: hi.createdAt,
+                  });
+                }
+              }
+
+              return (
+                <>
+                  <div className="space-y-8">
+                    {grouped.map((group) => (
+                      <div key={group.batchId} className="space-y-3">
+                        {/* Batch Header */}
+                        <div className="flex items-center gap-3 px-1">
+                          <div className="flex items-center gap-2">
+                            {group.batchDescription ? (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#f5f0e8] border border-[#e8e5df] rounded-full">
+                                <span className="w-2 h-2 rounded-full bg-[#8b7355]" />
+                                <span className="text-[13px] font-semibold text-[#8b7355]">{group.batchDescription}</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#f7f7f5] border border-[#e8e5df] rounded-full">
+                                <span className="text-[13px] font-medium text-[#8c8c8c]">Uncategorized Batch</span>
+                              </span>
+                            )}
+                            <span className="text-[11px] text-[#b0b0b0]">
+                              {group.items.length} item{group.items.length !== 1 ? "s" : ""}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-[#b0b0b0]">
+                            {new Date(group.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                          </span>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[10px] text-[#8c8c8c] truncate mb-1">{hi.filename}</p>
-                          <p className="text-[13px] font-semibold text-[#0a0a0a] line-clamp-1 leading-tight">{hi.title || "Untitled"}</p>
-                          <p className="text-[11px] text-[#8c8c8c] line-clamp-2 mt-1 leading-snug">
-                            {hi.description.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 120)}
-                          </p>
-                          <p className="text-[10px] text-[#b0b0b0] mt-1.5">
-                            {new Date(hi.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-                          </p>
+
+                        {/* Batch Items Grid */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {group.items.map((hi) => (
+                            <div
+                              key={hi.id}
+                              onClick={() => setHistorySelected(historySelected?.id === hi.id ? null : hi)}
+                              className={`rounded-xl border bg-white overflow-hidden transition-all duration-200 cursor-pointer ${historySelected?.id === hi.id
+                                ? "border-[#8b7355] ring-2 ring-[#8b7355]/20 shadow-md"
+                                : "border-[#e8e5df] hover:border-[#c4a67d] hover:shadow-md"
+                                }`}
+                            >
+                              <div className="flex gap-3 p-3">
+                                <div className="w-20 h-20 sm:w-24 sm:h-24 flex-shrink-0 rounded-lg overflow-hidden border border-[#e8e5df] bg-[#f7f7f5]">
+                                  {hi.imageUrl ? (
+                                    <img src={hi.imageUrl} alt={hi.filename} className="w-full h-full object-cover" />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-[#b0b0b0] text-[10px]">No image</div>
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-[10px] text-[#8c8c8c] truncate mb-1">{hi.filename}</p>
+                                  <p className="text-[13px] font-semibold text-[#0a0a0a] line-clamp-1 leading-tight">{hi.title || "Untitled"}</p>
+                                  <p className="text-[11px] text-[#8c8c8c] line-clamp-2 mt-1 leading-snug">
+                                    {hi.description.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 120)}
+                                  </p>
+                                  <p className="text-[10px] text-[#b0b0b0] mt-1.5">
+                                    {new Date(hi.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Pagination */}
-                {historyTotal > HISTORY_LIMIT && (
-                  <div className="flex items-center justify-center gap-3">
-                    <button
-                      onClick={() => fetchHistory(historyPage - 1)}
-                      disabled={historyPage <= 1}
-                      className="px-4 py-2 text-[13px] font-medium text-[#4a4a4a] bg-white border border-[#e8e5df] rounded-lg hover:bg-[#f5f0e8] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-                    >
-                      Previous
-                    </button>
-                    <span className="text-[13px] text-[#8c8c8c]">
-                      Page {historyPage} of {Math.ceil(historyTotal / HISTORY_LIMIT)}
-                    </span>
-                    <button
-                      onClick={() => fetchHistory(historyPage + 1)}
-                      disabled={historyPage >= Math.ceil(historyTotal / HISTORY_LIMIT)}
-                      className="px-4 py-2 text-[13px] font-medium text-[#4a4a4a] bg-white border border-[#e8e5df] rounded-lg hover:bg-[#f5f0e8] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-                    >
-                      Next
-                    </button>
+                    ))}
                   </div>
-                )}
-              </>
-            )}
+
+                  {/* Pagination */}
+                  {historyTotal > HISTORY_LIMIT && (
+                    <div className="flex items-center justify-center gap-3">
+                      <button
+                        onClick={() => fetchHistory(historyPage - 1)}
+                        disabled={historyPage <= 1}
+                        className="px-4 py-2 text-[13px] font-medium text-[#4a4a4a] bg-white border border-[#e8e5df] rounded-lg hover:bg-[#f5f0e8] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                      >
+                        Previous
+                      </button>
+                      <span className="text-[13px] text-[#8c8c8c]">
+                        Page {historyPage} of {Math.ceil(historyTotal / HISTORY_LIMIT)}
+                      </span>
+                      <button
+                        onClick={() => fetchHistory(historyPage + 1)}
+                        disabled={historyPage >= Math.ceil(historyTotal / HISTORY_LIMIT)}
+                        className="px-4 py-2 text-[13px] font-medium text-[#4a4a4a] bg-white border border-[#e8e5df] rounded-lg hover:bg-[#f5f0e8] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
 
             {/* History Detail Panel */}
             {historySelected && (
@@ -1027,15 +1314,23 @@ function ItemCard({
   index,
   isSelected,
   isRegenerating,
+  isPushingToShopify,
+  isPushedToShopify,
+  shopifyConnected,
   onSelect,
   onRegenerate,
+  onPushToShopify,
 }: {
   item: BatchItem;
   index: number;
   isSelected: boolean;
   isRegenerating: boolean;
+  isPushingToShopify: boolean;
+  isPushedToShopify: boolean;
+  shopifyConnected: boolean;
   onSelect: () => void;
   onRegenerate: () => void;
+  onPushToShopify: () => void;
 }) {
   const isPending = item.status === "pending";
   const isProcessing = item.status === "processing" || isRegenerating;
@@ -1045,13 +1340,12 @@ function ItemCard({
   return (
     <div
       onClick={isCompleted ? onSelect : undefined}
-      className={`rounded-xl border bg-white overflow-hidden transition-all duration-200 ${
-        isSelected
-          ? "border-[#8b7355] ring-2 ring-[#8b7355]/20 shadow-md"
-          : isCompleted
-            ? "border-[#e8e5df] hover:border-[#c4a67d] hover:shadow-md cursor-pointer"
-            : "border-[#e8e5df]"
-      } ${isPending ? "opacity-50" : ""}`}
+      className={`rounded-xl border bg-white overflow-hidden transition-all duration-200 ${isSelected
+        ? "border-[#8b7355] ring-2 ring-[#8b7355]/20 shadow-md"
+        : isCompleted
+          ? "border-[#e8e5df] hover:border-[#c4a67d] hover:shadow-md cursor-pointer"
+          : "border-[#e8e5df]"
+        } ${isPending ? "opacity-50" : ""}`}
     >
       <div className="flex gap-3 p-3">
         {/* Thumbnail */}
@@ -1113,6 +1407,29 @@ function ItemCard({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
             </button>
+            {(true) && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onPushToShopify(); }}
+                disabled={isPushingToShopify || isPushedToShopify}
+                className={`p-2 rounded-lg transition-all duration-200 ${isPushedToShopify
+                  ? "text-green-600 bg-green-50"
+                  : "text-[#8c8c8c] hover:text-[#96bf48] hover:bg-green-50"
+                  } disabled:cursor-not-allowed`}
+                title={isPushedToShopify ? "Added to Shopify" : "Add to Shopify"}
+              >
+                {isPushingToShopify ? (
+                  <div className="w-4 h-4 border-2 border-[#96bf48] border-t-transparent rounded-full animate-spin" />
+                ) : isPushedToShopify ? (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M15.337 3.415a1.71 1.71 0 0 0-1.665-1.287 1.69 1.69 0 0 0-.152.007l-.039.003-.066.01a1.57 1.57 0 0 0-.142.033c-.037.012-.061.015-.073.015h-.004l-.068-.025-.04-.02a2.93 2.93 0 0 0-.21-.088 3.06 3.06 0 0 0-.932-.186l-.084-.001c-1.12 0-2.071.773-2.34 1.856a4.2 4.2 0 0 0-.117.648l-.012.1-.012.14c-.002.016-.003.09-.003.165v.017l-.07.001c-.582.022-1.044.494-1.06 1.084l-.002.064v.01l-.397 6.405a1.59 1.59 0 0 0 .426 1.165c.29.306.687.48 1.1.48h.034l5.882-.158a1.57 1.57 0 0 0 1.493-1.597l-.003-.048-.403-6.405-.001-.01a1.09 1.09 0 0 0-1.023-1.068l-.046-.003h-.091l.006-.158c.002-.039.002-.124.002-.17v-.033A5 5 0 0 0 15 4.1a2 2 0 0 0-.012-.094l-.02-.118-.025-.116a2 2 0 0 0-.035-.12l-.008-.025a2 2 0 0 0-.072-.186l-.013-.029zm-3.45.398h.044a2 2 0 0 1 .64.131l.04.016.03.014.034.018c.075.042.123.08.147.102.037.034.21.222.21.434 0 .04 0 .096-.041.18a.76.76 0 0 1-.062.109l-.028.038a.7.7 0 0 1-.106.104 1.3 1.3 0 0 1-.132.09l-.025.015-.048.024-.05.019c-.035.013-.095.03-.18.036h-.01a.7.7 0 0 1-.09.003h-.016a.8.8 0 0 1-.2-.035l-.035-.012a1 1 0 0 1-.069-.03l-.04-.021-.014-.009a.8.8 0 0 1-.134-.099l-.03-.03a.7.7 0 0 1-.098-.128.5.5 0 0 1-.055-.15.5.5 0 0 1-.01-.098v-.007c0-.152.076-.35.228-.494a1.4 1.4 0 0 1 .293-.206l.045-.025-.005.006z" />
+                  </svg>
+                )}
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -1128,8 +1445,12 @@ function DetailPanel({
   isSaving,
   isSaved,
   copiedField,
+  shopifyConnected,
+  isPushingToShopify,
+  isPushedToShopify,
   onUpdate,
   onRegenerate,
+  onPushToShopify,
   onCopy,
   onClose,
 }: {
@@ -1138,8 +1459,12 @@ function DetailPanel({
   isSaving: boolean;
   isSaved: boolean;
   copiedField: string | null;
+  shopifyConnected: boolean;
+  isPushingToShopify: boolean;
+  isPushedToShopify: boolean;
   onUpdate: (updates: Partial<BatchItem>) => void;
   onRegenerate: () => void;
+  onPushToShopify: () => void;
   onCopy: (text: string, field: string) => void;
   onClose: () => void;
 }) {
@@ -1208,6 +1533,30 @@ function DetailPanel({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {(true) && (
+            <button
+              onClick={onPushToShopify}
+              disabled={isPushingToShopify || isPushedToShopify}
+              className={`px-4 py-2 rounded-full font-semibold text-[12px] transition-all duration-200 active:scale-[0.98] disabled:cursor-not-allowed ${isPushedToShopify
+                ? "bg-green-50 text-green-700 border border-green-200"
+                : "bg-[#96bf48] text-white hover:bg-[#7ba33a]"
+                } disabled:opacity-60`}
+            >
+              {isPushingToShopify ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Pushing...
+                </span>
+              ) : isPushedToShopify ? (
+                <span className="flex items-center gap-1.5">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                  Added to Shopify
+                </span>
+              ) : (
+                "Add to Shopify"
+              )}
+            </button>
+          )}
           <button
             onClick={onRegenerate}
             disabled={isRegenerating}
@@ -1434,11 +1783,10 @@ function DetailPanel({
           ].join("\n");
           onCopy(full, fieldKey("all"));
         }}
-        className={`w-full py-3.5 rounded-full font-semibold text-[13px] transition-all duration-200 active:scale-[0.98] ${
-          copiedField === fieldKey("all")
-            ? "bg-green-50 text-green-600 border border-green-200"
-            : "bg-[#0a0a0a] text-white hover:bg-[#1a1a1a]"
-        }`}
+        className={`w-full py-3.5 rounded-full font-semibold text-[13px] transition-all duration-200 active:scale-[0.98] ${copiedField === fieldKey("all")
+          ? "bg-green-50 text-green-600 border border-green-200"
+          : "bg-[#0a0a0a] text-white hover:bg-[#1a1a1a]"
+          }`}
       >
         {copiedField === fieldKey("all") ? "All Copied to Clipboard!" : "Copy Entire Listing"}
       </button>
@@ -1462,11 +1810,10 @@ function CopyButton({
   return (
     <button
       onClick={onCopy}
-      className={`text-[11px] font-semibold px-3 py-1 rounded-full transition-all duration-200 ${
-        copiedField === field
-          ? "bg-green-50 text-green-600"
-          : "text-[#8c8c8c] hover:text-[#0a0a0a] hover:bg-white"
-      }`}
+      className={`text-[11px] font-semibold px-3 py-1 rounded-full transition-all duration-200 ${copiedField === field
+        ? "bg-green-50 text-green-600"
+        : "text-[#8c8c8c] hover:text-[#0a0a0a] hover:bg-white"
+        }`}
     >
       {copiedField === field ? "Copied!" : label || "Copy"}
     </button>
@@ -1629,11 +1976,10 @@ function HistoryDetailPanel({
           ].join("\n");
           copyToClipboard(full, "h-all");
         }}
-        className={`w-full py-3.5 rounded-full font-semibold text-[13px] transition-all duration-200 active:scale-[0.98] ${
-          copiedField === "h-all"
-            ? "bg-green-50 text-green-600 border border-green-200"
-            : "bg-[#0a0a0a] text-white hover:bg-[#1a1a1a]"
-        }`}
+        className={`w-full py-3.5 rounded-full font-semibold text-[13px] transition-all duration-200 active:scale-[0.98] ${copiedField === "h-all"
+          ? "bg-green-50 text-green-600 border border-green-200"
+          : "bg-[#0a0a0a] text-white hover:bg-[#1a1a1a]"
+          }`}
       >
         {copiedField === "h-all" ? "All Copied to Clipboard!" : "Copy Entire Listing"}
       </button>

@@ -13,7 +13,7 @@ DO:
 - Write in clear, direct sentences
 - Focus on how the piece looks, feels, and what to wear it with
 - Use active voice
-- Mention versatility (ethnic + western pairing potential)
+- Give specific, realistic styling suggestions based on what you SEE in the image (shape, scale, finish, vibe)
 - Keep it warm but not gushy
 
 DON'T:
@@ -22,7 +22,9 @@ DON'T:
 - Use precious metal terms without qualifiers (see MATERIAL RULES)
 - Sound generic or template-y
 - Add filler ("This beautiful piece is perfect for those who…")
-- Use words like "luxurious," "opulent," "dazzling," "mesmerizing"
+- Use words like "luxurious," "opulent," "dazzling," "mesmerizing," "versatile"
+- Repeat the same "ethnic + western" pairing template across products — each product's styling suggestions must feel unique
+- Use vague styling advice that could apply to any piece of jewelry
 
 ═══════════════════════════════════════
 MATERIAL LANGUAGE RULES (LEGAL — NON-NEGOTIABLE):
@@ -96,7 +98,7 @@ OUTPUT SPECIFICATION — GENERATE ALL OF THESE:
 
 2. DESCRIPTION (HTML-ready, 100-160 words):
    Paragraph 1 (2-3 sentences): What the piece IS + defining visual feature. Include design inspiration if relevant.
-   Paragraph 2 (2-3 sentences): How to WEAR it — versatility, pairing suggestions, occasion fit.
+   Paragraph 2 (2-3 sentences): How to WEAR it — specific, realistic styling suggestions based on the product's actual shape, scale, and vibe. Mention concrete outfit types, fabrics, or necklines that genuinely suit THIS piece. No generic "pairs well with ethnic and western outfits" filler. Every product's Paragraph 2 should read differently.
    Bullet List: Product specs.
    
    HTML format:
@@ -157,7 +159,8 @@ QUALITY CHECKLIST (your output MUST pass ALL):
 ✓ Collection + Occasion assigned
 ✓ HTML is clean (<p>, <ul><li>, no inline styles, no <h1>/<h2>)
 ✓ Material info consistent between description bullets and attributes
-✓ No conversational fluff or "Would you like…" endings`;
+✓ No conversational fluff or "Would you like…" endings
+✓ Paragraph 2 contains specific styling advice unique to THIS product — no generic "versatile" or "ethnic + western" templates`;
 
 export const LISTING_JSON_SCHEMA = `{
   "title": "Product title 50-65 chars ending with | Stylika — NO metal/stone words (no CZ, Gold-Tone, Silver, Pearl, Crystal etc.)",
