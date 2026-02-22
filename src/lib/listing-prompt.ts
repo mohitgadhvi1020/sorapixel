@@ -128,8 +128,8 @@ OUTPUT SPECIFICATION — GENERATE ALL OF THESE:
    - gemstoneType: Formal gemstone name — "Cubic Zirconia", "Pearl", "Glass Crystal", or "" if no stones
 
    PRODUCT METAFIELDS (Stylika custom):
-   - collection: "Minimal" / "Bold" / "Glam" / "Romance"
-   - occasion: e.g. "Everyday, Office"
+   - collection: MUST be one of: "Minimal" / "Bold" / "Glam" / "Romance"
+   - occasion: MUST use ONLY from this list (pick 1-2, comma-separated): "Everyday Wear" / "Festive Wear" / "Office Wear" / "Party Wear" / "Wedding Wear" — NO other values allowed (no "Gifting", "Casual", "Date Night", etc.)
 
    DESCRIPTION DETAILS (for the bullet list in HTML description):
    - material: Detailed description — e.g. "Brass with Gold-Tone Finish"
@@ -156,7 +156,8 @@ QUALITY CHECKLIST (your output MUST pass ALL):
 ✓ Alt text under 125 chars
 ✓ No flowery/aspirational language
 ✓ No over-promises
-✓ Collection + Occasion assigned
+✓ Collection is one of: Minimal / Bold / Glam / Romance
+✓ Occasion uses ONLY values from: Everyday Wear / Festive Wear / Office Wear / Party Wear / Wedding Wear
 ✓ HTML is clean (<p>, <ul><li>, no inline styles, no <h1>/<h2>)
 ✓ Material info consistent between description bullets and attributes
 ✓ No conversational fluff or "Would you like…" endings
@@ -171,7 +172,7 @@ export const LISTING_JSON_SCHEMA = `{
     "jewelryMaterial": "Metal",
     "gemstoneType": "Cubic Zirconia / Pearl / Glass Crystal / empty string if none",
     "collection": "Minimal / Bold / Glam / Romance",
-    "occasion": "Occasion1, Occasion2",
+    "occasion": "Everyday Wear / Festive Wear / Office Wear / Party Wear / Wedding Wear (pick 1-2, comma-separated)",
     "material": "Base metal with tone/finish (e.g. Brass with Gold-Tone Finish)",
     "stone": "Stone type or None (detailed for description)",
     "closure": "Closure type or empty string if not applicable"
