@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.middleware.auth import get_current_user
 from app.schemas.studio import GenerateStudioRequest, GenerateResponse, ImageResult
 from app.services.gemini_service import generate_image
-from app.services.image_service import crop_to_ratio, add_watermark
+from app.services.image_service import crop_to_ratio
 from app.services.credit_service import check_and_deduct_studio, get_studio_credits
 from app.services.tracking_service import track_generation
 from app.services.prompt_service import build_studio_prompt, get_ratio, get_studio_backgrounds
@@ -61,8 +61,6 @@ async def generate_studio_image(req: GenerateStudioRequest, user: dict = Depends
         except Exception as e:
             logger.warning(f"Crop failed: {e}")
 
-        watermarked = add_watermark(image_b64)
-
         usage = result.get("usage", {})
         track_generation(
             client_id=user["id"],
@@ -77,7 +75,7 @@ async def generate_studio_image(req: GenerateStudioRequest, user: dict = Depends
                 client_id=user["id"],
                 project_type="photoshoot",
                 title=f"Studio Shot – {req.background_id or 'auto'}",
-                images=[{"base64": watermarked, "label": "Studio Shot"}],
+                images=[{"base64": image_b64, "label": "Studio Shot"}],
                 metadata={"background": req.background_id, "category": category_slug},
             )
         except Exception as save_err:
@@ -85,7 +83,7 @@ async def generate_studio_image(req: GenerateStudioRequest, user: dict = Depends
 
         return GenerateResponse(
             success=True,
-            images=[ImageResult(base64=watermarked, mime_type="image/png", label="Studio Shot")],
+            images=[ImageResult(base64=image_b64, mime_type="image/png", label="Studio Shot")],
             credits_remaining=credit_check["remaining"],
         )
     except Exception as e:

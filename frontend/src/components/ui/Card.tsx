@@ -19,7 +19,7 @@ const paddingStyles = {
 export default function Card({ children, className = "", padding = "md", hover = false, onClick, variant = "default" }: CardProps) {
   const variantStyles = {
     default: "bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)]",
-    accent: "bg-[rgba(255,106,0,0.06)] border border-[rgba(255,106,0,0.15)]",
+    accent: "bg-[rgba(196,166,125,0.06)] border border-[rgba(196,166,125,0.15)]",
     glass: "glass",
   };
 

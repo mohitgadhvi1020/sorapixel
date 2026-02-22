@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 """Image processing service -- replaces Sharp (Node.js) with Pillow (Python).
-Ported from lib/crop-to-ratio.ts, lib/watermark.ts, lib/logo-overlay-server.ts
+Ported from lib/crop-to-ratio.ts, lib/logo-overlay-server.ts
 """
 
 import base64
@@ -83,26 +83,27 @@ def crop_to_ratio_contain(image_b64: str, target_w: int, target_h: int, bg_color
     return image_to_b64(bg)
 
 
-def add_watermark(image_b64: str, text: str = "SoraPixel") -> str:
-    """Add diagonal watermark text to image."""
-    img = b64_to_image(image_b64).convert("RGBA")
-    w, h = img.size
 
-    overlay = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(overlay)
+def crop_to_ratio_top(image_b64: str, target_w: int, target_h: int) -> str:
+    """Crop to target aspect ratio, biased toward keeping the TOP of the image.
+    For catalogue/model shots where the face is at the top of the frame.
+    Horizontal mismatch: center crop (left/right). Vertical mismatch: crop from bottom.
+    """
+    img = b64_to_image(image_b64)
+    src_w, src_h = img.size
+    target_ratio = target_w / target_h
+    src_ratio = src_w / src_h
 
-    font_size = max(20, min(w, h) // 15)
-    try:
-        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
-    except (OSError, IOError):
-        font = ImageFont.load_default()
+    if src_ratio > target_ratio:
+        new_w = int(src_h * target_ratio)
+        left = (src_w - new_w) // 2
+        img = img.crop((left, 0, left + new_w, src_h))
+    else:
+        new_h = int(src_w / target_ratio)
+        img = img.crop((0, 0, src_w, new_h))
 
-    for y in range(0, h, font_size * 4):
-        for x in range(0, w, font_size * 8):
-            draw.text((x, y), text, fill=(255, 255, 255, 50), font=font)
-
-    result = Image.alpha_composite(img, overlay)
-    return image_to_b64(result.convert("RGB"))
+    img = img.resize((target_w, target_h), Image.LANCZOS)
+    return image_to_b64(img)
 
 
 def overlay_logo(image_b64: str, logo_b64: str, position: str = "bottom-right", max_size_pct: float = 0.15) -> str:

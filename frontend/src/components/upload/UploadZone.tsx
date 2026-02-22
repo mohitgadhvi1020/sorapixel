@@ -71,8 +71,8 @@ export default function UploadZone({
         onDragLeave={handleDragLeave}
         onClick={() => fileRef.current?.click()}
         className={`relative border-2 border-dashed rounded-[20px] p-8 sm:p-14 text-center transition-all duration-300 cursor-pointer ${isDragging
-            ? "border-[#FF6A00] bg-[rgba(255,106,0,0.08)] scale-[1.01] shadow-[0_0_30px_rgba(255,106,0,0.15)]"
-            : "border-[rgba(255,255,255,0.1)] hover:border-[rgba(255,106,0,0.4)] hover:bg-[rgba(255,255,255,0.02)]"
+            ? "border-[#c4a67d] bg-[rgba(196,166,125,0.08)] scale-[1.01] shadow-[0_0_30px_rgba(196,166,125,0.15)]"
+            : "border-[rgba(255,255,255,0.1)] hover:border-[rgba(196,166,125,0.4)] hover:bg-[rgba(255,255,255,0.02)]"
           }`}
       >
         <input
@@ -86,8 +86,8 @@ export default function UploadZone({
         <div className="flex flex-col items-center gap-3 sm:gap-4">
           <div
             className={`w-12 h-12 sm:w-14 sm:h-14 rounded-xl flex items-center justify-center transition-all duration-300 ${isDragging
-                ? "bg-gradient-to-br from-[#FF6A00] to-[#FF8A3D] text-white scale-110 shadow-[0_0_20px_rgba(255,106,0,0.3)]"
-                : "bg-[rgba(255,106,0,0.1)] text-[#FF8A3D]"
+                ? "bg-gradient-to-br from-[#c4a67d] to-[#d4b88f] text-white scale-110 shadow-[0_0_20px_rgba(196,166,125,0.3)]"
+                : "bg-[rgba(196,166,125,0.1)] text-[#d4b88f]"
               }`}
           >
             <svg

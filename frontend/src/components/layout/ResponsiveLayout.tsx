@@ -15,7 +15,7 @@ export default function ResponsiveLayout({ children, title }: ResponsiveLayoutPr
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[#0E0F14]">
+    <div className="min-h-screen bg-[#0E0F14] text-white">
       {/* Mobile navigation drawer */}
       <MobileNav
         open={mobileNavOpen}

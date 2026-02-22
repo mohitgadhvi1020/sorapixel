@@ -100,11 +100,11 @@ export default function OtpLogin() {
       {/* Left panel — dark branding */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-[#0E0F14] via-[#1A1520] to-[#0E0F14] items-center justify-center relative overflow-hidden">
         {/* Subtle glow */}
-        <div className="absolute top-1/3 left-1/3 w-64 h-64 bg-[rgba(255,106,0,0.08)] rounded-full blur-[100px]" />
+        <div className="absolute top-1/3 left-1/3 w-64 h-64 bg-[rgba(196,166,125,0.08)] rounded-full blur-[100px]" />
         <div className="absolute bottom-1/3 right-1/4 w-48 h-48 bg-[rgba(124,92,255,0.06)] rounded-full blur-[80px]" />
 
         <div className="relative max-w-md text-center px-12">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#FF6A00] to-[#FF8A3D] flex items-center justify-center mx-auto mb-8 shadow-[0_0_30px_rgba(255,106,0,0.3)]">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#c4a67d] to-[#d4b88f] flex items-center justify-center mx-auto mb-8 shadow-[0_0_30px_rgba(196,166,125,0.3)]">
             <span className="text-white text-2xl font-bold tracking-tight">SP</span>
           </div>
           <h2 className="text-3xl font-bold text-white tracking-tight leading-tight">
@@ -138,7 +138,7 @@ export default function OtpLogin() {
         <div className="w-full max-w-sm">
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-2.5 mb-10">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#FF6A00] to-[#FF8A3D] flex items-center justify-center shadow-[0_0_16px_rgba(255,106,0,0.3)]">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#c4a67d] to-[#d4b88f] flex items-center justify-center shadow-[0_0_16px_rgba(196,166,125,0.3)]">
               <span className="text-white text-sm font-bold tracking-tight">SP</span>
             </div>
             <span className="text-lg font-semibold tracking-tight text-white">SoraPixel</span>
@@ -209,7 +209,7 @@ export default function OtpLogin() {
                 We&apos;ll send a verification code to your phone.
                 <button
                   onClick={() => { setStep("choose"); setError(""); }}
-                  className="text-[#FF8A3D] ml-1.5 font-medium hover:text-[#FF6A00] transition-colors"
+                  className="text-[#d4b88f] ml-1.5 font-medium hover:text-[#c4a67d] transition-colors"
                 >
                   Back
                 </button>
@@ -224,7 +224,7 @@ export default function OtpLogin() {
               <div className="mt-8 space-y-5">
                 <div className="space-y-1.5">
                   <label className="block text-xs font-medium text-[rgba(255,255,255,0.5)] uppercase tracking-[0.05em]">Mobile Number</label>
-                  <div className="flex items-center border border-[rgba(255,255,255,0.08)] rounded-[14px] px-4 py-3 focus-within:border-[#FF6A00] focus-within:shadow-[0_0_0_3px_rgba(255,106,0,0.15)] transition-all duration-250 hover:border-[rgba(255,255,255,0.14)] bg-[rgba(255,255,255,0.04)]">
+                  <div className="flex items-center border border-[rgba(255,255,255,0.08)] rounded-[14px] px-4 py-3 focus-within:border-[#c4a67d] focus-within:shadow-[0_0_0_3px_rgba(196,166,125,0.15)] transition-all duration-250 hover:border-[rgba(255,255,255,0.14)] bg-[rgba(255,255,255,0.04)]">
                     <span className="text-[rgba(255,255,255,0.5)] mr-2 font-medium text-sm">+91</span>
                     <input
                       ref={phoneRef}
@@ -260,7 +260,7 @@ export default function OtpLogin() {
                 Enter the 6-digit code sent to <span className="font-semibold text-white">+91 {phone}</span>
                 <button
                   onClick={() => { setStep("phone"); setOtp(""); setError(""); }}
-                  className="text-[#FF8A3D] ml-1.5 font-medium hover:text-[#FF6A00] transition-colors"
+                  className="text-[#d4b88f] ml-1.5 font-medium hover:text-[#c4a67d] transition-colors"
                 >
                   Change
                 </button>
@@ -281,7 +281,7 @@ export default function OtpLogin() {
                     value={otp}
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
                     placeholder="000000"
-                    className="w-full border border-[rgba(255,255,255,0.08)] rounded-[14px] px-4 py-3.5 text-center text-xl tracking-[0.3em] font-semibold outline-none focus:border-[#FF6A00] focus:shadow-[0_0_0_3px_rgba(255,106,0,0.15)] transition-all duration-250 hover:border-[rgba(255,255,255,0.14)] bg-[rgba(255,255,255,0.04)] text-white placeholder:text-[rgba(255,255,255,0.2)]"
+                    className="w-full border border-[rgba(255,255,255,0.08)] rounded-[14px] px-4 py-3.5 text-center text-xl tracking-[0.3em] font-semibold outline-none focus:border-[#c4a67d] focus:shadow-[0_0_0_3px_rgba(196,166,125,0.15)] transition-all duration-250 hover:border-[rgba(255,255,255,0.14)] bg-[rgba(255,255,255,0.04)] text-white placeholder:text-[rgba(255,255,255,0.2)]"
                     maxLength={6}
                   />
                 </div>
@@ -294,7 +294,7 @@ export default function OtpLogin() {
                   <button
                     onClick={handleSendOtp}
                     disabled={countdown > 0 || loading}
-                    className="text-[#FF8A3D] font-medium hover:text-[#FF6A00] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="text-[#d4b88f] font-medium hover:text-[#c4a67d] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     Resend
                   </button>

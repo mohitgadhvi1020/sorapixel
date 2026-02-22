@@ -50,12 +50,12 @@ export default function BottomNav() {
             return (
               <Link key={item.path} href={item.path} className="relative -mt-5">
                 <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border-4 border-[#0E0F14] transition-all duration-250 ${isActive
-                    ? "bg-gradient-to-br from-[#FF6A00] to-[#FF8A3D] shadow-[0_0_20px_rgba(255,106,0,0.4)]"
-                    : "bg-gradient-to-br from-[#FF6A00] to-[#FF8A3D] shadow-[0_4px_12px_rgba(0,0,0,0.4)]"
+                    ? "bg-gradient-to-br from-[#8b7355] to-[#c4a67d] shadow-[0_0_20px_rgba(196,166,125,0.4)]"
+                    : "bg-gradient-to-br from-[#8b7355] to-[#c4a67d] shadow-[0_4px_12px_rgba(0,0,0,0.4)]"
                   }`}>
                   <span className="text-white">{item.icon}</span>
                 </div>
-                <span className={`block text-[10px] text-center mt-1 font-semibold ${isActive ? "text-[#FF8A3D]" : "text-[rgba(255,255,255,0.4)]"
+                <span className={`block text-[10px] text-center mt-1 font-semibold ${isActive ? "text-[#c4a67d]" : "text-[rgba(255,255,255,0.4)]"
                   }`}>
                   {item.label}
                 </span>
@@ -67,7 +67,7 @@ export default function BottomNav() {
             <Link
               key={item.path}
               href={item.path}
-              className={`flex flex-col items-center gap-0.5 px-4 py-1 transition-colors duration-250 ${isActive ? "text-[#FF8A3D]" : "text-[rgba(255,255,255,0.35)]"
+              className={`flex flex-col items-center gap-0.5 px-4 py-1 transition-colors duration-250 ${isActive ? "text-[#c4a67d]" : "text-[rgba(255,255,255,0.35)]"
                 }`}
             >
               <span>{item.icon}</span>

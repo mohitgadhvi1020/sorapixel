@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 
-const PROTECTED_ROUTES = ["/studio", "/jewelry", "/catalogue", "/projects", "/profile", "/admin"];
+const PROTECTED_ROUTES = ["/studio", "/catalogue", "/batch-listing", "/projects", "/profile", "/admin", "/brand-settings"];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -49,10 +49,11 @@ export async function middleware(req: NextRequest) {
 export const config = {
   matcher: [
     "/studio/:path*",
-    "/jewelry/:path*",
     "/catalogue/:path*",
+    "/batch-listing/:path*",
     "/projects/:path*",
     "/profile/:path*",
     "/admin/:path*",
+    "/brand-settings/:path*",
   ],
 };

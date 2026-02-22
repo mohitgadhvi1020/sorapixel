@@ -9,6 +9,9 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Modal from "@/components/ui/Modal";
+import dynamic from "next/dynamic";
+
+const TiptapEditor = dynamic(() => import("@/components/blog/TiptapEditor"), { ssr: false });
 
 interface Client {
   id: string;
@@ -77,6 +80,28 @@ interface PoseOption { id: string; label: string; thumb: string; }
 interface BackgroundOption { id: string; label: string; thumb: string; }
 interface GenResult { url: string; label: string; pose: string; error?: string; }
 
+interface BlogPost {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt?: string;
+  cover_image_url?: string;
+  category_id?: string;
+  tags?: string[];
+  status: string;
+  published_at?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface BlogCategory {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  display_order: number;
+}
+
 const SECTIONS = ["studio", "jewelry"];
 const ITEM_TYPES = ["photoshoot", "catalogue", "branding"];
 const MAX_POSES = 4;
@@ -92,7 +117,27 @@ const EMPTY_FEED_FORM = {
   is_active: true,
 };
 
-type AdminTab = "overview" | "feed";
+const EMPTY_POST_FORM = {
+  title: "",
+  slug: "",
+  excerpt: "",
+  cover_image_url: "",
+  category_id: "",
+  tags: "",
+  meta_title: "",
+  meta_description: "",
+  og_image_url: "",
+  status: "draft" as "draft" | "published",
+};
+
+const EMPTY_BLOG_CAT_FORM = {
+  name: "",
+  slug: "",
+  description: "",
+  display_order: 0,
+};
+
+type AdminTab = "overview" | "feed" | "blog";
 
 export default function AdminPage() {
   const router = useRouter();
@@ -147,6 +192,23 @@ export default function AdminPage() {
   const [genSaving, setGenSaving] = useState(false);
   const [genSaveForm, setGenSaveForm] = useState({ title: "", category_id: "", display_order: 0 });
   const genFileRef = useRef<HTMLInputElement>(null);
+  const blogCoverInputRef = useRef<HTMLInputElement>(null);
+
+  // Blog state
+  const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
+  const [blogCategories, setBlogCategories] = useState<BlogCategory[]>([]);
+  const [blogLoading, setBlogLoading] = useState(false);
+  const [blogPostForm, setBlogPostForm] = useState(EMPTY_POST_FORM);
+  const [blogPostContent, setBlogPostContent] = useState<Record<string, unknown> | null>(null);
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const [showPostModal, setShowPostModal] = useState(false);
+  const [blogSaving, setBlogSaving] = useState(false);
+  const [blogCoverUploading, setBlogCoverUploading] = useState(false);
+  const [showBlogCatModal, setShowBlogCatModal] = useState(false);
+  const [blogCatForm, setBlogCatForm] = useState(EMPTY_BLOG_CAT_FORM);
+  const [editingBlogCatId, setEditingBlogCatId] = useState<string | null>(null);
+  const [blogCatSaving, setBlogCatSaving] = useState(false);
+  const [blogView, setBlogView] = useState<"posts" | "categories">("posts");
 
   const fetchData = useCallback(async () => {
     try {
@@ -421,6 +483,186 @@ export default function AdminPage() {
     }
   };
 
+  // Blog functions
+  const fetchBlog = useCallback(async () => {
+    setBlogLoading(true);
+    try {
+      const [postsRes, catsRes] = await Promise.all([
+        api.get<{ posts: BlogPost[] }>("/blog/admin/posts"),
+        api.get<{ categories: BlogCategory[] }>("/blog/categories"),
+      ]);
+      setBlogPosts(postsRes.posts || []);
+      setBlogCategories(catsRes.categories || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load blog data");
+    } finally {
+      setBlogLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAdmin && activeTab === "blog" && blogPosts.length === 0 && !blogLoading) {
+      fetchBlog();
+    }
+  }, [isAdmin, activeTab, blogPosts.length, blogLoading, fetchBlog]);
+
+  const slugify = (text: string) =>
+    text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+
+  const openCreatePost = () => {
+    setBlogPostForm(EMPTY_POST_FORM);
+    setBlogPostContent(null);
+    setEditingPostId(null);
+    setShowPostModal(true);
+  };
+
+  const openEditPost = async (post: BlogPost) => {
+    setBlogPostForm({
+      title: post.title || "",
+      slug: post.slug || "",
+      excerpt: post.excerpt || "",
+      cover_image_url: post.cover_image_url || "",
+      category_id: post.category_id || "",
+      tags: (post.tags || []).join(", "),
+      meta_title: "",
+      meta_description: "",
+      og_image_url: "",
+      status: (post.status as "draft" | "published") || "draft",
+    });
+    setEditingPostId(post.id);
+    setShowPostModal(true);
+
+    try {
+      const full = await api.get<Record<string, unknown>>(`/blog/admin/posts/${post.id}`);
+      setBlogPostContent((full.content as Record<string, unknown>) || null);
+      if (full.meta_title) setBlogPostForm(f => ({ ...f, meta_title: full.meta_title as string }));
+      if (full.meta_description) setBlogPostForm(f => ({ ...f, meta_description: full.meta_description as string }));
+      if (full.og_image_url) setBlogPostForm(f => ({ ...f, og_image_url: full.og_image_url as string }));
+    } catch {
+      setBlogPostContent(null);
+    }
+  };
+
+  const handleSavePost = async () => {
+    if (!blogPostForm.title.trim() || !blogPostForm.slug.trim()) {
+      setError("Title and slug are required");
+      return;
+    }
+    setBlogSaving(true);
+    try {
+      const tags = blogPostForm.tags
+        .split(",")
+        .map(t => t.trim())
+        .filter(Boolean);
+
+      const payload = {
+        title: blogPostForm.title,
+        slug: blogPostForm.slug,
+        excerpt: blogPostForm.excerpt || undefined,
+        cover_image_url: blogPostForm.cover_image_url || undefined,
+        category_id: blogPostForm.category_id || undefined,
+        tags,
+        content: blogPostContent || undefined,
+        meta_title: blogPostForm.meta_title || undefined,
+        meta_description: blogPostForm.meta_description || undefined,
+        og_image_url: blogPostForm.og_image_url || undefined,
+        status: blogPostForm.status,
+      };
+
+      if (editingPostId) {
+        await api.put(`/blog/admin/posts/${editingPostId}`, payload);
+      } else {
+        await api.post("/blog/admin/posts", payload);
+      }
+      setShowPostModal(false);
+      fetchBlog();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save post");
+    } finally {
+      setBlogSaving(false);
+    }
+  };
+
+  const handleDeletePost = async (id: string) => {
+    if (!confirm("Delete this blog post?")) return;
+    try {
+      await api.delete(`/blog/admin/posts/${id}`);
+      fetchBlog();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete post");
+    }
+  };
+
+  const uploadBlogCover = async (file: File) => {
+    setBlogCoverUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await api.upload<{ success: boolean; url: string }>("/blog/admin/upload-image", fd);
+      if (res.url) setBlogPostForm(f => ({ ...f, cover_image_url: res.url }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Image upload failed");
+    } finally {
+      setBlogCoverUploading(false);
+    }
+  };
+
+  const handleBlogImageUpload = async (file: File): Promise<string> => {
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await api.upload<{ success: boolean; url: string }>("/blog/admin/upload-image", fd);
+    return res.url;
+  };
+
+  const openCreateBlogCat = () => {
+    setBlogCatForm(EMPTY_BLOG_CAT_FORM);
+    setEditingBlogCatId(null);
+    setShowBlogCatModal(true);
+  };
+
+  const openEditBlogCat = (cat: BlogCategory) => {
+    setBlogCatForm({
+      name: cat.name,
+      slug: cat.slug,
+      description: cat.description || "",
+      display_order: cat.display_order || 0,
+    });
+    setEditingBlogCatId(cat.id);
+    setShowBlogCatModal(true);
+  };
+
+  const handleSaveBlogCat = async () => {
+    if (!blogCatForm.name.trim() || !blogCatForm.slug.trim()) {
+      setError("Name and slug are required");
+      return;
+    }
+    setBlogCatSaving(true);
+    try {
+      const payload = { ...blogCatForm };
+      if (editingBlogCatId) {
+        await api.put(`/blog/admin/categories/${editingBlogCatId}`, payload);
+      } else {
+        await api.post("/blog/admin/categories", payload);
+      }
+      setShowBlogCatModal(false);
+      fetchBlog();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save category");
+    } finally {
+      setBlogCatSaving(false);
+    }
+  };
+
+  const handleDeleteBlogCat = async (id: string) => {
+    if (!confirm("Delete this blog category?")) return;
+    try {
+      await api.delete(`/blog/admin/categories/${id}`);
+      fetchBlog();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete category");
+    }
+  };
+
   const uploadFeedImage = async (file: File, field: "after_image_url" | "before_image_url") => {
     const setUploading = field === "after_image_url" ? setAfterUploading : setBeforeUploading;
     setUploading(true);
@@ -460,7 +702,7 @@ export default function AdminPage() {
   if (authLoading || (isAdmin && loading)) {
     return (
       <div className="min-h-screen bg-[#0E0F14] flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-[rgba(255,106,0,0.2)] border-t-[#FF6A00] rounded-full animate-spin" />
+        <div className="w-6 h-6 border-2 border-[rgba(196,166,125,0.2)] border-t-[#c4a67d] rounded-full animate-spin" />
       </div>
     );
   }
@@ -492,6 +734,7 @@ export default function AdminPage() {
           {([
             { id: "overview" as const, label: "Overview & Clients" },
             { id: "feed" as const, label: "Feed Manager" },
+            { id: "blog" as const, label: "Blog" },
           ]).map(tab => (
             <button
               key={tab.id}
@@ -501,7 +744,7 @@ export default function AdminPage() {
             >
               {tab.label}
               {activeTab === tab.id && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#FF6A00] to-[#FF8A3D] rounded-t-full" />
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#c4a67d] to-[#d4b88f] rounded-t-full" />
               )}
             </button>
           ))}
@@ -635,7 +878,7 @@ export default function AdminPage() {
                                   value={tokenAmount}
                                   onChange={(e) => setTokenAmount(e.target.value)}
                                   placeholder="Amount"
-                                  className="w-20 px-2 py-1.5 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] text-white text-sm text-center outline-none focus:border-[#FF6A00] transition-colors"
+                                  className="w-20 px-2 py-1.5 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] text-white text-sm text-center outline-none focus:border-[#c4a67d] transition-colors"
                                 />
                                 <Button size="sm" onClick={handleAddTokens} loading={addingTokens} disabled={!tokenAmount.trim()}>
                                   Add
@@ -720,7 +963,7 @@ export default function AdminPage() {
 
             {feedLoading ? (
               <div className="flex justify-center py-16">
-                <div className="w-6 h-6 border-2 border-[rgba(255,106,0,0.2)] border-t-[#FF6A00] rounded-full animate-spin" />
+                <div className="w-6 h-6 border-2 border-[rgba(196,166,125,0.2)] border-t-[#c4a67d] rounded-full animate-spin" />
               </div>
             ) : feedItems.length === 0 ? (
               <Card padding="lg" className="text-center">
@@ -795,7 +1038,340 @@ export default function AdminPage() {
             )}
           </>
         )}
+        {/* ===== BLOG TAB ===== */}
+        {activeTab === "blog" && (
+          <>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">Blog</h2>
+                <p className="text-sm text-text-secondary">Manage blog posts and categories for SEO.</p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => setBlogView(blogView === "posts" ? "categories" : "posts")}
+                  size="sm"
+                  variant="ghost"
+                >
+                  {blogView === "posts" ? "Manage Categories" : "Back to Posts"}
+                </Button>
+                {blogView === "posts" ? (
+                  <Button onClick={openCreatePost} size="sm">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                    New Post
+                  </Button>
+                ) : (
+                  <Button onClick={openCreateBlogCat} size="sm">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                    New Category
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {blogLoading ? (
+              <div className="flex justify-center py-16">
+                <div className="w-6 h-6 border-2 border-[rgba(196,166,125,0.2)] border-t-[#c4a67d] rounded-full animate-spin" />
+              </div>
+            ) : blogView === "posts" ? (
+              /* Posts list */
+              blogPosts.length === 0 ? (
+                <Card padding="lg" className="text-center">
+                  <p className="text-text-secondary text-sm">No blog posts yet.</p>
+                  <Button onClick={openCreatePost} size="sm" className="mt-3">Write Your First Post</Button>
+                </Card>
+              ) : (
+                <Card padding="none">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm min-w-[650px]">
+                      <thead>
+                        <tr className="border-b border-border bg-surface">
+                          {["Title", "Category", "Status", "Date", "Actions"].map(h => (
+                            <th key={h} className={`px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider ${["Status", "Actions"].includes(h) ? "text-center" : "text-left"}`}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {blogPosts.map(post => {
+                          const catName = blogCategories.find(c => c.id === post.category_id)?.name;
+                          return (
+                            <tr key={post.id} className="border-b border-border last:border-0 hover:bg-surface/50 transition-colors">
+                              <td className="px-4 py-3">
+                                <div className="font-medium text-foreground text-sm truncate max-w-[250px]">{post.title}</div>
+                                <div className="text-[10px] text-text-secondary font-mono">/{post.slug}</div>
+                              </td>
+                              <td className="px-4 py-3 text-foreground text-xs">{catName || "—"}</td>
+                              <td className="text-center px-4 py-3">
+                                <span className={`text-xs font-medium px-2 py-0.5 rounded-lg ${post.status === "published" ? "bg-success-light text-success" : "bg-[rgba(255,255,255,0.06)] text-text-secondary"}`}>
+                                  {post.status === "published" ? "Published" : "Draft"}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-text-secondary text-xs whitespace-nowrap">
+                                {post.published_at ? new Date(post.published_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : post.created_at ? new Date(post.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "—"}
+                              </td>
+                              <td className="text-center px-4 py-3">
+                                <div className="flex items-center justify-center gap-2">
+                                  <Button variant="secondary" size="sm" onClick={() => openEditPost(post)}>Edit</Button>
+                                  <button
+                                    onClick={() => handleDeletePost(post.id)}
+                                    className="w-8 h-8 flex items-center justify-center rounded-lg text-text-secondary hover:text-error hover:bg-error-light transition-colors"
+                                  >
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              )
+            ) : (
+              /* Categories list */
+              blogCategories.length === 0 ? (
+                <Card padding="lg" className="text-center">
+                  <p className="text-text-secondary text-sm">No blog categories yet.</p>
+                  <Button onClick={openCreateBlogCat} size="sm" className="mt-3">Create First Category</Button>
+                </Card>
+              ) : (
+                <Card padding="none">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border bg-surface">
+                          {["Name", "Slug", "Order", "Actions"].map(h => (
+                            <th key={h} className={`px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider ${h === "Actions" ? "text-center" : "text-left"}`}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {blogCategories.map(cat => (
+                          <tr key={cat.id} className="border-b border-border last:border-0 hover:bg-surface/50 transition-colors">
+                            <td className="px-4 py-3 font-medium text-foreground text-sm">{cat.name}</td>
+                            <td className="px-4 py-3 text-text-secondary text-xs font-mono">{cat.slug}</td>
+                            <td className="px-4 py-3 text-text-secondary text-sm">{cat.display_order}</td>
+                            <td className="text-center px-4 py-3">
+                              <div className="flex items-center justify-center gap-2">
+                                <Button variant="secondary" size="sm" onClick={() => openEditBlogCat(cat)}>Edit</Button>
+                                <button
+                                  onClick={() => handleDeleteBlogCat(cat.id)}
+                                  className="w-8 h-8 flex items-center justify-center rounded-lg text-text-secondary hover:text-error hover:bg-error-light transition-colors"
+                                >
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              )
+            )}
+          </>
+        )}
       </div>
+
+      {/* Blog Post Create/Edit Modal */}
+      <Modal open={showPostModal} onClose={() => setShowPostModal(false)} title={editingPostId ? "Edit Blog Post" : "New Blog Post"} size="lg" sheet>
+        <div className="space-y-4">
+          <Input
+            label="Title"
+            value={blogPostForm.title}
+            onChange={(e) => {
+              const title = e.target.value;
+              setBlogPostForm(f => ({
+                ...f,
+                title,
+                slug: editingPostId ? f.slug : slugify(title),
+              }));
+            }}
+            placeholder="Best Jewelry Photography Tips for 2026"
+          />
+
+          <Input
+            label="Slug"
+            value={blogPostForm.slug}
+            onChange={(e) => setBlogPostForm(f => ({ ...f, slug: e.target.value }))}
+            placeholder="best-jewelry-photography-tips"
+            hint="URL path: /blog/your-slug-here"
+          />
+
+          <Input
+            label="Excerpt"
+            value={blogPostForm.excerpt}
+            onChange={(e) => setBlogPostForm(f => ({ ...f, excerpt: e.target.value }))}
+            placeholder="Short summary for cards and meta description..."
+          />
+
+          {/* Cover image */}
+          <div className="space-y-1.5">
+            <label className="block text-sm font-medium text-foreground">Cover Image</label>
+            <input ref={blogCoverInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) uploadBlogCover(file);
+              e.target.value = "";
+            }} />
+            {blogPostForm.cover_image_url ? (
+              <div className="relative rounded-xl overflow-hidden border border-border group">
+                <img src={blogPostForm.cover_image_url} alt="Cover" className="w-full h-36 object-cover" />
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => blogCoverInputRef.current?.click()} className="px-3 py-1.5 bg-[rgba(255,255,255,0.1)] backdrop-blur-sm rounded-lg text-xs font-medium text-white shadow-sm">Replace</button>
+                    <button type="button" onClick={() => setBlogPostForm(f => ({ ...f, cover_image_url: "" }))} className="px-3 py-1.5 bg-[rgba(255,255,255,0.1)] backdrop-blur-sm rounded-lg text-xs font-medium text-[#EF4444] shadow-sm">Remove</button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => blogCoverInputRef.current?.click()}
+                disabled={blogCoverUploading}
+                className="w-full py-6 rounded-xl border-2 border-dashed border-[rgba(255,255,255,0.1)] hover:border-[rgba(196,166,125,0.3)] bg-[rgba(255,255,255,0.02)] transition-all flex flex-col items-center gap-1.5 cursor-pointer disabled:opacity-60"
+              >
+                {blogCoverUploading ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-[rgba(196,166,125,0.2)] border-t-[#c4a67d] rounded-full animate-spin" />
+                    <span className="text-xs text-text-secondary">Uploading...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-text-secondary"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+                    <span className="text-xs text-text-secondary">Upload cover image</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+
+          {/* Category */}
+          <div className="space-y-1.5">
+            <label className="block text-sm font-medium text-foreground">Category</label>
+            <select
+              value={blogPostForm.category_id}
+              onChange={(e) => setBlogPostForm(f => ({ ...f, category_id: e.target.value }))}
+              className="w-full px-4 py-3 rounded-[14px] border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] text-white text-sm outline-none focus:border-[#c4a67d] transition-all"
+            >
+              <option value="">No category</option>
+              {blogCategories.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <Input
+            label="Tags"
+            value={blogPostForm.tags}
+            onChange={(e) => setBlogPostForm(f => ({ ...f, tags: e.target.value }))}
+            placeholder="jewelry, photography, tips"
+            hint="Comma-separated tags"
+          />
+
+          {/* Content editor */}
+          <div className="space-y-1.5">
+            <label className="block text-sm font-medium text-foreground">Content</label>
+            <TiptapEditor
+              content={blogPostContent}
+              onChange={setBlogPostContent}
+              onImageUpload={handleBlogImageUpload}
+            />
+          </div>
+
+          {/* SEO fields (collapsible) */}
+          <details className="group">
+            <summary className="text-xs font-semibold text-text-secondary uppercase tracking-wider cursor-pointer py-2 flex items-center gap-2">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="transition-transform group-open:rotate-90"><path d="M9 18l6-6-6-6" /></svg>
+              SEO Settings
+            </summary>
+            <div className="space-y-3 pt-2">
+              <Input
+                label="Meta Title"
+                value={blogPostForm.meta_title}
+                onChange={(e) => setBlogPostForm(f => ({ ...f, meta_title: e.target.value }))}
+                placeholder="Custom SEO title (falls back to post title)"
+              />
+              <Input
+                label="Meta Description"
+                value={blogPostForm.meta_description}
+                onChange={(e) => setBlogPostForm(f => ({ ...f, meta_description: e.target.value }))}
+                placeholder="Custom meta description (falls back to excerpt)"
+              />
+              <Input
+                label="OG Image URL"
+                value={blogPostForm.og_image_url}
+                onChange={(e) => setBlogPostForm(f => ({ ...f, og_image_url: e.target.value }))}
+                placeholder="Custom Open Graph image URL"
+              />
+            </div>
+          </details>
+
+          {/* Status + Save */}
+          <div className="flex items-center gap-3 pt-2">
+            <button
+              onClick={() => setBlogPostForm(f => ({ ...f, status: f.status === "draft" ? "published" : "draft" }))}
+              className={`px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
+                blogPostForm.status === "published"
+                  ? "border-success bg-success-light text-success"
+                  : "border-border text-text-secondary"
+              }`}
+            >
+              {blogPostForm.status === "published" ? "Published" : "Draft"}
+            </button>
+            <Button onClick={handleSavePost} loading={blogSaving} disabled={blogCoverUploading} fullWidth>
+              {editingPostId ? "Save Changes" : "Create Post"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Blog Category Create/Edit Modal */}
+      <Modal open={showBlogCatModal} onClose={() => setShowBlogCatModal(false)} title={editingBlogCatId ? "Edit Category" : "New Category"}>
+        <div className="space-y-4">
+          <Input
+            label="Name"
+            value={blogCatForm.name}
+            onChange={(e) => {
+              const name = e.target.value;
+              setBlogCatForm(f => ({
+                ...f,
+                name,
+                slug: editingBlogCatId ? f.slug : slugify(name),
+              }));
+            }}
+            placeholder="Jewelry Photography Tips"
+          />
+          <Input
+            label="Slug"
+            value={blogCatForm.slug}
+            onChange={(e) => setBlogCatForm(f => ({ ...f, slug: e.target.value }))}
+            placeholder="jewelry-photography-tips"
+          />
+          <Input
+            label="Description"
+            value={blogCatForm.description}
+            onChange={(e) => setBlogCatForm(f => ({ ...f, description: e.target.value }))}
+            placeholder="Tips and guides for jewelry photography"
+          />
+          <div className="space-y-1.5">
+            <label className="block text-sm font-medium text-foreground">Display Order</label>
+            <input
+              type="number"
+              value={blogCatForm.display_order}
+              onChange={(e) => setBlogCatForm(f => ({ ...f, display_order: parseInt(e.target.value) || 0 }))}
+              className="w-full px-4 py-3 rounded-[14px] border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] text-white text-sm outline-none focus:border-[#c4a67d] transition-all"
+            />
+          </div>
+          <Button onClick={handleSaveBlogCat} loading={blogCatSaving} fullWidth>
+            {editingBlogCatId ? "Save Changes" : "Create Category"}
+          </Button>
+        </div>
+      </Modal>
 
       {/* Feed Create/Edit Modal */}
       <Modal open={showFeedModal} onClose={() => setShowFeedModal(false)} title={editingFeedId ? "Edit Feed Item" : "Add Feed Item"} sheet>
@@ -812,7 +1388,7 @@ export default function AdminPage() {
             <select
               value={feedForm.category_id}
               onChange={(e) => setFeedForm(f => ({ ...f, category_id: e.target.value }))}
-              className="w-full px-4 py-3 rounded-[14px] border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] text-white text-sm outline-none focus:border-[#FF6A00] focus:shadow-[0_0_0_3px_rgba(255,106,0,0.15)] transition-all duration-250"
+              className="w-full px-4 py-3 rounded-[14px] border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] text-white text-sm outline-none focus:border-[#c4a67d] focus:shadow-[0_0_0_3px_rgba(196,166,125,0.15)] transition-all duration-250"
             >
               <option value="">Select category...</option>
               {categories.map(c => (
@@ -874,11 +1450,11 @@ export default function AdminPage() {
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => handleFileDrop(e, "after_image_url")}
                 disabled={afterUploading}
-                className="w-full py-8 rounded-xl border-2 border-dashed border-[rgba(255,255,255,0.1)] hover:border-[rgba(255,106,0,0.3)] bg-[rgba(255,255,255,0.02)] transition-all flex flex-col items-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-wait"
+                className="w-full py-8 rounded-xl border-2 border-dashed border-[rgba(255,255,255,0.1)] hover:border-[rgba(196,166,125,0.3)] bg-[rgba(255,255,255,0.02)] transition-all flex flex-col items-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-wait"
               >
                 {afterUploading ? (
                   <>
-                    <div className="w-5 h-5 border-2 border-[rgba(255,106,0,0.2)] border-t-[#FF6A00] rounded-full animate-spin" />
+                    <div className="w-5 h-5 border-2 border-[rgba(196,166,125,0.2)] border-t-[#c4a67d] rounded-full animate-spin" />
                     <span className="text-xs text-text-secondary">Uploading...</span>
                   </>
                 ) : (
@@ -929,11 +1505,11 @@ export default function AdminPage() {
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => handleFileDrop(e, "before_image_url")}
                 disabled={beforeUploading}
-                className="w-full py-6 rounded-xl border-2 border-dashed border-[rgba(255,255,255,0.1)] hover:border-[rgba(255,106,0,0.3)] bg-[rgba(255,255,255,0.02)] transition-all flex flex-col items-center gap-1.5 cursor-pointer disabled:opacity-60 disabled:cursor-wait"
+                className="w-full py-6 rounded-xl border-2 border-dashed border-[rgba(255,255,255,0.1)] hover:border-[rgba(196,166,125,0.3)] bg-[rgba(255,255,255,0.02)] transition-all flex flex-col items-center gap-1.5 cursor-pointer disabled:opacity-60 disabled:cursor-wait"
               >
                 {beforeUploading ? (
                   <>
-                    <div className="w-5 h-5 border-2 border-[rgba(255,106,0,0.2)] border-t-[#FF6A00] rounded-full animate-spin" />
+                    <div className="w-5 h-5 border-2 border-[rgba(196,166,125,0.2)] border-t-[#c4a67d] rounded-full animate-spin" />
                     <span className="text-xs text-text-secondary">Uploading...</span>
                   </>
                 ) : (
@@ -963,7 +1539,7 @@ export default function AdminPage() {
                 type="number"
                 value={feedForm.display_order}
                 onChange={(e) => setFeedForm(f => ({ ...f, display_order: parseInt(e.target.value) || 0 }))}
-                className="w-full px-4 py-3 rounded-[14px] border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] text-white text-sm outline-none focus:border-[#FF6A00] focus:shadow-[0_0_0_3px_rgba(255,106,0,0.15)] transition-all duration-250"
+                className="w-full px-4 py-3 rounded-[14px] border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] text-white text-sm outline-none focus:border-[#c4a67d] focus:shadow-[0_0_0_3px_rgba(196,166,125,0.15)] transition-all duration-250"
               />
             </div>
             <div className="space-y-1.5">
@@ -1001,7 +1577,7 @@ export default function AdminPage() {
             const isActive = genStep === s;
             return (
               <div key={s} className="flex items-center gap-1.5">
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold transition-all ${isDone ? "bg-success text-white" : isActive ? "bg-accent text-white shadow-[0_0_10px_rgba(255,106,0,0.4)]" : "bg-surface border border-border text-text-secondary"
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold transition-all ${isDone ? "bg-success text-white" : isActive ? "bg-accent text-white shadow-[0_0_10px_rgba(196,166,125,0.4)]" : "bg-surface border border-border text-text-secondary"
                   }`}>
                   {isDone ? (
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>
@@ -1019,10 +1595,10 @@ export default function AdminPage() {
         {genStep === "upload" && (
           <button
             onClick={() => genFileRef.current?.click()}
-            className="w-full py-16 rounded-xl border-2 border-dashed border-[rgba(255,106,0,0.2)] hover:border-[rgba(255,106,0,0.5)] hover:bg-[rgba(255,106,0,0.03)] transition-all flex flex-col items-center gap-3"
+            className="w-full py-16 rounded-xl border-2 border-dashed border-[rgba(196,166,125,0.2)] hover:border-[rgba(196,166,125,0.5)] hover:bg-[rgba(196,166,125,0.03)] transition-all flex flex-col items-center gap-3"
           >
-            <div className="w-14 h-14 bg-[rgba(255,106,0,0.1)] rounded-2xl flex items-center justify-center">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FF6A00" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <div className="w-14 h-14 bg-[rgba(196,166,125,0.1)] rounded-2xl flex items-center justify-center">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#c4a67d" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" />
               </svg>
             </div>
@@ -1053,7 +1629,7 @@ export default function AdminPage() {
               <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
                 {genModels.map(m => (
                   <button key={m.id} onClick={() => setGenModel(m.id)} className="flex-shrink-0 text-center">
-                    <div className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-all ${genModel === m.id ? "border-accent shadow-[0_0_12px_rgba(255,106,0,0.25)]" : "border-border"}`}>
+                    <div className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-all ${genModel === m.id ? "border-accent shadow-[0_0_12px_rgba(196,166,125,0.25)]" : "border-border"}`}>
                       <img src={m.thumb} alt={m.name} className="w-full h-full object-cover" loading="lazy" />
                     </div>
                     <p className={`text-[10px] mt-1 truncate w-16 ${genModel === m.id ? "text-accent font-semibold" : "text-text-secondary"}`}>{m.name}</p>
@@ -1073,7 +1649,7 @@ export default function AdminPage() {
                   const sel = genSelectedPoses.includes(p.id);
                   return (
                     <button key={p.id} onClick={() => toggleGenPose(p.id)} className="text-center group relative">
-                      <div className={`relative rounded-xl overflow-hidden border-2 aspect-[3/4] transition-all ${sel ? "border-accent shadow-[0_0_12px_rgba(255,106,0,0.25)]" : "border-border"}`}>
+                      <div className={`relative rounded-xl overflow-hidden border-2 aspect-[3/4] transition-all ${sel ? "border-accent shadow-[0_0_12px_rgba(196,166,125,0.25)]" : "border-border"}`}>
                         <img src={p.thumb} alt={p.label} className="w-full h-full object-cover" loading="lazy" />
                         {sel && (
                           <div className="absolute top-1 left-1 w-5 h-5 bg-accent rounded-full flex items-center justify-center">
@@ -1094,7 +1670,7 @@ export default function AdminPage() {
               <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
                 {genBackgrounds.map(bg => (
                   <button key={bg.id} onClick={() => setGenBg(bg.id)} className="flex-shrink-0 text-center">
-                    <div className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-all ${genBg === bg.id ? "border-accent shadow-[0_0_12px_rgba(255,106,0,0.25)]" : "border-border"}`}>
+                    <div className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-all ${genBg === bg.id ? "border-accent shadow-[0_0_12px_rgba(196,166,125,0.25)]" : "border-border"}`}>
                       <img src={bg.thumb} alt={bg.label} className="w-full h-full object-cover" loading="lazy" />
                     </div>
                     <p className={`text-[10px] mt-1 truncate w-16 ${genBg === bg.id ? "text-accent font-semibold" : "text-text-secondary"}`}>{bg.label}</p>
@@ -1128,7 +1704,7 @@ export default function AdminPage() {
             {/* Generate button */}
             {genGenerating ? (
               <div className="flex flex-col items-center gap-3 py-6">
-                <div className="w-8 h-8 border-2 border-[rgba(255,106,0,0.2)] border-t-[#FF6A00] rounded-full animate-spin" />
+                <div className="w-8 h-8 border-2 border-[rgba(196,166,125,0.2)] border-t-[#c4a67d] rounded-full animate-spin" />
                 <p className="text-sm text-text-secondary">Generating {genSelectedPoses.length} image{genSelectedPoses.length > 1 ? "s" : ""}… this takes 30–60 seconds</p>
               </div>
             ) : (
@@ -1150,7 +1726,7 @@ export default function AdminPage() {
                   key={i}
                   onClick={() => setGenActiveResult(i)}
                   className={`flex-shrink-0 relative rounded-xl overflow-hidden border-2 transition-all ${genActiveResult === i
-                    ? "border-accent shadow-[0_0_16px_rgba(255,106,0,0.3)] ring-2 ring-[rgba(255,106,0,0.15)]"
+                    ? "border-accent shadow-[0_0_16px_rgba(196,166,125,0.3)] ring-2 ring-[rgba(196,166,125,0.15)]"
                     : "border-border hover:border-border-hover"
                     }`}
                   style={{ width: 72, height: 96 }}

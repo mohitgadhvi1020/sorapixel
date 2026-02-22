@@ -162,7 +162,7 @@ export default function CataloguePage() {
             </p>
           </div>
           {results.length > 0 && (
-            <button onClick={handleNewImage} className="text-[#FF8A3D] text-sm font-semibold whitespace-nowrap">
+            <button onClick={handleNewImage} className="text-[#d4b88f] text-sm font-semibold whitespace-nowrap">
               + New Image
             </button>
           )}
@@ -177,7 +177,7 @@ export default function CataloguePage() {
             <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
               {results.map((img, i) => (
                 <button key={i} onClick={() => setActiveResult(i)}
-                  className={`flex-shrink-0 w-16 h-20 rounded-xl overflow-hidden border-2 transition-all duration-250 ${activeResult === i ? "border-[#FF6A00] shadow-[0_0_16px_rgba(255,106,0,0.25)] ring-2 ring-[rgba(255,106,0,0.15)]" : "border-[rgba(255,255,255,0.08)]"
+                  className={`flex-shrink-0 w-16 h-20 rounded-xl overflow-hidden border-2 transition-all duration-250 ${activeResult === i ? "border-[#c4a67d] shadow-[0_0_16px_rgba(196,166,125,0.25)] ring-2 ring-[rgba(196,166,125,0.15)]" : "border-[rgba(255,255,255,0.08)]"
                     }`}>
                   <img src={`data:image/png;base64,${img.base64}`} alt={img.label} className="w-full h-full object-cover" />
                 </button>
@@ -221,9 +221,9 @@ export default function CataloguePage() {
                   </button>
                 </div>
               ) : (
-                <label className="block p-12 md:p-16 text-center cursor-pointer rounded-[20px] border-2 border-dashed border-[rgba(255,106,0,0.2)] hover:border-[rgba(255,106,0,0.5)] hover:bg-[rgba(255,106,0,0.03)] transition-all duration-300 group">
-                  <div className="w-16 h-16 mx-auto mb-5 bg-[rgba(255,106,0,0.1)] rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#FF6A00" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <label className="block p-12 md:p-16 text-center cursor-pointer rounded-[20px] border-2 border-dashed border-[rgba(196,166,125,0.2)] hover:border-[rgba(196,166,125,0.5)] hover:bg-[rgba(196,166,125,0.03)] transition-all duration-300 group">
+                  <div className="w-16 h-16 mx-auto mb-5 bg-[rgba(196,166,125,0.1)] rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#c4a67d" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                       <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
                     </svg>
                   </div>
@@ -243,7 +243,7 @@ export default function CataloguePage() {
                   className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.14)] hover:bg-[rgba(255,255,255,0.04)] transition-all duration-250"
                 >
                   <div className="flex items-center gap-2">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FF6A00" strokeWidth="2"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c4a67d" strokeWidth="2"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
                     <span className="text-sm text-[rgba(255,255,255,0.5)]">Catalogue (Uses {totalCredits} Credits)</span>
                   </div>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
@@ -255,11 +255,11 @@ export default function CataloguePage() {
                   <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
                     {models.map(m => (
                       <button key={m.id} onClick={() => setSelectedModel(m.id)} className="flex-shrink-0 text-center group">
-                        <div className={`w-20 h-20 rounded-xl overflow-hidden border-2 transition-all duration-250 ${selectedModel === m.id ? "border-[#FF6A00] shadow-[0_0_16px_rgba(255,106,0,0.25)] ring-2 ring-[rgba(255,106,0,0.15)]" : "border-[rgba(255,255,255,0.08)] group-hover:border-[rgba(255,255,255,0.14)]"
+                        <div className={`w-20 h-20 rounded-xl overflow-hidden border-2 transition-all duration-250 ${selectedModel === m.id ? "border-[#c4a67d] shadow-[0_0_16px_rgba(196,166,125,0.25)] ring-2 ring-[rgba(196,166,125,0.15)]" : "border-[rgba(255,255,255,0.08)] group-hover:border-[rgba(255,255,255,0.14)]"
                           }`}>
                           <img src={m.thumb} alt={m.name} className="w-full h-full object-cover" loading="lazy" />
                         </div>
-                        <p className={`text-xs mt-1.5 w-20 truncate ${selectedModel === m.id ? "text-[#FF8A3D] font-medium" : "text-[rgba(255,255,255,0.4)]"
+                        <p className={`text-xs mt-1.5 w-20 truncate ${selectedModel === m.id ? "text-[#d4b88f] font-medium" : "text-[rgba(255,255,255,0.4)]"
                           }`}>{m.name}</p>
                       </button>
                     ))}
@@ -292,7 +292,7 @@ export default function CataloguePage() {
             <p className="text-sm text-[rgba(255,255,255,0.5)] mb-1">Generating {selectedPoses.length} images</p>
             <p className="text-sm text-[rgba(255,255,255,0.6)] mb-8 min-h-[20px]">{PROGRESS_STEPS[progressStep]?.label}</p>
             <div className="w-64 bg-[rgba(255,255,255,0.06)] rounded-full h-1.5 mb-3 overflow-hidden">
-              <div className="h-full rounded-full bg-gradient-to-r from-[#FF6A00] to-[#FF8A3D] transition-all duration-1000 ease-out" style={{ width: `${progressPct}%` }} />
+              <div className="h-full rounded-full bg-gradient-to-r from-[#c4a67d] to-[#d4b88f] transition-all duration-1000 ease-out" style={{ width: `${progressPct}%` }} />
             </div>
             <div className="flex justify-between text-xs text-[rgba(255,255,255,0.4)] w-64">
               <span>{progressPct}%</span><span>{elapsedSec}s</span>
@@ -309,23 +309,23 @@ export default function CataloguePage() {
           <div>
             <div className="flex items-center justify-between mb-3">
               <h4 className="text-sm font-semibold text-white">Model Views</h4>
-              <span className="text-xs text-[#FF8A3D] font-medium">See All</span>
+              <span className="text-xs text-[#d4b88f] font-medium">See All</span>
             </div>
             <div className="grid grid-cols-3 gap-3">
               {poses.map(p => {
                 const isSelected = selectedPoses.includes(p.id);
                 return (
                   <button key={p.id} onClick={() => togglePose(p.id)} className="text-center group">
-                    <div className={`relative rounded-xl overflow-hidden border-2 aspect-[3/4] transition-all duration-250 ${isSelected ? "border-[#FF6A00] shadow-[0_0_16px_rgba(255,106,0,0.25)]" : "border-[rgba(255,255,255,0.08)] group-hover:border-[rgba(255,255,255,0.14)]"
+                    <div className={`relative rounded-xl overflow-hidden border-2 aspect-[3/4] transition-all duration-250 ${isSelected ? "border-[#c4a67d] shadow-[0_0_16px_rgba(196,166,125,0.25)]" : "border-[rgba(255,255,255,0.08)] group-hover:border-[rgba(255,255,255,0.14)]"
                       }`}>
                       <img src={p.thumb} alt={p.label} className="w-full h-full object-cover" loading="lazy" />
                       {isSelected && (
-                        <div className="absolute top-1.5 left-1.5 w-5 h-5 bg-[#FF6A00] rounded-full flex items-center justify-center">
+                        <div className="absolute top-1.5 left-1.5 w-5 h-5 bg-[#c4a67d] rounded-full flex items-center justify-center">
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>
                         </div>
                       )}
                     </div>
-                    <p className={`text-xs mt-1.5 ${isSelected ? "text-[#FF8A3D] font-semibold" : "text-[rgba(255,255,255,0.4)]"}`}>{p.label}</p>
+                    <p className={`text-xs mt-1.5 ${isSelected ? "text-[#d4b88f] font-semibold" : "text-[rgba(255,255,255,0.4)]"}`}>{p.label}</p>
                   </button>
                 );
               })}
@@ -361,7 +361,7 @@ export default function CataloguePage() {
                 <p className="text-[10px] text-[rgba(255,255,255,0.4)] mt-0.5">Coming soon</p>
               </div>
             </div>
-            <p className="text-xs text-[#FF8A3D] font-medium mt-2 text-center">Select {MAX_POSES} poses</p>
+            <p className="text-xs text-[#d4b88f] font-medium mt-2 text-center">Select {MAX_POSES} poses</p>
           </div>
 
           {/* Background */}
@@ -370,11 +370,11 @@ export default function CataloguePage() {
             <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
               {backgrounds.map(bg => (
                 <button key={bg.id} onClick={() => setSelectedBg(bg.id)} className="flex-shrink-0 text-center group">
-                  <div className={`w-20 h-20 rounded-xl overflow-hidden border-2 transition-all duration-250 ${selectedBg === bg.id ? "border-[#FF6A00] shadow-[0_0_16px_rgba(255,106,0,0.25)] ring-2 ring-[rgba(255,106,0,0.15)]" : "border-[rgba(255,255,255,0.08)] group-hover:border-[rgba(255,255,255,0.14)]"
+                  <div className={`w-20 h-20 rounded-xl overflow-hidden border-2 transition-all duration-250 ${selectedBg === bg.id ? "border-[#c4a67d] shadow-[0_0_16px_rgba(196,166,125,0.25)] ring-2 ring-[rgba(196,166,125,0.15)]" : "border-[rgba(255,255,255,0.08)] group-hover:border-[rgba(255,255,255,0.14)]"
                     }`}>
                     <img src={bg.thumb} alt={bg.label} className="w-full h-full object-cover" loading="lazy" />
                   </div>
-                  <p className={`text-xs mt-1.5 w-20 truncate ${selectedBg === bg.id ? "text-[#FF8A3D] font-medium" : "text-[rgba(255,255,255,0.4)]"
+                  <p className={`text-xs mt-1.5 w-20 truncate ${selectedBg === bg.id ? "text-[#d4b88f] font-medium" : "text-[rgba(255,255,255,0.4)]"
                     }`}>{bg.id === "best_match" ? "Best Match" : bg.label}</p>
                 </button>
               ))}
@@ -389,7 +389,7 @@ export default function CataloguePage() {
             </div>
             <button
               onClick={() => setAddBranding(!addBranding)}
-              className={`w-11 h-6 rounded-full transition-colors duration-250 ${addBranding ? "bg-[#FF6A00]" : "bg-[rgba(255,255,255,0.1)]"}`}
+              className={`w-11 h-6 rounded-full transition-colors duration-250 ${addBranding ? "bg-[#c4a67d]" : "bg-[rgba(255,255,255,0.1)]"}`}
             >
               <div className={`w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-250 ${addBranding ? "translate-x-5" : "translate-x-0.5"}`} />
             </button>
@@ -399,7 +399,7 @@ export default function CataloguePage() {
               {user.business_logo_url ? (
                 <img src={user.business_logo_url} alt="Logo" className="w-10 h-10 rounded-lg object-cover border border-[rgba(255,255,255,0.08)]" />
               ) : (
-                <div className="w-10 h-10 rounded-lg bg-[rgba(255,106,0,0.1)] flex items-center justify-center text-[#FF8A3D] font-bold text-sm">
+                <div className="w-10 h-10 rounded-lg bg-[rgba(196,166,125,0.1)] flex items-center justify-center text-[#d4b88f] font-bold text-sm">
                   {user.company_name.charAt(0).toUpperCase()}
                 </div>
               )}
@@ -409,7 +409,7 @@ export default function CataloguePage() {
                   {[user.phone, user.business_website].filter(Boolean).join(" | ") || "Add details in Profile"}
                 </p>
               </div>
-              <button onClick={() => router.push("/profile")} className="text-xs text-[#FF8A3D] font-medium whitespace-nowrap">Edit</button>
+              <button onClick={() => router.push("/profile")} className="text-xs text-[#d4b88f] font-medium whitespace-nowrap">Edit</button>
             </div>
           )}
 
@@ -427,7 +427,7 @@ export default function CataloguePage() {
               value={keyHighlights}
               onChange={e => setKeyHighlights(e.target.value)}
               placeholder="Write Key Highlights"
-              className="w-full border border-[rgba(255,255,255,0.08)] rounded-[14px] px-4 py-3 h-28 resize-none outline-none focus:border-[#FF6A00] focus:shadow-[0_0_0_3px_rgba(255,106,0,0.15)] bg-[rgba(255,255,255,0.04)] text-white text-sm transition-all duration-250 placeholder:text-[rgba(255,255,255,0.25)]"
+              className="w-full border border-[rgba(255,255,255,0.08)] rounded-[14px] px-4 py-3 h-28 resize-none outline-none focus:border-[#c4a67d] focus:shadow-[0_0_0_3px_rgba(196,166,125,0.15)] bg-[rgba(255,255,255,0.04)] text-white text-sm transition-all duration-250 placeholder:text-[rgba(255,255,255,0.25)]"
             />
             <p className="text-xs text-[rgba(255,255,255,0.4)] mt-1">({keyHighlights.split(/\s+/).filter(Boolean).length}/10 words)</p>
           </div>

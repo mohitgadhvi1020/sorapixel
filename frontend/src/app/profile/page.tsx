@@ -151,7 +151,7 @@ export default function ProfilePage() {
             <p className="text-xs font-medium text-[rgba(255,255,255,0.5)] uppercase tracking-[0.05em] mb-2">Business Logo</p>
             <label className="inline-block cursor-pointer">
               {logoPreview ? (
-                <img src={logoPreview} alt="Logo" className="w-16 h-16 object-cover rounded-xl border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,106,0,0.4)] transition-colors" />
+                <img src={logoPreview} alt="Logo" className="w-16 h-16 object-cover rounded-xl border border-[rgba(255,255,255,0.08)] hover:border-[rgba(196,166,125,0.4)] transition-colors" />
               ) : (
                 <div className="w-16 h-16 border-2 border-dashed border-[rgba(255,255,255,0.1)] rounded-xl flex items-center justify-center text-[rgba(255,255,255,0.3)] hover:border-[rgba(255,255,255,0.2)] transition-colors">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
@@ -169,7 +169,7 @@ export default function ProfilePage() {
             <p className="text-sm font-medium text-white">Apply Branding</p>
             <button
               onClick={() => setApplyBranding(!applyBranding)}
-              className={`w-11 h-6 rounded-full transition-colors duration-250 ${applyBranding ? "bg-[#FF6A00]" : "bg-[rgba(255,255,255,0.1)]"}`}
+              className={`w-11 h-6 rounded-full transition-colors duration-250 ${applyBranding ? "bg-[#c4a67d]" : "bg-[rgba(255,255,255,0.1)]"}`}
             >
               <div className={`w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-250 ${applyBranding ? "translate-x-5" : "translate-x-0.5"}`} />
             </button>
@@ -217,14 +217,14 @@ export default function ProfilePage() {
                 key={cat.id}
                 onClick={() => setSelectedCategory(cat.id)}
                 className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all duration-250 text-left min-h-[52px] ${selectedCategory === cat.id
-                  ? "border-[#FF6A00] bg-[rgba(255,106,0,0.08)]"
+                  ? "border-[#c4a67d] bg-[rgba(196,166,125,0.08)]"
                   : "border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.14)] hover:bg-[rgba(255,255,255,0.04)]"
                   }`}
               >
                 <p className="font-medium text-sm text-white">{cat.name}</p>
-                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-250 ${selectedCategory === cat.id ? "border-[#FF6A00]" : "border-[rgba(255,255,255,0.15)]"
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-250 ${selectedCategory === cat.id ? "border-[#c4a67d]" : "border-[rgba(255,255,255,0.15)]"
                   }`}>
-                  {selectedCategory === cat.id && <div className="w-2.5 h-2.5 rounded-full bg-[#FF6A00]" />}
+                  {selectedCategory === cat.id && <div className="w-2.5 h-2.5 rounded-full bg-[#c4a67d]" />}
                 </div>
               </button>
             ))}
@@ -252,8 +252,8 @@ export default function ProfilePage() {
             </button>
           </div>
           <Card padding="lg" className="text-center">
-            <div className="w-16 h-16 mx-auto bg-[rgba(255,106,0,0.1)] rounded-2xl flex items-center justify-center mb-5">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#FF6A00" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <div className="w-16 h-16 mx-auto bg-[rgba(196,166,125,0.1)] rounded-2xl flex items-center justify-center mb-5">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#c4a67d" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M20 12v10H4V12M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" />
               </svg>
             </div>

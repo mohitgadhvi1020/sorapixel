@@ -8,8 +8,9 @@ class GenerateJewelryRequest(BaseModel):
     jewelry_type: str = "necklace"
     background: str = "black_velvet"
     aspect_ratio_id: str | None = None
-    step: str = "hero"  # "hero" or "full_pack"
+    step: str = "hero"  # "hero", "full_pack", or single shot types
     custom_angle_base64: str | None = None
+    special_instructions: str | None = None
 
 
 class RecolorJewelryRequest(BaseModel):

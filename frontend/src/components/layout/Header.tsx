@@ -13,10 +13,12 @@ interface HeaderProps {
 
 const NAV_LINKS = [
   { href: "/", label: "Home" },
+  { href: "/jewelry", label: "Jewelry" },
   { href: "/studio", label: "Studio" },
   { href: "/catalogue", label: "Catalogue" },
+  { href: "/batch-listing", label: "Bulk Listings" },
   { href: "/projects", label: "Projects" },
-  { href: "/pricing", label: "Pricing" },
+  { href: "/brand-settings", label: "Brand" },
 ];
 
 export default function Header({ onMenuToggle, showMenu = false }: HeaderProps) {
@@ -43,10 +45,10 @@ export default function Header({ onMenuToggle, showMenu = false }: HeaderProps) 
             </button>
           )}
           <Link href="/" className="flex items-center gap-2.5 group">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#FF6A00] to-[#FF8A3D] flex items-center justify-center shadow-[0_0_12px_rgba(255,106,0,0.3)]">
+            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
               <span className="text-white text-xs font-bold">SP</span>
             </div>
-            <span className="font-bold text-[15px] tracking-tight text-white hidden sm:block">
+            <span className="font-display font-bold text-[15px] tracking-tight text-white hidden sm:block">
               SoraPixel
             </span>
           </Link>
@@ -58,14 +60,18 @@ export default function Header({ onMenuToggle, showMenu = false }: HeaderProps) 
             const isActive = link.href === "/"
               ? pathname === "/"
               : pathname.startsWith(link.href);
+            const isJewelry = link.href === "/jewelry";
             return (
               <Link
                 key={link.href}
                 href={link.href}
-                className={`px-3 py-2 text-[13px] font-medium rounded-lg transition-all duration-250 ${isActive
-                    ? "text-white bg-[rgba(255,255,255,0.08)]"
+                className={`px-3 py-2 text-[13px] font-medium rounded-lg transition-all duration-200 ${
+                  isActive
+                    ? isJewelry
+                      ? "text-[#c4a67d] bg-[rgba(196,166,125,0.12)]"
+                      : "text-white bg-[rgba(255,255,255,0.08)]"
                     : "text-[rgba(255,255,255,0.5)] hover:text-white hover:bg-[rgba(255,255,255,0.06)]"
-                  }`}
+                }`}
               >
                 {link.label}
               </Link>
@@ -74,10 +80,11 @@ export default function Header({ onMenuToggle, showMenu = false }: HeaderProps) 
           {isAdmin && (
             <Link
               href="/admin"
-              className={`px-3 py-2 text-[13px] font-medium rounded-lg transition-all duration-250 ${pathname.startsWith("/admin")
-                  ? "text-[#FF8A3D] bg-[rgba(255,106,0,0.15)]"
-                  : "text-[#FF8A3D] bg-[rgba(255,106,0,0.08)] hover:bg-[rgba(255,106,0,0.15)]"
-                }`}
+              className={`px-3 py-2 text-[13px] font-medium rounded-lg transition-all duration-200 ${
+                pathname.startsWith("/admin")
+                  ? "text-[#c4a67d] bg-[rgba(196,166,125,0.15)]"
+                  : "text-[#c4a67d] bg-[rgba(196,166,125,0.08)] hover:bg-[rgba(196,166,125,0.15)]"
+              }`}
             >
               Admin
             </Link>
@@ -89,22 +96,22 @@ export default function Header({ onMenuToggle, showMenu = false }: HeaderProps) 
           {credits && (
             <Link
               href="/pricing"
-              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[rgba(255,106,0,0.1)] border border-[rgba(255,106,0,0.15)] hover:border-[rgba(255,106,0,0.3)] transition-all duration-250 group"
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[rgba(196,166,125,0.1)] border border-[rgba(196,166,125,0.2)] hover:border-[rgba(196,166,125,0.35)] transition-all duration-200 group"
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FF6A00" strokeWidth="2" strokeLinecap="round">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c4a67d" strokeWidth="2" strokeLinecap="round">
                 <circle cx="12" cy="12" r="10" />
                 <path d="M12 6v12M8 10h8" />
               </svg>
-              <span className="text-xs font-bold text-[#FF8A3D]">
+              <span className="text-xs font-bold text-[#c4a67d]">
                 {credits.token_balance}
               </span>
-              <span className="text-[11px] text-[rgba(255,138,61,0.7)] hidden sm:inline">tokens</span>
+              <span className="text-[11px] text-[rgba(196,166,125,0.6)] hidden sm:inline">tokens</span>
             </Link>
           )}
           {user && (
             <Link
               href="/profile"
-              className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#FF6A00] to-[#FF8A3D] flex items-center justify-center hover:shadow-[0_0_16px_rgba(255,106,0,0.35)] transition-all duration-250"
+              className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/15 transition-all duration-200"
             >
               <span className="text-xs font-bold text-white">
                 {(user.contact_name || user.company_name || "U").charAt(0).toUpperCase()}

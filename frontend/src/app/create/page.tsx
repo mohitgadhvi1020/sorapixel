@@ -99,7 +99,7 @@ function OptionCard({ label, description, icon, onClick }: {
       padding="md"
       className="text-center group"
     >
-      <div className="w-14 h-14 mx-auto rounded-2xl bg-[rgba(255,255,255,0.06)] flex items-center justify-center text-[rgba(255,255,255,0.5)] group-hover:text-[#FF8A3D] group-hover:bg-[rgba(255,106,0,0.1)] transition-all duration-250 mb-3">
+      <div className="w-14 h-14 mx-auto rounded-2xl bg-[rgba(255,255,255,0.06)] flex items-center justify-center text-[rgba(255,255,255,0.5)] group-hover:text-[#c4a67d] group-hover:bg-[rgba(196,166,125,0.1)] transition-all duration-250 mb-3">
         {icon}
       </div>
       <p className="font-semibold text-sm text-white">{label}</p>

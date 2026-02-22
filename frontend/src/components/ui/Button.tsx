@@ -14,7 +14,7 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    "bg-gradient-to-r from-[#FF6A00] to-[#FF8A3D] text-white shadow-[0_4px_20px_rgba(255,106,0,0.3)] hover:shadow-[0_6px_30px_rgba(255,106,0,0.45)] hover:-translate-y-0.5 active:scale-[0.97] disabled:from-[rgba(255,255,255,0.1)] disabled:to-[rgba(255,255,255,0.1)] disabled:text-[rgba(255,255,255,0.3)] disabled:shadow-none",
+    "bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-white shadow-[0_4px_20px_rgba(196,166,125,0.3)] hover:shadow-[0_6px_30px_rgba(196,166,125,0.45)] hover:-translate-y-0.5 active:scale-[0.97] disabled:from-[rgba(255,255,255,0.1)] disabled:to-[rgba(255,255,255,0.1)] disabled:text-[rgba(255,255,255,0.3)] disabled:shadow-none",
   secondary:
     "bg-transparent border border-[rgba(255,255,255,0.1)] text-white hover:bg-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.2)] hover:shadow-[0_0_16px_rgba(255,255,255,0.05)] active:bg-[rgba(255,255,255,0.08)] disabled:opacity-40",
   ghost:
@@ -22,7 +22,7 @@ const variantStyles: Record<ButtonVariant, string> = {
   danger:
     "bg-[#EF4444] text-white hover:bg-[#DC2626] active:bg-[#B91C1C] shadow-[0_4px_16px_rgba(239,68,68,0.3)] disabled:opacity-40",
   accent:
-    "bg-gradient-to-r from-[#FF6A00] to-[#FF8A3D] text-white shadow-[0_4px_20px_rgba(255,106,0,0.3)] hover:shadow-[0_6px_30px_rgba(255,106,0,0.45)] hover:-translate-y-0.5 disabled:opacity-40",
+    "bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-white shadow-[0_4px_20px_rgba(196,166,125,0.3)] hover:shadow-[0_6px_30px_rgba(196,166,125,0.45)] hover:-translate-y-0.5 disabled:opacity-40",
 };
 
 const sizeStyles: Record<ButtonSize, string> = {

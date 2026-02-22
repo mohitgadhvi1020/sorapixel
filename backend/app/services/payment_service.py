@@ -1,118 +1,86 @@
 from __future__ import annotations
 
-"""Razorpay payment service."""
+"""Payment & plan service."""
 
-import hmac
-import hashlib
 import logging
-import httpx
-from base64 import b64encode
-from app.config import get_settings
-from app.services.credit_service import TOKEN_BUNDLES, add_tokens
+from app.services.credit_service import add_tokens
 
 logger = logging.getLogger(__name__)
 
-SUBSCRIPTION_PLANS = [
+PLANS = [
     {
-        "id": "trial_1",
-        "name": "Trial Plan",
-        "type": "trial",
-        "price_inr": 1,
-        "tokens": 7,
-        "description": "Try SoraPixel with 7 free images for just ₹1",
+        "id": "starter_199",
+        "name": "Starter Pack",
+        "type": "token_pack",
+        "price_inr": 199,
+        "tokens": 100,
+        "description": "100 tokens — perfect for your first catalogue shoot",
+        "recommended": False,
     },
     {
-        "id": "monthly_299",
-        "name": "Premium Monthly",
+        "id": "pro_999",
+        "name": "Pro Monthly",
         "type": "subscription",
-        "price_inr": 299,
-        "tokens": 100,
-        "description": "100 tokens/month + premium features",
+        "price_inr": 999,
+        "tokens": 500,
+        "description": "500 tokens/month, HD upscale included, no watermark",
+        "recommended": True,
+    },
+    {
+        "id": "business_2499",
+        "name": "Business Monthly",
+        "type": "subscription",
+        "price_inr": 2499,
+        "tokens": 1500,
+        "description": "1500 tokens/month, bulk listings, priority support",
+        "recommended": False,
+    },
+    {
+        "id": "50_tokens",
+        "name": "50 Tokens",
+        "type": "token_pack",
+        "price_inr": 500,
+        "tokens": 50,
+        "description": "Top-up pack",
+        "recommended": False,
+    },
+    {
+        "id": "200_tokens",
+        "name": "200 Tokens",
+        "type": "token_pack",
+        "price_inr": 1500,
+        "tokens": 200,
+        "description": "Top-up pack",
+        "recommended": False,
+    },
+    {
+        "id": "500_tokens",
+        "name": "500 Tokens",
+        "type": "token_pack",
+        "price_inr": 3000,
+        "tokens": 500,
+        "description": "Top-up pack",
+        "recommended": False,
     },
 ]
 
-ALL_PLANS = TOKEN_BUNDLES + SUBSCRIPTION_PLANS
-
 
 def get_all_plans() -> list[dict]:
-    return ALL_PLANS
+    return PLANS
 
 
-def create_razorpay_order(plan_id: str) -> dict:
-    """Create a Razorpay order for the given plan."""
-    settings = get_settings()
-    if not settings.razorpay_key_id or not settings.razorpay_key_secret:
-        return {"success": False, "error": "Payment not configured"}
-
-    plan = next((p for p in ALL_PLANS if p["id"] == plan_id), None)
-    if not plan:
-        return {"success": False, "error": f"Unknown plan: {plan_id}"}
-
-    amount_paise = plan["price_inr"] * 100
-    auth = b64encode(f"{settings.razorpay_key_id}:{settings.razorpay_key_secret}".encode()).decode()
-
-    try:
-        resp = httpx.post(
-            "https://api.razorpay.com/v1/orders",
-            headers={
-                "Authorization": f"Basic {auth}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "amount": amount_paise,
-                "currency": "INR",
-                "receipt": f"sorapixel_{plan_id}",
-            },
-            timeout=10.0,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-
-        return {
-            "success": True,
-            "order_id": data["id"],
-            "amount": amount_paise,
-            "currency": "INR",
-            "key_id": settings.razorpay_key_id,
-        }
-    except Exception as e:
-        logger.error(f"Razorpay order creation failed: {e}")
-        return {"success": False, "error": "Payment service unavailable"}
+def get_plan_by_id(plan_id: str) -> dict | None:
+    return next((p for p in PLANS if p["id"] == plan_id), None)
 
 
-def verify_razorpay_payment(order_id: str, payment_id: str, signature: str) -> bool:
-    """Verify Razorpay payment signature."""
-    settings = get_settings()
-    message = f"{order_id}|{payment_id}"
-    expected = hmac.new(
-        settings.razorpay_key_secret.encode(),
-        message.encode(),
-        hashlib.sha256,
-    ).hexdigest()
-    return hmac.compare_digest(expected, signature)
-
-
-def fulfill_payment(client_id: str, plan_id: str, razorpay_order_id: str, razorpay_payment_id: str) -> dict:
-    """After successful payment, add tokens and record in DB."""
-    from app.database import get_supabase
-
-    plan = next((p for p in ALL_PLANS if p["id"] == plan_id), None)
+def fulfill_manual_payment(client_id: str, plan_id: str) -> dict:
+    """Admin-triggered fulfillment — add tokens after manual payment confirmation."""
+    plan = get_plan_by_id(plan_id)
     if not plan:
         return {"success": False, "error": "Unknown plan"}
 
     tokens = plan.get("tokens", 0)
     if tokens > 0:
         add_tokens(client_id, tokens)
-
-    sb = get_supabase()
-    sb.table("payments").insert({
-        "client_id": client_id,
-        "razorpay_order_id": razorpay_order_id,
-        "razorpay_payment_id": razorpay_payment_id,
-        "amount_paise": plan["price_inr"] * 100,
-        "plan_type": plan.get("type", "token_pack"),
-        "tokens_added": tokens,
-        "status": "success",
-    }).execute()
 
     return {"success": True, "tokens_added": tokens}

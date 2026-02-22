@@ -34,7 +34,7 @@ export default function DailyRewardModal() {
         <button
           onClick={handleClaim}
           disabled={claiming}
-          className="w-full bg-gradient-to-r from-[#FF6A00] to-[#FF8A3D] text-white py-3 rounded-xl font-bold text-lg shadow-[0_4px_20px_rgba(255,106,0,0.3)] hover:shadow-[0_6px_30px_rgba(255,106,0,0.45)] transition-all duration-250 disabled:opacity-40"
+          className="w-full bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-white py-3 rounded-xl font-bold text-lg shadow-[0_4px_20px_rgba(196,166,125,0.3)] hover:shadow-[0_6px_30px_rgba(196,166,125,0.45)] transition-all duration-250 disabled:opacity-40"
         >
           {claiming ? "Claiming..." : "Claim 2 Images"}
         </button>

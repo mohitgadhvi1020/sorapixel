@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.middleware.auth import get_current_user
 from app.schemas.catalogue import GenerateCatalogueRequest, CatalogueResponse
 from app.services.gemini_service import generate_image, generate_image_multi
-from app.services.image_service import crop_to_ratio, add_watermark, add_branding_bar
+from app.services.image_service import crop_to_ratio_top, add_branding_bar
 from app.services.credit_service import get_jewelry_credits, deduct_jewelry_tokens
 from app.services.tracking_service import track_generation
 from app.services.prompt_service import (
@@ -92,7 +92,7 @@ async def generate_catalogue(req: GenerateCatalogueRequest, user: dict = Depends
 
             image_b64 = result["base64"]
             try:
-                image_b64 = crop_to_ratio(image_b64, ratio["width"], ratio["height"])
+                image_b64 = crop_to_ratio_top(image_b64, ratio["width"], ratio["height"])
             except Exception:
                 pass
 
@@ -105,8 +105,6 @@ async def generate_catalogue(req: GenerateCatalogueRequest, user: dict = Depends
                     logo_url=user.get("business_logo_url"),
                 )
 
-            watermarked = add_watermark(image_b64)
-
             usage = result.get("usage", {})
             track_generation(
                 client_id=user["id"],
@@ -116,7 +114,7 @@ async def generate_catalogue(req: GenerateCatalogueRequest, user: dict = Depends
                 metadata={"model_type": req.model_type, "pose": pose, "category": category_slug},
             )
 
-            images.append({"base64": watermarked, "mime_type": "image/png", "label": pose.replace("_", " ").title()})
+            images.append({"base64": image_b64, "mime_type": "image/png", "label": pose.replace("_", " ").title()})
         except Exception as e:
             logger.error(f"Catalogue generation error (pose={pose}): {e}")
             images.append({"base64": "", "label": f"{pose.replace('_', ' ').title()} (failed)"})

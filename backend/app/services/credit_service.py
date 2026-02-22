@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Credit management service -- ported from lib/studio-credits.ts and lib/jewelry-credits.ts"""
+"""Credit management service."""
 
 import logging
 from datetime import date
@@ -11,24 +11,22 @@ logger = logging.getLogger(__name__)
 
 JEWELRY_PRICING = {
     "photoPack": 40,
+    "regenSingle": 5,
     "recolorSingle": 7,
     "recolorAll": 20,
     "hdUpscale": 10,
     "listing": 5,
 }
 
-TOKEN_BUNDLES = [
-    {"id": "50_tokens", "tokens": 50, "price_inr": 500, "name": "50 Tokens"},
-    {"id": "100_tokens", "tokens": 100, "price_inr": 800, "name": "100 Tokens"},
-    {"id": "200_tokens", "tokens": 200, "price_inr": 1500, "name": "200 Tokens"},
-    {"id": "500_tokens", "tokens": 500, "price_inr": 3000, "name": "500 Tokens"},
-]
+JEWELRY_FREE_LIMITS = {
+    "hero": 1,
+    "pack": 1,
+}
 
-DAILY_REWARD_TOKENS = 2
+DAILY_REWARD_TOKENS = 5
 
 
 def get_studio_credits(client_id: str) -> dict | None:
-    """Get studio credit status for a client."""
     settings = get_settings()
     sb = get_supabase()
     result = sb.table("clients").select(
@@ -51,9 +49,6 @@ def get_studio_credits(client_id: str) -> dict | None:
 
 
 def check_and_deduct_studio(client_id: str) -> dict:
-    """Check credits and deduct for a studio generation.
-    Returns {"allowed": bool, "error": str|None, "remaining": int}
-    """
     settings = get_settings()
     sb = get_supabase()
     result = sb.table("clients").select(
@@ -89,10 +84,85 @@ def check_and_deduct_studio(client_id: str) -> dict:
 
 def get_jewelry_credits(client_id: str) -> dict | None:
     sb = get_supabase()
-    result = sb.table("clients").select("token_balance").eq("id", client_id).single().execute()
+    result = sb.table("clients").select(
+        "token_balance, jewelry_free_hero_used, jewelry_free_pack_used"
+    ).eq("id", client_id).single().execute()
     if not result.data:
         return None
-    return {"token_balance": result.data.get("token_balance", 0) or 0}
+    hero_used = result.data.get("jewelry_free_hero_used", 0) or 0
+    pack_used = result.data.get("jewelry_free_pack_used", 0) or 0
+    return {
+        "token_balance": result.data.get("token_balance", 0) or 0,
+        "free_hero_remaining": max(0, JEWELRY_FREE_LIMITS["hero"] - hero_used),
+        "free_pack_remaining": max(0, JEWELRY_FREE_LIMITS["pack"] - pack_used),
+    }
+
+
+def check_and_deduct_jewelry(client_id: str, operation: str) -> dict:
+    """Check free tier first, then token balance. Returns {allowed, used_free, locked, remaining}."""
+    sb = get_supabase()
+    result = sb.table("clients").select(
+        "token_balance, jewelry_free_hero_used, jewelry_free_pack_used"
+    ).eq("id", client_id).single().execute()
+
+    if not result.data:
+        return {"allowed": False, "error": "Client not found", "remaining": 0, "locked": False}
+
+    balance = result.data.get("token_balance", 0) or 0
+    hero_used = result.data.get("jewelry_free_hero_used", 0) or 0
+    pack_used = result.data.get("jewelry_free_pack_used", 0) or 0
+
+    if operation == "hero":
+        if hero_used < JEWELRY_FREE_LIMITS["hero"]:
+            sb.table("clients").update(
+                {"jewelry_free_hero_used": hero_used + 1}
+            ).eq("id", client_id).execute()
+            return {
+                "allowed": True, "used_free": True, "locked": False,
+                "remaining": balance,
+                "free_hero_remaining": JEWELRY_FREE_LIMITS["hero"] - hero_used - 1,
+                "free_pack_remaining": max(0, JEWELRY_FREE_LIMITS["pack"] - pack_used),
+            }
+        if balance <= 0:
+            return {"allowed": True, "used_free": False, "locked": True, "remaining": 0,
+                    "free_hero_remaining": 0, "free_pack_remaining": max(0, JEWELRY_FREE_LIMITS["pack"] - pack_used)}
+        return {"allowed": True, "used_free": False, "locked": False, "remaining": balance,
+                "free_hero_remaining": 0, "free_pack_remaining": max(0, JEWELRY_FREE_LIMITS["pack"] - pack_used)}
+
+    if operation == "full_pack":
+        cost = JEWELRY_PRICING["photoPack"]
+        if pack_used < JEWELRY_FREE_LIMITS["pack"]:
+            sb.table("clients").update(
+                {"jewelry_free_pack_used": pack_used + 1}
+            ).eq("id", client_id).execute()
+            return {
+                "allowed": True, "used_free": True, "locked": False,
+                "remaining": balance,
+                "free_hero_remaining": max(0, JEWELRY_FREE_LIMITS["hero"] - hero_used),
+                "free_pack_remaining": JEWELRY_FREE_LIMITS["pack"] - pack_used - 1,
+            }
+        if balance < cost:
+            return {"allowed": True, "used_free": False, "locked": True, "remaining": balance,
+                    "free_hero_remaining": max(0, JEWELRY_FREE_LIMITS["hero"] - hero_used),
+                    "free_pack_remaining": 0}
+        new_balance = balance - cost
+        sb.table("clients").update({"token_balance": new_balance}).eq("id", client_id).execute()
+        return {"allowed": True, "used_free": False, "locked": False, "remaining": new_balance,
+                "free_hero_remaining": max(0, JEWELRY_FREE_LIMITS["hero"] - hero_used),
+                "free_pack_remaining": 0}
+
+    cost = JEWELRY_PRICING.get(operation)
+    if cost is None:
+        return {"allowed": False, "error": f"Unknown operation: {operation}", "remaining": balance, "locked": False}
+    if balance < cost:
+        return {"allowed": True, "used_free": False, "locked": True, "remaining": balance,
+                "free_hero_remaining": max(0, JEWELRY_FREE_LIMITS["hero"] - hero_used),
+                "free_pack_remaining": max(0, JEWELRY_FREE_LIMITS["pack"] - pack_used)}
+    new_balance = balance - cost
+    sb.table("clients").update({"token_balance": new_balance}).eq("id", client_id).execute()
+    return {"allowed": True, "used_free": False, "locked": False, "remaining": new_balance,
+            "free_hero_remaining": max(0, JEWELRY_FREE_LIMITS["hero"] - hero_used),
+            "free_pack_remaining": max(0, JEWELRY_FREE_LIMITS["pack"] - pack_used)}
 
 
 def deduct_jewelry_tokens(client_id: str, amount: int) -> bool:
@@ -122,7 +192,6 @@ def add_tokens(client_id: str, amount: int) -> bool:
 
 
 def claim_daily_reward(client_id: str) -> dict:
-    """Claim daily free tokens. Returns {"success": bool, "tokens_added": int, "new_balance": int}"""
     sb = get_supabase()
     result = sb.table("clients").select(
         "token_balance, daily_reward_claimed_at"
