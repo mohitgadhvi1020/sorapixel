@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { api } from "@/lib/api-client";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -25,6 +25,18 @@ const PROGRESS_STEPS = [
 ];
 
 export default function CataloguePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#0E0F14] flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-[rgba(196,166,125,0.2)] border-t-[#c4a67d] rounded-full animate-spin" />
+      </div>
+    }>
+      <CatalogueContent />
+    </Suspense>
+  );
+}
+
+function CatalogueContent() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
