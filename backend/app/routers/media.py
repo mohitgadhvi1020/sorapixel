@@ -31,7 +31,7 @@ async def download_image(image_id: str, user: dict = Depends(get_current_user)):
     return Response(
         content=data,
         media_type="image/png",
-        headers={"Content-Disposition": f'attachment; filename="sorapixel-{image_id}.png"'},
+        headers={"Content-Disposition": f'attachment; filename="soraipixel-{image_id}.png"'},
     )
 
 
@@ -50,7 +50,7 @@ async def whatsapp_share(image_id: str, user: dict = Depends(get_current_user)):
     if not url:
         raise HTTPException(status_code=404, detail="Image not found")
 
-    share_text = f"Check out this product photo created with SoraPixel! {url}"
+    share_text = f"Check out this product photo created with SoraiPixel! {url}"
     whatsapp_url = f"https://wa.me/?text={share_text}"
 
     return {"share_url": whatsapp_url, "image_url": url}

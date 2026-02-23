@@ -453,6 +453,25 @@ button, a, [role="button"], input[type="file"] + label {
   scrollbar-width: none;
 }
 
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+}
+
 /* ═══════════ SAFE AREAS ═══════════ */
 
 @supports (padding: env(safe-area-inset-bottom)) {
@@ -601,6 +620,31 @@ img, video, svg {
   animation-play-state: paused;
 }
 
+/* ═══════════ CONTINUOUS CAROUSEL ═══════════ */
+
+@keyframes scroll-left {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes scroll-right {
+  0% { transform: translateX(-50%); }
+  100% { transform: translateX(0); }
+}
+
+.animate-scroll-left {
+  animation: scroll-left 35s linear infinite;
+}
+
+.animate-scroll-right {
+  animation: scroll-right 40s linear infinite;
+}
+
+.animate-scroll-left:hover,
+.animate-scroll-right:hover {
+  animation-play-state: paused;
+}
+
 /* ═══════════ TEXT REVEAL ═══════════ */
 
 @keyframes text-reveal {
@@ -632,4 +676,28 @@ img, video, svg {
 
 .animate-subtle-float {
   animation: subtle-float 8s ease-in-out infinite;
+}
+
+/* ═══════════ LISTING CONTENT ═══════════ */
+
+.listing-content p {
+  margin-bottom: 0.75em;
+}
+.listing-content p:last-child {
+  margin-bottom: 0;
+}
+.listing-content ul, .listing-content ol {
+  margin: 0.75em 0;
+  padding-left: 1.25em;
+}
+.listing-content li {
+  margin-bottom: 0.35em;
+  list-style: disc;
+}
+.listing-content ol li {
+  list-style: decimal;
+}
+.listing-content strong, .listing-content b {
+  color: rgba(255,255,255,0.85);
+  font-weight: 600;
 }

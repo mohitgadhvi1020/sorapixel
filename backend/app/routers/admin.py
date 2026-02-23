@@ -294,3 +294,70 @@ async def admin_generate_catalogue(body: dict, admin: dict = Depends(require_adm
 
     valid = [img for img in images if img.get("url")]
     return {"success": bool(valid), "images": images}
+
+
+@router.get("/revenue")
+async def get_revenue(admin: dict = Depends(require_admin)):
+    sb = get_supabase()
+
+    payments: list = []
+    try:
+        payments_result = sb.table("payments").select(
+            "id, client_id, amount, currency, status, created_at"
+        ).eq("status", "paid").execute()
+        payments = payments_result.data or []
+    except Exception as e:
+        logger.warning(f"payments table query failed (may not exist): {e}")
+
+    total_revenue_inr = sum(p.get("amount", 0) for p in payments if p.get("currency", "INR") == "INR")
+    total_revenue_usd = sum(p.get("amount", 0) for p in payments if p.get("currency") == "USD")
+
+    token_logs: list = []
+    try:
+        token_logs_result = sb.table("token_logs").select(
+            "id, client_id, operation, tokens_deducted, quality, balance_after, created_at"
+        ).order("created_at", desc=True).limit(500).execute()
+        token_logs = token_logs_result.data or []
+    except Exception as e:
+        logger.warning(f"token_logs table query failed (may not exist): {e}")
+
+    total_tokens_used = sum(t.get("tokens_deducted", 0) for t in token_logs)
+
+    by_operation: dict[str, dict] = {}
+    for t in token_logs:
+        op = t.get("operation", "unknown")
+        if op not in by_operation:
+            by_operation[op] = {"count": 0, "tokens": 0}
+        by_operation[op]["count"] += 1
+        by_operation[op]["tokens"] += t.get("tokens_deducted", 0)
+
+    by_client: dict[str, dict] = {}
+    for t in token_logs:
+        cid = t.get("client_id", "unknown")
+        if cid not in by_client:
+            by_client[cid] = {"tokens_used": 0, "operations": 0}
+        by_client[cid]["tokens_used"] += t.get("tokens_deducted", 0)
+        by_client[cid]["operations"] += 1
+
+    ESTIMATED_COST_PER_TOKEN_INR = 0.5
+    estimated_cost = total_tokens_used * ESTIMATED_COST_PER_TOKEN_INR
+    estimated_profit = total_revenue_inr - estimated_cost
+
+    return {
+        "revenue": {
+            "total_inr": total_revenue_inr,
+            "total_usd": total_revenue_usd,
+            "payment_count": len(payments),
+        },
+        "token_usage": {
+            "total_deducted": total_tokens_used,
+            "by_operation": by_operation,
+            "by_client": by_client,
+            "log_count": len(token_logs),
+        },
+        "profit": {
+            "estimated_cost_inr": round(estimated_cost, 2),
+            "estimated_profit_inr": round(estimated_profit, 2),
+        },
+        "recent_logs": token_logs[:50],
+    }

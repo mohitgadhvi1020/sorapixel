@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Literal
 from pydantic import BaseModel
 
 
@@ -8,15 +9,19 @@ class GenerateJewelryRequest(BaseModel):
     jewelry_type: str = "necklace"
     background: str = "black_velvet"
     aspect_ratio_id: str | None = None
-    step: str = "hero"  # "hero", "full_pack", or single shot types
-    custom_angle_base64: str | None = None
+    step: str = "hero"
+    alt_images_base64: list[str] | None = None
     special_instructions: str | None = None
+    quality: Literal["standard", "pro"] = "standard"
+    session_id: str | None = None
 
 
 class RecolorJewelryRequest(BaseModel):
     image_base64: str
-    target_metal: str  # "gold", "silver", "rose_gold"
+    target_metal: str
     jewelry_type: str = "necklace"
+    quality: Literal["standard", "pro"] = "standard"
+    session_id: str | None = None
 
 
 class GenerateHdRequest(BaseModel):
@@ -26,10 +31,14 @@ class GenerateHdRequest(BaseModel):
 class RewriteListingRequest(BaseModel):
     image_base64: str
     jewelry_type: str = "necklace"
+    session_id: str | None = None
 
 
-class TryOnRequest(BaseModel):
-    jewelry_base64: str
-    person_base64: str
-    jewelry_type: str = "necklace"
-    aspect_ratio_id: str | None = None
+class BrandingRequest(BaseModel):
+    image_base64: str
+    business_name: str = ""
+    phone: str = ""
+    background: str = ""
+    session_id: str | None = None
+
+

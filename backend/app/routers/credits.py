@@ -18,6 +18,7 @@ router = APIRouter(prefix="/credits", tags=["Credits"])
 async def get_balance(user: dict = Depends(get_current_user)):
     settings = get_settings()
     studio = get_studio_credits(user["id"])
+    jewelry = get_jewelry_credits(user["id"])
     daily_available = is_daily_reward_available(user["id"])
 
     return {
@@ -27,6 +28,7 @@ async def get_balance(user: dict = Depends(get_current_user)):
         "tokens_per_image": settings.tokens_per_image,
         "is_free_tier": studio["is_free_tier"] if studio else True,
         "daily_reward_available": daily_available,
+        "free_generation_remaining": jewelry["free_generation_remaining"] if jewelry else 0,
     }
 
 
@@ -39,11 +41,11 @@ async def claim_daily(user: dict = Depends(get_current_user)):
 @router.post("/deduct")
 async def deduct_tokens(req: DeductTokensRequest, user: dict = Depends(get_current_user)):
     cost_map = {
-        "recolorAll": JEWELRY_PRICING["recolorAll"],
-        "recolorSingle": JEWELRY_PRICING["recolorSingle"],
-        "hdUpscale": JEWELRY_PRICING["hdUpscale"],
-        "listing": JEWELRY_PRICING["listing"],
-        "photoPack": JEWELRY_PRICING["photoPack"],
+        "imageGen": JEWELRY_PRICING["standard"]["imageGen"],
+        "regenSingle": JEWELRY_PRICING["standard"]["regenSingle"],
+        "recolorSingle": JEWELRY_PRICING["standard"]["recolorSingle"],
+        "listing": JEWELRY_PRICING["standard"]["listing"],
+        "ugcPerPose": JEWELRY_PRICING["standard"]["ugcPerPose"],
     }
     cost = req.amount or cost_map.get(req.operation)
     if cost is None:

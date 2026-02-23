@@ -39,7 +39,7 @@ export default function OnboardingPage() {
             <span className="text-white text-xl font-bold tracking-tight">SP</span>
           </div>
           <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">
-            Welcome to SoraPixel
+            Welcome to SoraiPixel
           </h1>
         </div>
 
@@ -51,7 +51,7 @@ export default function OnboardingPage() {
           </p>
         </div>
 
-        {/* Free credits */}
+        {/* Free tokens */}
         <div className="inline-flex items-center gap-3 px-5 py-3.5 rounded-xl bg-[rgba(196,166,125,0.06)] border border-[rgba(196,166,125,0.15)]">
           <div className="flex -space-x-1">
             <div className="w-8 h-8 rounded-lg bg-[rgba(196,166,125,0.15)] flex items-center justify-center text-[10px] font-bold text-[#c4a67d]">1x</div>

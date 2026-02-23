@@ -3,7 +3,7 @@ import Link from "next/link";
 import BlogRenderer from "@/components/blog/BlogRenderer";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://sorapixel.com";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://soraipixel.com";
 
 export const revalidate = 60;
 
@@ -62,21 +62,21 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const post = await getPost(slug);
-  if (!post) return { title: "Post Not Found — SoraPixel" };
+  if (!post) return { title: "Post Not Found — SoraiPixel" };
 
   const title = post.meta_title || post.title;
   const description = post.meta_description || post.excerpt || "";
   const ogImage = post.og_image_url || post.cover_image_url;
 
   return {
-    title: `${title} — SoraPixel Blog`,
+    title: `${title} — SoraiPixel Blog`,
     description,
     alternates: { canonical: `${SITE_URL}/blog/${post.slug}` },
     openGraph: {
       title,
       description,
       url: `${SITE_URL}/blog/${post.slug}`,
-      siteName: "SoraPixel",
+      siteName: "SoraiPixel",
       type: "article",
       publishedTime: post.published_at || undefined,
       modifiedTime: post.updated_at || undefined,
@@ -135,7 +135,7 @@ export default async function BlogPostPage({
     url: `${SITE_URL}/blog/${post.slug}`,
     publisher: {
       "@type": "Organization",
-      name: "SoraPixel",
+      name: "SoraiPixel",
       url: SITE_URL,
     },
     mainEntityOfPage: {
@@ -160,7 +160,7 @@ export default async function BlogPostPage({
                 <span className="text-white text-xs font-bold">SP</span>
               </div>
               <span className="font-display font-bold text-[15px] tracking-tight text-[#0a0a0a]">
-                SoraPixel
+                SoraiPixel
               </span>
             </Link>
             <div className="flex items-center gap-3">
@@ -243,7 +243,7 @@ export default async function BlogPostPage({
       <section className="bg-[#0a0a0a]">
         <div className="max-w-[760px] mx-auto px-5 md:px-8 py-16 text-center">
           <h2 className="font-display font-bold text-white uppercase tracking-[-0.02em] text-[1.5rem] sm:text-[2rem] leading-tight mb-4">
-            Try SoraPixel <span className="text-[#c4a67d]">Free</span>
+            Try SoraiPixel <span className="text-[#c4a67d]">Free</span>
           </h2>
           <p className="text-white/40 text-[14px] max-w-md mx-auto mb-6">
             Transform your jewelry photos into studio-quality images in seconds.

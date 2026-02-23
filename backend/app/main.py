@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-"""SoraPixel Backend API -- FastAPI application entry point."""
+"""SoraiPixel Backend API -- FastAPI application entry point."""
 
 import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
-from app.routers import auth, users, studio, jewelry, catalogue, credits, payments, admin, projects, feed, media, blog, brands
+from app.routers import auth, users, studio, jewelry, catalogue, credits, payments, admin, projects, sessions, feed, media, blog, brands
 
 logging.basicConfig(
     level=logging.INFO,
@@ -41,6 +41,7 @@ app.include_router(credits.router, prefix=prefix)
 app.include_router(payments.router, prefix=prefix)
 app.include_router(admin.router, prefix=prefix)
 app.include_router(projects.router, prefix=prefix)
+app.include_router(sessions.router, prefix=prefix)
 app.include_router(feed.router, prefix=prefix)
 app.include_router(media.router, prefix=prefix)
 app.include_router(blog.router, prefix=prefix)

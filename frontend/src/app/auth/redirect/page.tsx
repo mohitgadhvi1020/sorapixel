@@ -8,9 +8,6 @@ export default function AuthRedirectPage() {
 
   useEffect(() => {
     const saved = localStorage.getItem("sp_auth_redirect");
-    // #region agent log
-    fetch('http://127.0.0.1:7244/ingest/653765e7-dc9d-43dc-b978-b907e5640153',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth/redirect/page.tsx',message:'Redirect page mounted',data:{savedRedirect:saved},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
-    // #endregion
     localStorage.removeItem("sp_auth_redirect");
     router.replace(saved || "/jewelry");
   }, [router]);

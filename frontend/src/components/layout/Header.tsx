@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useCredits } from "@/hooks/useCredits";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import Logo from "@/components/ui/Logo";
 
 interface HeaderProps {
   title?: string;
@@ -14,10 +15,10 @@ interface HeaderProps {
 const NAV_LINKS = [
   { href: "/", label: "Home" },
   { href: "/jewelry", label: "Jewelry" },
+  { href: "/projects", label: "My Creations" },
   { href: "/studio", label: "Studio" },
   { href: "/catalogue", label: "Catalogue" },
   { href: "/batch-listing", label: "Bulk Listings" },
-  { href: "/projects", label: "Projects" },
   { href: "/brand-settings", label: "Brand" },
 ];
 
@@ -44,13 +45,8 @@ export default function Header({ onMenuToggle, showMenu = false }: HeaderProps) 
               </svg>
             </button>
           )}
-          <Link href="/" className="flex items-center gap-2.5 group">
-            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
-              <span className="text-white text-xs font-bold">SP</span>
-            </div>
-            <span className="font-display font-bold text-[15px] tracking-tight text-white hidden sm:block">
-              SoraPixel
-            </span>
+          <Link href="/" className="flex items-center group">
+            <Logo className="text-lg sm:text-xl" variant="light" />
           </Link>
         </div>
 
@@ -91,7 +87,7 @@ export default function Header({ onMenuToggle, showMenu = false }: HeaderProps) 
           )}
         </nav>
 
-        {/* Right: Credits + Profile */}
+        {/* Right: Tokens + Profile */}
         <div className="flex items-center gap-2.5">
           {credits && (
             <Link

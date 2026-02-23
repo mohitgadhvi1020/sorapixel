@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
       let imageUrl = "";
       if (row.image_storage_path) {
         const { data: signedData } = await sb.storage
-          .from("sorapixel-images")
+          .from("soraipixel-images")
           .createSignedUrl(row.image_storage_path, 3600);
         imageUrl = signedData?.signedUrl || "";
       }

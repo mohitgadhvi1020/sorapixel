@@ -7,7 +7,12 @@ class GenerateCatalogueRequest(BaseModel):
     image_base64: str
     model_id: str | None = None
     model_type: str = "indian_woman"
+    gender: str | None = None
+    nationality: str | None = None
+    skin_tone: str | None = None
+    jewelry_type: str | None = None
     poses: list[str] = ["standing", "side_view", "back_view", "sitting"]
+    quality: str = "standard"
     background: str = "best_match"
     aspect_ratio_id: str | None = None
     special_instructions: str | None = None
@@ -15,6 +20,7 @@ class GenerateCatalogueRequest(BaseModel):
     additional_images: list[str] = []
     add_logo: bool = False
     include_studio_views: list[str] = []
+    session_id: str | None = None
 
 
 class AiModel(BaseModel):

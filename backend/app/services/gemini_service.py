@@ -7,7 +7,7 @@ import base64
 import re
 import logging
 from google import genai
-from google.genai.types import GenerateContentConfig
+from google.genai.types import GenerateContentConfig, ImageConfig
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -43,20 +43,46 @@ def with_retry(fn, max_retries: int = 3, base_delay: float = 2.0):
             time.sleep(delay)
 
 
-def generate_image(prompt: str, image_b64: str, mime_type: str = "image/png") -> dict:
-    """Generate an image using Gemini 2.5 Flash Image model.
-    Returns {"base64": str, "mime_type": str, "usage": dict}
+RATIO_ID_TO_API = {
+    "square": "1:1",
+    "portrait": "3:4",
+    "story": "9:16",
+    "landscape": "4:3",
+    "widescreen": "16:9",
+}
+
+
+def generate_image(prompt: str, image_b64: str, mime_type: str = "image/png", aspect_ratio_id: str | None = None) -> dict:
+    """Generate an image using Gemini 2.5 Flash Image model (fast drafts).
+    Returns {"base64": str, "mime_type": str, "usage": dict, "model": str}
     """
+    return _generate_image_with_model("gemini-2.5-flash-image", prompt, image_b64, mime_type, aspect_ratio_id)
+
+
+def generate_image_pro(prompt: str, image_b64: str, mime_type: str = "image/png", aspect_ratio_id: str | None = None) -> dict:
+    """Generate an image using Nano Banana Pro (Gemini 3 Pro Image) for studio-quality output.
+    Returns {"base64": str, "mime_type": str, "usage": dict, "model": str}
+    """
+    return _generate_image_with_model("gemini-3-pro-image-preview", prompt, image_b64, mime_type, aspect_ratio_id)
+
+
+def _generate_image_with_model(model: str, prompt: str, image_b64: str, mime_type: str = "image/png", aspect_ratio_id: str | None = None) -> dict:
+    """Internal: generate image with a specified model."""
     client = get_client()
     clean_b64 = re.sub(r"^data:image/\w+;base64,", "", image_b64)
 
+    config_kwargs: dict = {"response_modalities": ["IMAGE"]}
+    api_ratio = RATIO_ID_TO_API.get(aspect_ratio_id or "")
+    if api_ratio:
+        config_kwargs["image_config"] = ImageConfig(aspect_ratio=api_ratio)
+
     response = with_retry(lambda: client.models.generate_content(
-        model="gemini-2.5-flash-image",
+        model=model,
         contents=[
             {"text": prompt},
             {"inline_data": {"mime_type": mime_type, "data": clean_b64}},
         ],
-        config=GenerateContentConfig(response_modalities=["IMAGE"]),
+        config=GenerateContentConfig(**config_kwargs),
     ))
 
     parts = response.candidates[0].content.parts if response.candidates else []
@@ -87,23 +113,40 @@ def generate_image(prompt: str, image_b64: str, mime_type: str = "image/png") ->
             "total_tokens": getattr(um, "total_token_count", 0) or 0,
         }
 
-    return {"base64": result_b64, "mime_type": result_mime, "usage": usage}
+    return {"base64": result_b64, "mime_type": result_mime, "usage": usage, "model": model}
 
 
-def generate_image_multi(prompt: str, images: list[dict]) -> dict:
-    """Generate with multiple input images.
+def generate_image_multi(prompt: str, images: list[dict], aspect_ratio_id: str | None = None) -> dict:
+    """Generate with multiple input images using Flash (fast).
     images: list of {"base64": str, "mime_type": str}
     """
+    return _generate_image_multi_with_model("gemini-2.5-flash-image", prompt, images, aspect_ratio_id)
+
+
+def generate_image_pro_multi(prompt: str, images: list[dict], aspect_ratio_id: str | None = None) -> dict:
+    """Generate with multiple input images using Nano Banana Pro (studio quality).
+    images: list of {"base64": str, "mime_type": str}
+    """
+    return _generate_image_multi_with_model("gemini-3-pro-image-preview", prompt, images, aspect_ratio_id)
+
+
+def _generate_image_multi_with_model(model: str, prompt: str, images: list[dict], aspect_ratio_id: str | None = None) -> dict:
+    """Internal: multi-image generation with a specified model."""
     client = get_client()
     contents = [{"text": prompt}]
     for img in images:
         clean = re.sub(r"^data:image/\w+;base64,", "", img["base64"])
         contents.append({"inline_data": {"mime_type": img.get("mime_type", "image/png"), "data": clean}})
 
+    config_kwargs: dict = {"response_modalities": ["IMAGE"]}
+    api_ratio = RATIO_ID_TO_API.get(aspect_ratio_id or "")
+    if api_ratio:
+        config_kwargs["image_config"] = ImageConfig(aspect_ratio=api_ratio)
+
     response = with_retry(lambda: client.models.generate_content(
-        model="gemini-2.5-flash-image",
+        model=model,
         contents=contents,
-        config=GenerateContentConfig(response_modalities=["IMAGE"]),
+        config=GenerateContentConfig(**config_kwargs),
     ))
 
     parts = response.candidates[0].content.parts if response.candidates else []
@@ -133,7 +176,7 @@ def generate_image_multi(prompt: str, images: list[dict]) -> dict:
             "total_tokens": getattr(um, "total_token_count", 0) or 0,
         }
 
-    return {"base64": result_b64, "mime_type": result_mime, "usage": usage}
+    return {"base64": result_b64, "mime_type": result_mime, "usage": usage, "model": model}
 
 
 def generate_text(prompt: str, image_b64: str | None = None, mime_type: str = "image/png") -> dict:

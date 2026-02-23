@@ -14,12 +14,11 @@ interface Category { id: string; name: string; slug: string; }
 export default function ProfilePage() {
   const { user, loading: authLoading, logout } = useAuth();
   const router = useRouter();
-  const [section, setSection] = useState<"main" | "name" | "category" | "daily" | "settings">("main");
+  const [section, setSection] = useState<"main" | "name" | "category" | "settings">("main");
   const [categories, setCategories] = useState<Category[]>([]);
 
   const [name, setName] = useState("");
   const [businessName, setBusinessName] = useState("");
-  const [applyBranding, setApplyBranding] = useState(false);
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [website, setWebsite] = useState("");
@@ -33,7 +32,6 @@ export default function ProfilePage() {
     if (user) {
       setName(user.contact_name || "");
       setBusinessName(user.company_name || "");
-      setApplyBranding(user.apply_branding || false);
       setPhone(user.phone || "");
       setAddress(user.business_address || "");
       setWebsite(user.business_website || "");
@@ -57,7 +55,6 @@ export default function ProfilePage() {
       await api.put("/users/me", {
         contact_name: name,
         company_name: businessName,
-        apply_branding: applyBranding,
         business_address: address,
         business_website: website,
         email: email,
@@ -111,11 +108,6 @@ export default function ProfilePage() {
               onClick={() => setSection("category")}
             />
             <ProfileMenuItem
-              label="Daily Rewards"
-              description="Claim free image credits"
-              onClick={() => setSection("daily")}
-            />
-            <ProfileMenuItem
               label="Settings"
               description="Support, policies & more"
               onClick={() => setSection("settings")}
@@ -163,17 +155,6 @@ export default function ProfilePage() {
 
           <Input label="Name" value={name} onChange={e => setName(e.target.value)} placeholder="Your name" />
           <Input label="Business Name" value={businessName} onChange={e => setBusinessName(e.target.value)} placeholder="Your business name" />
-
-          {/* Branding toggle */}
-          <div className="flex items-center justify-between py-3">
-            <p className="text-sm font-medium text-white">Apply Branding</p>
-            <button
-              onClick={() => setApplyBranding(!applyBranding)}
-              className={`w-11 h-6 rounded-full transition-colors duration-250 ${applyBranding ? "bg-[#c4a67d]" : "bg-[rgba(255,255,255,0.1)]"}`}
-            >
-              <div className={`w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-250 ${applyBranding ? "translate-x-5" : "translate-x-0.5"}`} />
-            </button>
-          </div>
 
           <div className="space-y-1.5">
             <label className="block text-xs font-medium text-[rgba(255,255,255,0.5)] uppercase tracking-[0.05em]">Mobile Number</label>
@@ -242,39 +223,6 @@ export default function ProfilePage() {
     );
   }
 
-  if (section === "daily") {
-    return (
-      <ResponsiveLayout title="Daily Rewards">
-        <div className="max-w-md mx-auto text-center space-y-6">
-          <div className="flex items-center gap-3 mb-2">
-            <button onClick={() => setSection("main")} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[rgba(255,255,255,0.06)] transition-colors text-[rgba(255,255,255,0.5)]">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6" /></svg>
-            </button>
-          </div>
-          <Card padding="lg" className="text-center">
-            <div className="w-16 h-16 mx-auto bg-[rgba(196,166,125,0.1)] rounded-2xl flex items-center justify-center mb-5">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#c4a67d" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M20 12v10H4V12M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" />
-              </svg>
-            </div>
-            <h2 className="text-xl font-bold text-white">Daily Image Boost</h2>
-            <p className="text-[rgba(255,255,255,0.5)] text-sm mt-2 mb-6">
-              Claim <span className="font-semibold text-white">2 free</span> image credits every day.
-            </p>
-            <Button
-              onClick={async () => { try { await api.post("/credits/claim-daily", {}); } catch { } }}
-              fullWidth
-              variant="accent"
-              size="lg"
-            >
-              Claim 2 Free Images
-            </Button>
-          </Card>
-        </div>
-      </ResponsiveLayout>
-    );
-  }
-
   return (
     <ResponsiveLayout title="Settings">
       <div className="max-w-xl mx-auto space-y-6">
@@ -286,7 +234,7 @@ export default function ProfilePage() {
         </div>
 
         <div className="space-y-2">
-          <a href="mailto:support@sorapixel.com">
+          <a href="mailto:support@soraipixel.com">
             <Card hover padding="md" className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-white">Support</p>

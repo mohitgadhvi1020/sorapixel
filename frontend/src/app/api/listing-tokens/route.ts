@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServer } from "@/lib/supabase/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { LISTING_PRICING } from "@/lib/token-pricing";
 
 export async function GET() {
   const supabase = await getSupabaseServer();
@@ -16,7 +17,7 @@ export async function GET() {
 
   return NextResponse.json({
     balance: data?.listing_tokens ?? 0,
-    costPerImage: 5,
-    costPerRegen: 3,
+    costPerImage: LISTING_PRICING.costPerImage,
+    costPerRegen: LISTING_PRICING.costPerRegen,
   });
 }

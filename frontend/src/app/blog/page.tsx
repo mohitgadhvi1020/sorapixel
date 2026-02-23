@@ -3,18 +3,18 @@ import Link from "next/link";
 import BlogCard from "@/components/blog/BlogCard";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://sorapixel.com";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://soraipixel.com";
 
 export const metadata: Metadata = {
-  title: "Blog — SoraPixel | AI Jewelry Photography Tips & Guides",
+  title: "Blog — SoraiPixel | AI Jewelry Photography Tips & Guides",
   description:
     "Expert tips on jewelry photography, e-commerce product imagery, and AI-powered photo editing. Learn how to create studio-quality jewelry photos.",
   alternates: { canonical: `${SITE_URL}/blog` },
   openGraph: {
-    title: "Blog — SoraPixel",
+    title: "Blog — SoraiPixel",
     description: "Expert tips on jewelry photography and AI-powered product imagery.",
     url: `${SITE_URL}/blog`,
-    siteName: "SoraPixel",
+    siteName: "SoraiPixel",
     type: "website",
   },
   twitter: { card: "summary_large_image" },
@@ -88,7 +88,7 @@ export default async function BlogPage({
                 <span className="text-white text-xs font-bold">SP</span>
               </div>
               <span className="font-display font-bold text-[15px] tracking-tight text-[#0a0a0a]">
-                SoraPixel
+                SoraiPixel
               </span>
             </Link>
             <Link

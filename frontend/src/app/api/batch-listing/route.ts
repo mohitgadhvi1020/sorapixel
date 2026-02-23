@@ -9,11 +9,12 @@ import {
   type BrandConfig,
   buildBrandListingPrompt,
 } from "@/lib/listing-prompt";
+import { LISTING_PRICING } from "@/lib/token-pricing";
 
 export const maxDuration = 60;
 
-const TOKENS_PER_IMAGE = 5;
-const TOKENS_PER_REGEN = 3;
+const TOKENS_PER_IMAGE = LISTING_PRICING.costPerImage;
+const TOKENS_PER_REGEN = LISTING_PRICING.costPerRegen;
 const MAX_RETRIES = 3;
 
 async function getAuthUserId(): Promise<string | null> {
@@ -177,7 +178,7 @@ async function uploadImage(clientId: string, base64: string, label: string) {
     const storagePath = `${clientId}/${fileName}`;
 
     const { error } = await sb.storage
-      .from("sorapixel-images")
+      .from("soraipixel-images")
       .upload(storagePath, buffer, { contentType: "image/png", upsert: false });
 
     if (error) { console.error("Storage upload error:", error.message); return null; }

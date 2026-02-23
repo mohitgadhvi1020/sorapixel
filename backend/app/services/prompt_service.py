@@ -138,6 +138,96 @@ MODEL_DESCRIPTIONS = {
     "indian_girl": "an Indian girl, around 14-16 years old",
 }
 
+GENDER_TEMPLATES = {
+    "woman": "a stylish {nationality} woman in her late 20s with natural beauty",
+    "man": "a well-groomed {nationality} man in his early 30s",
+    "boy": "a {nationality} boy, around 14-16 years old",
+    "girl": "a {nationality} girl, around 14-16 years old",
+}
+
+SKIN_TONE_DESCRIPTIONS = {
+    "fair": "with fair, light skin tone",
+    "light": "with light, wheat-ish skin tone",
+    "medium": "with medium, warm brown skin tone",
+    "tan": "with tan, olive skin tone",
+    "brown": "with brown skin tone",
+    "dark": "with deep dark brown skin tone",
+}
+
+
+def build_model_description(
+    gender: str = "woman",
+    nationality: str = "Indian",
+    skin_tone: str | None = None,
+    model_type: str | None = None,
+) -> str:
+    """Build a dynamic model description from gender, nationality, and skin tone.
+    Falls back to legacy MODEL_DESCRIPTIONS if model_type is provided."""
+    if model_type and model_type in MODEL_DESCRIPTIONS and not nationality:
+        return MODEL_DESCRIPTIONS[model_type]
+    template = GENDER_TEMPLATES.get(gender, GENDER_TEMPLATES["woman"])
+    desc = template.format(nationality=nationality or "Indian")
+    if skin_tone and skin_tone in SKIN_TONE_DESCRIPTIONS:
+        desc += f" {SKIN_TONE_DESCRIPTIONS[skin_tone]}"
+    return desc
+
+
+JEWELRY_SIZE_HINTS = {
+    "ring": "typically 1-2cm wide, fits snugly around a finger — must look proportional to a real human hand",
+    "necklace": "varies by style — choker: 35-40cm sits tight at the neck; princess: 43-48cm rests at the collarbone; matinee: 50-60cm on the chest; opera: 70-90cm hangs below the bust. Match the length and thickness visible in the input image",
+    "earring": "typically 1-5cm, hangs from the earlobe — studs are tiny (under 1cm), drops are 3-5cm, chandeliers can be 5-8cm. Match the size from the reference",
+    "bracelet": "fits snugly around the wrist, 15-20cm circumference, typically 0.5-2cm wide — must look proportional to a real human wrist",
+    "bangle": "rigid circular band, 6-8cm inner diameter, fits around the wrist/forearm — multiple bangles stack naturally",
+    "pendant": "small decorative piece 1-4cm, hanging from a chain at chest level — the pendant should not appear larger than the model's palm",
+    "brooch": "small decorative pin 3-6cm, attached flat to clothing — should not dominate the chest area",
+    "anklet": "thin delicate chain wrapping the ankle, typically under 0.5cm wide — must look proportional to a real human ankle",
+    "chain": "40-70cm length worn around the neck, links are typically 3-8mm — match the link size and chain thickness from the input image",
+    "set": "multiple coordinated pieces, each at its natural body position and realistic size — no piece should look oversized or miniaturized",
+}
+
+JEWELRY_UGC_POSES = {
+    "ring": {
+        "poses": ["hand_closeup", "standing", "side_view"],
+        "interaction": "wearing the ring on the finger — the ring must be realistically sized, fitting snugly around the finger as a real ring would, NOT oversized or miniaturized. The ring's design, stone size, and band width must exactly match the reference image",
+    },
+    "necklace": {
+        "poses": ["standing", "close_up", "side_view", "sitting"],
+        "interaction": "wearing the necklace around the neck — the necklace must match the exact length, drape, and thickness visible in the reference image. If it's a short choker it sits tight at the base of the neck; if it's a long chain it drapes naturally down the chest. The outfit neckline must be low enough to fully reveal the necklace",
+    },
+    "earring": {
+        "poses": ["close_up", "side_view", "standing"],
+        "interaction": "wearing the earrings with ears clearly visible, hair tucked or swept to one side — the earrings must be realistically sized relative to the ear (studs are tiny, drops hang 3-5cm, chandeliers up to 8cm). Match the exact size from the reference image",
+    },
+    "bracelet": {
+        "poses": ["hand_closeup", "standing", "sitting"],
+        "interaction": "wearing the bracelet on the wrist — the bracelet must fit naturally around the wrist at its real-world size, NOT enlarged or shrunk. Hand and forearm elegantly positioned to showcase it",
+    },
+    "bangle": {
+        "poses": ["hand_closeup", "standing", "side_view"],
+        "interaction": "wearing the bangles on the forearm — each bangle must be realistically proportioned to the wrist/forearm (6-8cm diameter). If multiple bangles, they stack naturally. Arm raised or posed to showcase them",
+    },
+    "pendant": {
+        "poses": ["close_up", "standing", "sitting"],
+        "interaction": "wearing the pendant on a chain around the neck — the pendant must be its real-world size (typically smaller than the model's palm), resting naturally on the chest. The chain length and pendant size must match the reference image exactly",
+    },
+    "brooch": {
+        "poses": ["close_up", "standing", "side_view"],
+        "interaction": "wearing the brooch pinned to the outfit on the chest or lapel area — the brooch must be realistically sized (3-6cm), NOT enlarged to fill the frame. It should look like a natural accessory, not a dominant element",
+    },
+    "anklet": {
+        "poses": ["feet_closeup", "sitting", "standing"],
+        "interaction": "wearing the anklet around the ankle — the anklet must be a thin, delicate chain proportional to a real human ankle, NOT thick or oversized. Legs and feet visible and elegantly posed",
+    },
+    "chain": {
+        "poses": ["standing", "close_up", "side_view"],
+        "interaction": "wearing the chain around the neck — the chain link size, thickness, and overall length must match the reference image exactly. It should drape naturally with realistic weight and movement",
+    },
+    "set": {
+        "poses": ["standing", "close_up", "side_view", "sitting"],
+        "interaction": "wearing the complete jewelry set with all pieces visible — each piece must be at its real-world size relative to the body (rings on fingers, necklace at neck, earrings at ears, bangles on wrists). No piece should look disproportionately large or small",
+    },
+}
+
 POSE_DESCRIPTIONS = {
     "best_match": "in a natural, confident pose that best showcases the product. Frame as a 3/4-length portrait (head to mid-thigh). The head must sit in the upper 20% of the canvas with empty space above the crown",
     "standing": "standing upright in a confident stance facing the camera. Full-length shot from feet to well above the head. Zoom out enough so the full body fits with generous headroom — the head should be at roughly 15-20% from the top edge",
@@ -146,6 +236,8 @@ POSE_DESCRIPTIONS = {
     "sitting": "sitting elegantly on a chair or stool. Frame from well above the head to the knees. Head positioned in upper 20% of image with clear space above",
     "close_up": "a close-up portrait from chest/shoulders up. Face centered and fully visible (forehead to chin) with clear space above the head. Beauty shot — face sharp, well-lit, primary focus",
     "walking": "in a natural walking pose, full-body mid-stride. Zoom out to fit entire body with the head at roughly 15% from the top edge of the frame",
+    "hand_closeup": "a close-up of the hand and wrist area, elegantly posed to showcase jewelry on the fingers or wrist. Shallow depth of field, hand sharp and well-lit",
+    "feet_closeup": "a close-up of the feet and ankle area, elegantly posed to showcase ankle jewelry. Clean background, feet and ankles sharp and well-lit",
 }
 
 CATALOGUE_BACKGROUNDS = [
@@ -184,16 +276,29 @@ def build_catalogue_prompt(
     special_instructions: str | None = None,
     key_highlights: str | None = None,
     outfit_description: str | None = None,
+    jewelry_type: str | None = None,
+    gender: str | None = None,
+    nationality: str | None = None,
+    skin_tone: str | None = None,
 ) -> str:
     """Build prompt for Catalogue/UGC generation — category-aware model interaction."""
-    model_desc = MODEL_DESCRIPTIONS.get(model_type, MODEL_DESCRIPTIONS["indian_woman"])
+    if gender and nationality:
+        model_desc = build_model_description(gender=gender, nationality=nationality, skin_tone=skin_tone)
+    else:
+        model_desc = MODEL_DESCRIPTIONS.get(model_type, MODEL_DESCRIPTIONS["indian_woman"])
+        if skin_tone and skin_tone in SKIN_TONE_DESCRIPTIONS:
+            model_desc += f" {SKIN_TONE_DESCRIPTIONS[skin_tone]}"
+
     pose_desc = POSE_DESCRIPTIONS.get(pose, POSE_DESCRIPTIONS["best_match"])
     bg_desc = CATALOGUE_BG_DESCRIPTIONS.get(background, CATALOGUE_BG_DESCRIPTIONS["best_match"])
 
-    interaction = CATEGORY_CATALOGUE_INTERACTION.get(
-        category_slug or "",
-        "wearing/holding/using the product from the input image"
-    )
+    if jewelry_type and jewelry_type in JEWELRY_UGC_POSES:
+        interaction = JEWELRY_UGC_POSES[jewelry_type]["interaction"]
+    else:
+        interaction = CATEGORY_CATALOGUE_INTERACTION.get(
+            category_slug or "",
+            "wearing/holding/using the product from the input image"
+        )
 
     outfit_line = ""
     if outfit_description:
@@ -213,17 +318,30 @@ def build_catalogue_prompt(
         f"Background: {bg_desc}\n"
         f"{outfit_line}\n"
         f"{PRODUCT_ISOLATION_PROMPT}\n\n"
-        "COMPOSITION GUIDE:\n"
+        "⚠️ SIZE & PROPORTION RULE — CRITICAL:\n"
+        "- The jewelry must appear at its REAL-WORLD physical size relative to the human body\n"
+        "- Study the input image carefully to understand the actual dimensions of the piece\n"
+        "- Do NOT enlarge or shrink the jewelry — maintain realistic proportions as seen in real product photography\n"
+        "- If the jewelry is small/delicate (e.g. a stud earring, thin anklet), it MUST appear small on the model\n"
+        "- If the jewelry is large/statement (e.g. a chunky necklace, large jhumkas), it should appear proportionally large\n"
+        "- Use the model's body parts as scale anchors: finger width for rings, earlobe for earrings, neck circumference for necklaces, wrist for bracelets\n"
+    )
+
+    if jewelry_type and jewelry_type in JEWELRY_SIZE_HINTS:
+        prompt += f"- Size reference: {JEWELRY_SIZE_HINTS[jewelry_type]}\n"
+
+    prompt += (
+        "\nCOMPOSITION GUIDE:\n"
         "- Frame as a 3/4-length or full-length portrait (head to below knees minimum)\n"
         "- Camera at chest/waist height, angled slightly up toward the face\n"
         "- The model's face should be sharp, well-lit, and the anchor point of the composition\n"
         "- Leave generous headroom — the top of the frame should have empty background above the hair\n"
         "- NEVER frame so tight that the head touches or exits the top edge\n\n"
         "QUALITY RULES:\n"
-        "- The model should look natural, authentic, and Indian\n"
+        f"- The model should look natural, authentic, and {nationality or 'Indian'}\n"
         "- Product must be clearly visible, well-lit, and the focal point\n"
         "- Commercial quality, suitable for e-commerce catalogue\n"
-        "- Realistic proportions between model and product\n"
+        "- Realistic proportions between model and product — the jewelry must look like it belongs on the model's body, not pasted on\n"
         "- Output should look like a real professional photograph\n"
         "- CRITICAL: The model's clothing color, style, and fabric must be EXACTLY "
         "the same across all images in this set. Do NOT change the outfit between poses."
@@ -262,6 +380,7 @@ ASPECT_RATIOS = {
     "portrait": {"width": 768, "height": 1024, "label": "Portrait (3:4)"},
     "story": {"width": 576, "height": 1024, "label": "Story (9:16)"},
     "landscape": {"width": 1024, "height": 768, "label": "Landscape (4:3)"},
+    "widescreen": {"width": 1024, "height": 576, "label": "Widescreen (16:9)"},
 }
 
 DEFAULT_RATIO = ASPECT_RATIOS["square"]
@@ -276,11 +395,14 @@ def get_ratio(ratio_id: str | None) -> dict:
 # ─── Jewelry-specific prompts ───
 
 JEWELRY_BACKGROUND_PROMPTS = {
-    "black-velvet": "on a solid, uniform deep black velvet surface, soft even studio lighting",
-    "white-marble": "on a clean white marble surface with faint grey veining, bright even lighting",
-    "pure-white": "on a pure white seamless background, clean even studio lighting, e-commerce style",
-    "burgundy-velvet": "on a deep burgundy velvet surface, warm even studio lighting",
-    "gold-gradient": "on a smooth warm golden gradient background, soft even lighting",
+    "black-velvet": "on a solid, uniform deep black velvet surface, soft even studio lighting, luxury feel",
+    "pure-white": "on a pure white seamless background, clean even studio lighting, e-commerce marketplace style",
+    "neutral-gray": "on a smooth neutral gray seamless paper background, balanced even studio lighting, professional catalog style",
+    "white-marble": "on a clean white marble surface with faint grey veining, bright even lighting, lifestyle feel",
+    "cream-silk": "on a soft cream silk satin fabric surface with gentle folds, warm golden-hour studio lighting, elegant luxury feel",
+    "emerald-velvet": "on a rich emerald green velvet surface, warm studio lighting with soft highlights, opulent luxury feel",
+    "burgundy-velvet": "on a deep burgundy wine velvet surface, warm even studio lighting, classic rich luxury feel",
+    "navy-velvet": "on a deep navy blue velvet surface, cool-toned studio lighting with subtle highlights, sophisticated luxury feel",
 }
 
 ANGLE_BY_TYPE = {
@@ -315,17 +437,35 @@ JEWELRY_CORE_RULE = (
     "and props — show ONLY the jewelry."
 )
 
-OUTPUT_RULES = (
-    "OUTPUT RULES: Generate a SQUARE image. The COMPLETE jewelry piece must be fully visible "
-    "within the frame — nothing cropped or cut off at any edge. Center the jewelry with even "
-    "padding on all sides. The background must be uniform and consistent edge-to-edge with no "
-    "vignette or dark borders."
-)
+RATIO_SHAPE_HINTS = {
+    "square": "a SQUARE (1:1) image",
+    "portrait": "a PORTRAIT (3:4) image — taller than wide",
+    "story": "a tall STORY (9:16) image — much taller than wide",
+    "landscape": "a LANDSCAPE (4:3) image — wider than tall",
+    "widescreen": "a WIDESCREEN (16:9) image — much wider than tall",
+}
 
 
-def build_jewelry_prompt(jewelry_type: str, background_id: str, shot_type: str, special_instructions: str | None = None) -> str:
+def _output_rules(ratio_id: str | None = None) -> str:
+    shape = RATIO_SHAPE_HINTS.get(ratio_id or "square", RATIO_SHAPE_HINTS["square"])
+    return (
+        f"OUTPUT RULES: Generate {shape}. The COMPLETE jewelry piece must be fully visible "
+        "within the frame — nothing cropped or cut off at any edge. Center the jewelry with even "
+        "padding on all sides. The background must be uniform and consistent edge-to-edge with no "
+        "vignette or dark borders."
+    )
+
+
+def build_jewelry_prompt(
+    jewelry_type: str,
+    background_id: str,
+    shot_type: str,
+    special_instructions: str | None = None,
+    ratio_id: str | None = None,
+) -> str:
     bg_prompt = JEWELRY_BACKGROUND_PROMPTS.get(background_id, JEWELRY_BACKGROUND_PROMPTS["black-velvet"])
     extras = f"\nAdditional request: {special_instructions}" if special_instructions else ""
+    output_rules = _output_rules(ratio_id)
 
     if shot_type == "hero":
         return (
@@ -335,7 +475,7 @@ def build_jewelry_prompt(jewelry_type: str, background_id: str, shot_type: str, 
             f"The ENTIRE {jewelry_type} must be fully visible — nothing cut off. "
             f"Center it with even padding on all sides. "
             f"{JEWELRY_CORE_RULE} "
-            f"{OUTPUT_RULES}"
+            f"{output_rules}"
             f"{extras}"
         )
 
@@ -348,7 +488,7 @@ def build_jewelry_prompt(jewelry_type: str, background_id: str, shot_type: str, 
             f"Shallow depth of field — jewelry sharp, background softly blurred. "
             f"The close-up should show roughly 30-40% of the piece, focused on the finest detail. "
             f"{JEWELRY_CORE_RULE} "
-            f"{OUTPUT_RULES}"
+            f"{output_rules}"
             f"{extras}"
         )
 
@@ -359,16 +499,21 @@ def build_jewelry_prompt(jewelry_type: str, background_id: str, shot_type: str, 
         f"The ENTIRE {jewelry_type} must be fully visible — nothing cut off at any edge. "
         f"Center the piece with even padding. "
         f"{JEWELRY_CORE_RULE} "
-        f"{OUTPUT_RULES}"
+        f"{output_rules}"
         f"{extras}"
     )
 
 
 def build_recolor_prompt(jewelry_type: str, target_metal: str) -> str:
     return (
-        f"Change the metal color of this {jewelry_type} to {target_metal}. "
-        f"Keep every detail exactly the same — same stones, design, shape, proportions. "
-        f"ONLY change the metal color/finish. Background, lighting, and angle stay identical. "
+        f"Recolor ONLY the metal parts of this {jewelry_type} to {target_metal}. "
+        f"CRITICAL RULES:\n"
+        f"- ONLY change the metal color/tone/finish (the gold, silver, platinum, copper, brass parts)\n"
+        f"- DO NOT change diamonds, gemstones, pearls, beads, enamel, or any non-metal elements\n"
+        f"- DO NOT change the color of any stones — they must remain exactly as they are\n"
+        f"- Keep the exact same design, shape, proportions, engravings, and textures\n"
+        f"- Background, lighting, shadows, and camera angle must stay identical\n"
+        f"- The metal should look realistic with proper reflections and luster for {target_metal}\n"
         f"{JEWELRY_CORE_RULE}"
     )
 

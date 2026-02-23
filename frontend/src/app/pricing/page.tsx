@@ -1,10 +1,41 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api-client";
 import { useAuth } from "@/hooks/useAuth";
 import { useCredits } from "@/hooks/useCredits";
+import { TOKEN_COSTS_TABLE } from "@/lib/token-pricing";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
+
+declare global {
+  interface Window {
+    Razorpay: new (options: RazorpayOptions) => RazorpayInstance;
+  }
+}
+
+interface RazorpayOptions {
+  key: string;
+  amount: number;
+  currency: string;
+  name: string;
+  description: string;
+  order_id: string;
+  handler: (response: RazorpayResponse) => void;
+  prefill?: { email?: string; contact?: string; name?: string };
+  theme?: { color?: string };
+  modal?: { ondismiss?: () => void };
+}
+
+interface RazorpayInstance {
+  open: () => void;
+  on: (event: string, handler: (response: { error: { description: string } }) => void) => void;
+}
+
+interface RazorpayResponse {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+}
 
 interface Plan {
   id: string;
@@ -16,24 +47,18 @@ interface Plan {
   recommended?: boolean;
 }
 
-const TOKEN_COSTS = [
-  { feature: "Studio Shot", cost: "1 token" },
-  { feature: "Jewelry Hero Preview", cost: "FREE (1x)" },
-  { feature: "Jewelry 3-Angle Pack", cost: "40 tokens" },
-  { feature: "Regenerate Single Shot", cost: "5 tokens" },
-  { feature: "Recolor Metal", cost: "7 tokens" },
-  { feature: "HD Upscale", cost: "10 tokens" },
-  { feature: "Product Listing (AI)", cost: "5 tokens" },
-  { feature: "UGC Model Photo", cost: "1 token/pose" },
-];
+const TOKEN_COSTS = TOKEN_COSTS_TABLE;
 
-const ADMIN_WHATSAPP = "https://wa.me/919999999999?text=Hi%2C%20I%20want%20to%20purchase%20a%20SoraPixel%20plan";
+const RAZORPAY_KEY = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "";
 
 export default function PricingPage() {
   const { user } = useAuth();
-  const { credits } = useCredits();
+  const { credits, refreshCredits } = useCredits();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
+  const [payingPlanId, setPayingPlanId] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadPlans() {
@@ -48,6 +73,92 @@ export default function PricingPage() {
     }
     loadPlans();
   }, []);
+
+  const handlePurchase = useCallback(
+    async (plan: Plan) => {
+      if (!user) {
+        window.location.href = "/login";
+        return;
+      }
+
+      setPayingPlanId(plan.id);
+      setErrorMessage(null);
+      setSuccessMessage(null);
+
+      try {
+        const orderData = await api.post<{
+          success: boolean;
+          order_id: string;
+          amount: number;
+          currency: string;
+          error?: string;
+        }>("/payments/create-order", { plan_id: plan.id });
+
+        if (!orderData.success) {
+          setErrorMessage(orderData.error || "Failed to create order");
+          setPayingPlanId(null);
+          return;
+        }
+
+        const options: RazorpayOptions = {
+          key: RAZORPAY_KEY,
+          amount: orderData.amount,
+          currency: orderData.currency,
+          name: "SoraiPixel",
+          description: `${plan.name} — ${plan.tokens} tokens`,
+          order_id: orderData.order_id,
+          handler: async (response: RazorpayResponse) => {
+            try {
+              const verifyResult = await api.post<{
+                success: boolean;
+                tokens_added: number;
+                error?: string;
+              }>("/payments/verify", {
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              });
+
+              if (verifyResult.success) {
+                setSuccessMessage(
+                  `Payment successful! ${verifyResult.tokens_added} tokens added to your account.`
+                );
+                refreshCredits();
+              } else {
+                setErrorMessage(verifyResult.error || "Payment verification failed");
+              }
+            } catch {
+              setErrorMessage("Payment verification failed. Contact support if amount was deducted.");
+            } finally {
+              setPayingPlanId(null);
+            }
+          },
+          prefill: {
+            email: user.email || "",
+            contact: user.phone || "",
+            name: user.contact_name || user.company_name || "",
+          },
+          theme: { color: "#c4a67d" },
+          modal: {
+            ondismiss: () => {
+              setPayingPlanId(null);
+            },
+          },
+        };
+
+        const rzp = new window.Razorpay(options);
+        rzp.on("payment.failed", (response: { error: { description: string } }) => {
+          setErrorMessage(response.error.description || "Payment failed");
+          setPayingPlanId(null);
+        });
+        rzp.open();
+      } catch {
+        setErrorMessage("Something went wrong. Please try again.");
+        setPayingPlanId(null);
+      }
+    },
+    [user, refreshCredits]
+  );
 
   const subscriptions = plans.filter((p) => p.type === "subscription");
   const tokenPacks = plans.filter((p) => p.type === "token_pack");
@@ -67,6 +178,41 @@ export default function PricingPage() {
             Start free. Upgrade when you need more.
           </p>
         </div>
+
+        {/* Success / Error messages */}
+        {successMessage && (
+          <div className="flex items-center gap-3 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round">
+              <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+            <p className="text-sm text-emerald-400 font-medium">{successMessage}</p>
+            <button
+              onClick={() => setSuccessMessage(null)}
+              className="ml-auto text-emerald-400/60 hover:text-emerald-400"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+        )}
+        {errorMessage && (
+          <div className="flex items-center gap-3 p-4 rounded-2xl bg-red-500/10 border border-red-500/20">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round">
+              <circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" />
+            </svg>
+            <p className="text-sm text-red-400 font-medium">{errorMessage}</p>
+            <button
+              onClick={() => setErrorMessage(null)}
+              className="ml-auto text-red-400/60 hover:text-red-400"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+        )}
 
         {/* Current balance */}
         {user && (
@@ -93,7 +239,7 @@ export default function PricingPage() {
               <span className="text-[10px] font-bold text-[#c4a67d] bg-[rgba(196,166,125,0.15)] px-2 py-0.5 rounded-full uppercase tracking-wider">No card needed</span>
             </div>
             <p className="text-sm text-[rgba(255,255,255,0.5)] mb-4">
-              Every new account gets free credits to try the full jewelry photography experience.
+              Every new account gets free tokens to try the full jewelry photography experience.
             </p>
             <div className="grid grid-cols-3 gap-3">
               <div className="bg-[rgba(0,0,0,0.2)] rounded-xl p-3 text-center">
@@ -150,18 +296,24 @@ export default function PricingPage() {
                         <span className="text-sm text-[rgba(255,255,255,0.4)]">/month</span>
                         <p className="text-xs text-[#c4a67d] mt-0.5">{plan.tokens} tokens included</p>
                       </div>
-                      <a
-                        href={ADMIN_WHATSAPP}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={`block w-full text-center py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                      <button
+                        onClick={() => handlePurchase(plan)}
+                        disabled={payingPlanId !== null}
+                        className={`block w-full text-center py-2.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                           plan.recommended
                             ? "bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-white shadow-[0_4px_16px_rgba(196,166,125,0.3)] hover:shadow-[0_6px_24px_rgba(196,166,125,0.45)]"
                             : "bg-[rgba(255,255,255,0.06)] text-white border border-[rgba(255,255,255,0.1)] hover:bg-[rgba(255,255,255,0.1)]"
                         }`}
                       >
-                        Contact Admin to Purchase
-                      </a>
+                        {payingPlanId === plan.id ? (
+                          <span className="flex items-center justify-center gap-2">
+                            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            Processing…
+                          </span>
+                        ) : (
+                          `Buy Now — ₹${plan.price_inr}`
+                        )}
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -183,14 +335,20 @@ export default function PricingPage() {
                       <p className="text-lg font-bold text-white mt-2">
                         <span className="text-sm">&#8377;</span>{plan.price_inr}
                       </p>
-                      <a
-                        href={ADMIN_WHATSAPP}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block w-full mt-3 py-2 rounded-xl text-xs font-semibold text-[rgba(255,255,255,0.6)] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.15)] hover:text-white transition-all"
+                      <button
+                        onClick={() => handlePurchase(plan)}
+                        disabled={payingPlanId !== null}
+                        className="block w-full mt-3 py-2 rounded-xl text-xs font-semibold text-[rgba(255,255,255,0.6)] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.15)] hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        Contact Admin
-                      </a>
+                        {payingPlanId === plan.id ? (
+                          <span className="flex items-center justify-center gap-1.5">
+                            <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            Processing…
+                          </span>
+                        ) : (
+                          "Buy Now"
+                        )}
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -203,40 +361,52 @@ export default function PricingPage() {
         <div className="space-y-4">
           <h3 className="text-xs font-semibold text-[rgba(255,255,255,0.4)] uppercase tracking-wider">What Costs What</h3>
           <div className="rounded-2xl bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] overflow-hidden">
+            {/* Header row */}
+            <div className="flex items-center px-5 py-2.5 border-b border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.02)]">
+              <span className="flex-1 text-[10px] font-bold text-[rgba(255,255,255,0.3)] uppercase tracking-wider">Feature</span>
+              <span className="w-24 text-center text-[10px] font-bold text-[rgba(255,255,255,0.3)] uppercase tracking-wider">Standard</span>
+              <span className="w-24 text-center text-[10px] font-bold text-[#c4a67d] uppercase tracking-wider flex items-center justify-center gap-1">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
+                Pro
+              </span>
+            </div>
             {TOKEN_COSTS.map((item, i) => (
               <div
                 key={i}
-                className={`flex items-center justify-between px-5 py-3 ${
+                className={`flex items-center px-5 py-3 ${
                   i !== TOKEN_COSTS.length - 1 ? "border-b border-[rgba(255,255,255,0.04)]" : ""
                 }`}
               >
-                <span className="text-sm text-[rgba(255,255,255,0.7)]">{item.feature}</span>
-                <span className={`text-xs font-semibold ${
-                  item.cost.includes("FREE") ? "text-emerald-400" : "text-[rgba(255,255,255,0.4)]"
+                <span className="flex-1 text-sm text-[rgba(255,255,255,0.7)]">{item.feature}</span>
+                <span className={`w-24 text-center text-xs font-semibold ${
+                  item.standard.includes("FREE") ? "text-emerald-400" : "text-[rgba(255,255,255,0.4)]"
                 }`}>
-                  {item.cost}
+                  {item.standard}
+                </span>
+                <span className={`w-24 text-center text-xs font-semibold ${
+                  item.pro.includes("FREE") ? "text-emerald-400" : "text-[#c4a67d]"
+                }`}>
+                  {item.pro}
                 </span>
               </div>
             ))}
           </div>
+          <p className="text-[11px] text-[rgba(255,255,255,0.25)] text-center">
+            Pro quality uses Nano Banana Pro for sharper textures and precise lighting — ideal for jewelry sales.
+          </p>
         </div>
 
-        {/* Contact CTA */}
+        {/* Secure payments badge */}
         <div className="text-center py-6">
-          <p className="text-sm text-[rgba(255,255,255,0.4)] mb-3">
-            Need a custom plan or have questions?
-          </p>
-          <a
-            href={ADMIN_WHATSAPP}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[rgba(255,255,255,0.06)] text-white text-sm font-semibold border border-[rgba(255,255,255,0.1)] hover:bg-[rgba(255,255,255,0.1)] hover:border-[rgba(255,255,255,0.2)] transition-all"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="#25D366">
-              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+          <div className="flex items-center justify-center gap-2 text-[rgba(255,255,255,0.3)] text-xs">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0110 0v4" />
             </svg>
-            Chat with us on WhatsApp
-          </a>
+            <span>Secured by Razorpay — UPI, Cards, Net Banking accepted</span>
+          </div>
         </div>
       </div>
     </ResponsiveLayout>

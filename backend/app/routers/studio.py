@@ -6,9 +6,9 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from app.middleware.auth import get_current_user
 from app.schemas.studio import GenerateStudioRequest, GenerateResponse, ImageResult
-from app.services.gemini_service import generate_image
+from app.services.gemini_service import generate_image, generate_image_pro
 from app.services.image_service import crop_to_ratio
-from app.services.credit_service import check_and_deduct_studio, get_studio_credits
+from app.services.credit_service import check_and_deduct_studio, get_studio_credits, STUDIO_PRICING
 from app.services.tracking_service import track_generation
 from app.services.prompt_service import build_studio_prompt, get_ratio, get_studio_backgrounds
 from app.services.project_service import save_project
@@ -27,7 +27,7 @@ async def studio_credits(user: dict = Depends(get_current_user)):
     return {
         **credits,
         "free_limit": settings.free_studio_limit,
-        "tokens_per_image": settings.tokens_per_image,
+        "tokens_per_image": STUDIO_PRICING,
     }
 
 
@@ -40,7 +40,7 @@ async def list_backgrounds(user: dict = Depends(get_current_user)):
 
 @router.post("/generate", response_model=GenerateResponse)
 async def generate_studio_image(req: GenerateStudioRequest, user: dict = Depends(get_current_user)):
-    credit_check = check_and_deduct_studio(user["id"])
+    credit_check = check_and_deduct_studio(user["id"], req.quality)
     if not credit_check["allowed"]:
         raise HTTPException(status_code=403, detail=credit_check["error"])
 
@@ -53,7 +53,10 @@ async def generate_studio_image(req: GenerateStudioRequest, user: dict = Depends
     ratio = get_ratio(req.aspect_ratio_id)
 
     try:
-        result = generate_image(prompt, req.image_base64)
+        if req.quality == "pro":
+            result = generate_image_pro(prompt, req.image_base64, aspect_ratio_id=req.aspect_ratio_id)
+        else:
+            result = generate_image(prompt, req.image_base64, aspect_ratio_id=req.aspect_ratio_id)
 
         image_b64 = result["base64"]
         try:
@@ -67,7 +70,8 @@ async def generate_studio_image(req: GenerateStudioRequest, user: dict = Depends
             generation_type="studio",
             input_tokens=usage.get("input_tokens", 0),
             output_tokens=usage.get("output_tokens", 0),
-            metadata={"background": req.background_id, "category": category_slug},
+            model_used=result.get("model", "gemini-2.5-flash-image"),
+            metadata={"background": req.background_id, "category": category_slug, "quality": req.quality},
         )
 
         try:
@@ -76,7 +80,7 @@ async def generate_studio_image(req: GenerateStudioRequest, user: dict = Depends
                 project_type="photoshoot",
                 title=f"Studio Shot – {req.background_id or 'auto'}",
                 images=[{"base64": image_b64, "label": "Studio Shot"}],
-                metadata={"background": req.background_id, "category": category_slug},
+                metadata={"background": req.background_id, "category": category_slug, "quality": req.quality},
             )
         except Exception as save_err:
             logger.warning(f"Project save failed (non-blocking): {save_err}")

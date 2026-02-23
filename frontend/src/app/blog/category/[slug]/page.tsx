@@ -3,7 +3,7 @@ import Link from "next/link";
 import BlogCard from "@/components/blog/BlogCard";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://sorapixel.com";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://soraipixel.com";
 
 interface BlogPost {
   id: string;
@@ -60,14 +60,14 @@ export async function generateMetadata({
   const name = category?.name || slug;
 
   return {
-    title: `${name} — SoraPixel Blog`,
-    description: category?.description || `Browse articles about ${name} on the SoraPixel blog.`,
+    title: `${name} — SoraiPixel Blog`,
+    description: category?.description || `Browse articles about ${name} on the SoraiPixel blog.`,
     alternates: { canonical: `${SITE_URL}/blog/category/${slug}` },
     openGraph: {
-      title: `${name} — SoraPixel Blog`,
+      title: `${name} — SoraiPixel Blog`,
       description: category?.description || `Articles about ${name}`,
       url: `${SITE_URL}/blog/category/${slug}`,
-      siteName: "SoraPixel",
+      siteName: "SoraiPixel",
       type: "website",
     },
   };
@@ -107,7 +107,7 @@ export default async function BlogCategoryPage({
                 <span className="text-white text-xs font-bold">SP</span>
               </div>
               <span className="font-display font-bold text-[15px] tracking-tight text-[#0a0a0a]">
-                SoraPixel
+                SoraiPixel
               </span>
             </Link>
             <div className="flex items-center gap-3">

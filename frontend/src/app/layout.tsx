@@ -20,29 +20,29 @@ const jetBrainsMono = JetBrains_Mono({
   weight: ["400", "500"],
 });
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://sorapixel.com";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://soraipixel.com";
 
 export const metadata: Metadata = {
   title: {
-    default: "SoraPixel — AI Jewelry Photography",
-    template: "%s | SoraPixel",
+    default: "SoraiPixel — AI Jewelry Photography",
+    template: "%s | SoraiPixel",
   },
   description:
     "Transform raw jewelry photos into studio-quality images in seconds. Upload, pick a style, and let AI create magazine-worthy jewelry photography.",
   metadataBase: new URL(SITE_URL),
   alternates: { canonical: "/" },
   openGraph: {
-    title: "SoraPixel — AI Jewelry Photography",
+    title: "SoraiPixel — AI Jewelry Photography",
     description:
       "Transform raw jewelry photos into studio-quality images in seconds. AI-powered product photography for jewelers.",
     url: SITE_URL,
-    siteName: "SoraPixel",
+    siteName: "SoraiPixel",
     type: "website",
     locale: "en_US",
   },
   twitter: {
     card: "summary_large_image",
-    title: "SoraPixel — AI Jewelry Photography",
+    title: "SoraiPixel — AI Jewelry Photography",
     description:
       "Transform raw jewelry photos into studio-quality images in seconds.",
   },
@@ -66,7 +66,7 @@ export const viewport: Viewport = {
 const organizationJsonLd = {
   "@context": "https://schema.org",
   "@type": "Organization",
-  name: "SoraPixel",
+  name: "SoraiPixel",
   url: SITE_URL,
   description: "AI-powered jewelry photography platform. Studio-quality product images from any photo, in seconds.",
   sameAs: [],
@@ -75,7 +75,7 @@ const organizationJsonLd = {
 const websiteJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebSite",
-  name: "SoraPixel",
+  name: "SoraiPixel",
   url: SITE_URL,
 };
 
@@ -85,6 +85,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        <script src="https://checkout.razorpay.com/v1/checkout.js" async />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}

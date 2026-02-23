@@ -7,20 +7,35 @@ import random
 from fastapi import APIRouter, Depends, HTTPException
 from app.middleware.auth import get_current_user
 from app.schemas.catalogue import GenerateCatalogueRequest, CatalogueResponse
-from app.services.gemini_service import generate_image, generate_image_multi
+from app.services.gemini_service import (
+    generate_image, generate_image_multi,
+    generate_image_pro, generate_image_pro_multi,
+)
 from app.services.image_service import crop_to_ratio_top, add_branding_bar
-from app.services.credit_service import get_jewelry_credits, deduct_jewelry_tokens
+from app.services.credit_service import get_jewelry_credits, deduct_jewelry_tokens, get_operation_cost
 from app.services.tracking_service import track_generation
 from app.services.prompt_service import (
     build_catalogue_prompt, build_branding_prompt, get_ratio,
     CATALOGUE_BACKGROUNDS, CATALOGUE_POSES, AI_MODEL_FACES,
 )
 from app.services.project_service import save_project
+from app.services.session_service import add_session_action
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/catalogue", tags=["Catalogue"])
 
-CATALOGUE_COST_PER_IMAGE = 1
+
+def _gen_ugc_image(quality: str, prompt: str, image_b64: str) -> dict:
+    if quality == "pro":
+        return generate_image_pro(prompt, image_b64)
+    return generate_image(prompt, image_b64)
+
+
+def _gen_ugc_image_multi(quality: str, prompt: str, images: list[dict]) -> dict:
+    if quality == "pro":
+        return generate_image_pro_multi(prompt, images)
+    return generate_image_multi(prompt, images)
+
 
 @router.get("/models")
 async def list_models():
@@ -40,16 +55,18 @@ async def list_backgrounds():
 @router.post("/generate", response_model=CatalogueResponse)
 async def generate_catalogue(req: GenerateCatalogueRequest, user: dict = Depends(get_current_user)):
     poses_to_gen = (req.poses or ["standing", "side_view", "back_view", "sitting"])[:4]
-    total_cost = len(poses_to_gen) * CATALOGUE_COST_PER_IMAGE
+    quality = req.quality if req.quality in ("standard", "pro") else "standard"
+    per_pose_cost = get_operation_cost("ugcPerPose", quality)
+    total_cost = len(poses_to_gen) * per_pose_cost
 
     credits = get_jewelry_credits(user["id"])
     if not credits or credits["token_balance"] < total_cost:
         raise HTTPException(
             status_code=403,
-            detail=f"Need {total_cost} credits, have {credits['token_balance'] if credits else 0}",
+            detail=f"Need {total_cost} tokens, have {credits['token_balance'] if credits else 0}",
         )
 
-    deduct_jewelry_tokens(user["id"], total_cost)
+    deduct_jewelry_tokens(user["id"], total_cost, operation="ugcPerPose", quality=quality, session_id=req.session_id)
     ratio = get_ratio(req.aspect_ratio_id)
     category_slug = user.get("category_slug")
     is_branding = req.add_logo and user.get("company_name")
@@ -79,6 +96,10 @@ async def generate_catalogue(req: GenerateCatalogueRequest, user: dict = Depends
                 special_instructions=req.special_instructions,
                 key_highlights=req.key_highlights,
                 outfit_description=outfit,
+                jewelry_type=req.jewelry_type,
+                gender=req.gender,
+                nationality=req.nationality,
+                skin_tone=req.skin_tone,
             )
 
         try:
@@ -86,9 +107,9 @@ async def generate_catalogue(req: GenerateCatalogueRequest, user: dict = Depends
                 all_images = [{"base64": req.image_base64, "mime_type": "image/png"}]
                 for extra in req.additional_images[:3]:
                     all_images.append({"base64": extra, "mime_type": "image/png"})
-                result = generate_image_multi(prompt, all_images)
+                result = _gen_ugc_image_multi(quality, prompt, all_images)
             else:
-                result = generate_image(prompt, req.image_base64)
+                result = _gen_ugc_image(quality, prompt, req.image_base64)
 
             image_b64 = result["base64"]
             try:
@@ -103,6 +124,7 @@ async def generate_catalogue(req: GenerateCatalogueRequest, user: dict = Depends
                     phone=user.get("phone", ""),
                     website=user.get("business_website", ""),
                     logo_url=user.get("business_logo_url"),
+                    background=req.background or "",
                 )
 
             usage = result.get("usage", {})
@@ -111,7 +133,7 @@ async def generate_catalogue(req: GenerateCatalogueRequest, user: dict = Depends
                 generation_type="branding" if is_branding else "catalogue",
                 input_tokens=usage.get("input_tokens", 0),
                 output_tokens=usage.get("output_tokens", 0),
-                metadata={"model_type": req.model_type, "pose": pose, "category": category_slug},
+                metadata={"model_type": req.model_type, "pose": pose, "category": category_slug, "quality": quality},
             )
 
             images.append({"base64": image_b64, "mime_type": "image/png", "label": pose.replace("_", " ").title()})
@@ -132,5 +154,26 @@ async def generate_catalogue(req: GenerateCatalogueRequest, user: dict = Depends
             )
         except Exception as save_err:
             logger.warning(f"Project save failed (non-blocking): {save_err}")
+
+    if req.session_id and valid_images:
+        try:
+            add_session_action(
+                session_id=req.session_id,
+                action_type="ugc",
+                quality=quality,
+                tokens_used=total_cost,
+                input_data={
+                    "poses": poses_to_gen,
+                    "model_type": req.model_type,
+                    "gender": req.gender,
+                    "nationality": req.nationality,
+                    "skin_tone": req.skin_tone,
+                    "jewelry_type": req.jewelry_type,
+                    "background": req.background,
+                },
+                output_images_b64=[{"base64": img["base64"], "label": img.get("label", "")} for img in valid_images],
+            )
+        except Exception as e:
+            logger.warning(f"Session action save failed: {e}")
 
     return CatalogueResponse(success=True, images=images)

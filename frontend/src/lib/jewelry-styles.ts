@@ -25,8 +25,11 @@ export interface JewelryBackground {
 
 export const JEWELRY_BACKGROUNDS: JewelryBackground[] = [
   { id: "black-velvet", label: "Black Velvet", swatch: "#1a1a1a" },
-  { id: "white-marble", label: "White Marble", swatch: "#f0ece6" },
-  { id: "pure-white", label: "Pure White", swatch: "#ffffff" },
   { id: "burgundy-velvet", label: "Burgundy Velvet", swatch: "#5a1a2a" },
-  { id: "gold-gradient", label: "Gold Gradient", swatch: "#c9a961" },
+  { id: "emerald-velvet", label: "Emerald Velvet", swatch: "#1b5e3b" },
+  { id: "navy-velvet", label: "Navy Velvet", swatch: "#1a2744" },
+  { id: "pure-white", label: "Pure White", swatch: "#ffffff" },
+  { id: "cream-silk", label: "Cream Silk", swatch: "#f5ead6" },
+  { id: "white-marble", label: "White Marble", swatch: "#f0ece6" },
+  { id: "neutral-gray", label: "Neutral Gray", swatch: "#9e9e9e" },
 ];

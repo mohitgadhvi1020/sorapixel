@@ -1,5 +1,5 @@
 /**
- * Central API client for the SoraPixel FastAPI backend.
+ * Central API client for the SoraiPixel FastAPI backend.
  * Uses Supabase session tokens for authentication.
  */
 

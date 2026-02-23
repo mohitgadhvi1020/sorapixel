@@ -137,7 +137,27 @@ const EMPTY_BLOG_CAT_FORM = {
   display_order: 0,
 };
 
-type AdminTab = "overview" | "feed" | "blog";
+type AdminTab = "overview" | "feed" | "blog" | "revenue";
+
+interface RevenueData {
+  revenue: { total_inr: number; total_usd: number; payment_count: number };
+  token_usage: {
+    total_deducted: number;
+    by_operation: Record<string, { count: number; tokens: number }>;
+    by_client: Record<string, { tokens_used: number; operations: number }>;
+    log_count: number;
+  };
+  profit: { estimated_cost_inr: number; estimated_profit_inr: number };
+  recent_logs: Array<{
+    id: string;
+    client_id: string;
+    operation: string;
+    tokens_deducted: number;
+    quality: string;
+    balance_after: number;
+    created_at: string;
+  }>;
+}
 
 export default function AdminPage() {
   const router = useRouter();
@@ -165,6 +185,7 @@ export default function AdminPage() {
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [feedLoading, setFeedLoading] = useState(false);
+  const [feedFetched, setFeedFetched] = useState(false);
   const [feedForm, setFeedForm] = useState(EMPTY_FEED_FORM);
   const [editingFeedId, setEditingFeedId] = useState<string | null>(null);
   const [showFeedModal, setShowFeedModal] = useState(false);
@@ -209,6 +230,12 @@ export default function AdminPage() {
   const [editingBlogCatId, setEditingBlogCatId] = useState<string | null>(null);
   const [blogCatSaving, setBlogCatSaving] = useState(false);
   const [blogView, setBlogView] = useState<"posts" | "categories">("posts");
+  const [blogFetched, setBlogFetched] = useState(false);
+
+  // Revenue state
+  const [revenueData, setRevenueData] = useState<RevenueData | null>(null);
+  const [revenueLoading, setRevenueLoading] = useState(false);
+  const [revenueFetched, setRevenueFetched] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -239,6 +266,7 @@ export default function AdminPage() {
       setError(err instanceof Error ? err.message : "Failed to load feed items");
     } finally {
       setFeedLoading(false);
+      setFeedFetched(true);
     }
   }, []);
 
@@ -262,10 +290,10 @@ export default function AdminPage() {
   }, [authLoading, isAdmin, user, router, fetchData]);
 
   useEffect(() => {
-    if (isAdmin && activeTab === "feed" && feedItems.length === 0 && !feedLoading) {
+    if (isAdmin && activeTab === "feed" && !feedFetched && !feedLoading) {
       fetchFeed();
     }
-  }, [isAdmin, activeTab, feedItems.length, feedLoading, fetchFeed]);
+  }, [isAdmin, activeTab, feedFetched, feedLoading, fetchFeed]);
 
   const handleCreateClient = useCallback(async () => {
     if (!newPhone.trim() || creating) return;
@@ -497,14 +525,34 @@ export default function AdminPage() {
       setError(err instanceof Error ? err.message : "Failed to load blog data");
     } finally {
       setBlogLoading(false);
+      setBlogFetched(true);
     }
   }, []);
 
   useEffect(() => {
-    if (isAdmin && activeTab === "blog" && blogPosts.length === 0 && !blogLoading) {
+    if (isAdmin && activeTab === "blog" && !blogFetched && !blogLoading) {
       fetchBlog();
     }
-  }, [isAdmin, activeTab, blogPosts.length, blogLoading, fetchBlog]);
+  }, [isAdmin, activeTab, blogFetched, blogLoading, fetchBlog]);
+
+  const fetchRevenue = useCallback(async () => {
+    setRevenueLoading(true);
+    try {
+      const data = await api.get<RevenueData>("/admin/revenue");
+      setRevenueData(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load revenue data");
+    } finally {
+      setRevenueLoading(false);
+      setRevenueFetched(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAdmin && activeTab === "revenue" && !revenueFetched && !revenueLoading) {
+      fetchRevenue();
+    }
+  }, [isAdmin, activeTab, revenueFetched, revenueLoading, fetchRevenue]);
 
   const slugify = (text: string) =>
     text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -733,6 +781,7 @@ export default function AdminPage() {
         <div className="flex border-b border-border">
           {([
             { id: "overview" as const, label: "Overview & Clients" },
+            { id: "revenue" as const, label: "Revenue" },
             { id: "feed" as const, label: "Feed Manager" },
             { id: "blog" as const, label: "Blog" },
           ]).map(tab => (
@@ -938,6 +987,168 @@ export default function AdminPage() {
                 </table>
               </div>
             </Card>
+          </>
+        )}
+
+        {/* ===== REVENUE TAB ===== */}
+        {activeTab === "revenue" && (
+          <>
+            {revenueLoading ? (
+              <div className="flex justify-center py-16">
+                <div className="w-6 h-6 border-2 border-[rgba(196,166,125,0.2)] border-t-[#c4a67d] rounded-full animate-spin" />
+              </div>
+            ) : revenueData ? (
+              <div className="space-y-6">
+                {/* Revenue summary cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <Card padding="md">
+                    <p className="text-xs font-medium text-text-secondary uppercase tracking-wider">Total Revenue (INR)</p>
+                    <p className="text-2xl font-bold text-foreground mt-1">
+                      <span className="text-lg">&#8377;</span>{formatNumber(revenueData.revenue.total_inr)}
+                    </p>
+                    <p className="text-[10px] text-text-secondary mt-1">{revenueData.revenue.payment_count} payments</p>
+                  </Card>
+                  <Card padding="md">
+                    <p className="text-xs font-medium text-text-secondary uppercase tracking-wider">Total Revenue (USD)</p>
+                    <p className="text-2xl font-bold text-foreground mt-1">
+                      ${formatNumber(revenueData.revenue.total_usd / 100)}
+                    </p>
+                  </Card>
+                  <Card padding="md">
+                    <p className="text-xs font-medium text-text-secondary uppercase tracking-wider">Tokens Used</p>
+                    <p className="text-2xl font-bold text-accent mt-1">{formatNumber(revenueData.token_usage.total_deducted)}</p>
+                    <p className="text-[10px] text-text-secondary mt-1">{revenueData.token_usage.log_count} operations</p>
+                  </Card>
+                  <Card padding="md">
+                    <p className="text-xs font-medium text-text-secondary uppercase tracking-wider">Est. Profit (INR)</p>
+                    <p className={`text-2xl font-bold mt-1 ${revenueData.profit.estimated_profit_inr >= 0 ? "text-success" : "text-error"}`}>
+                      <span className="text-lg">&#8377;</span>{formatNumber(Math.round(revenueData.profit.estimated_profit_inr))}
+                    </p>
+                    <p className="text-[10px] text-text-secondary mt-1">
+                      Cost: &#8377;{formatNumber(Math.round(revenueData.profit.estimated_cost_inr))}
+                    </p>
+                  </Card>
+                </div>
+
+                {/* Token usage by operation */}
+                <Card padding="none">
+                  <div className="px-4 py-3 border-b border-border bg-surface">
+                    <h3 className="text-sm font-semibold text-foreground">Token Usage by Operation</h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border bg-surface">
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Operation</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-text-secondary uppercase tracking-wider">Count</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-text-secondary uppercase tracking-wider">Tokens</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-text-secondary uppercase tracking-wider">Avg / Op</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Object.entries(revenueData.token_usage.by_operation)
+                          .sort(([, a], [, b]) => b.tokens - a.tokens)
+                          .map(([op, data]) => (
+                            <tr key={op} className="border-b border-border last:border-0 hover:bg-surface/50 transition-colors">
+                              <td className="px-4 py-3">
+                                <span className="inline-block px-2 py-0.5 bg-accent-light text-accent rounded-lg text-xs font-medium">
+                                  {op}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-right text-foreground font-mono text-xs">{formatNumber(data.count)}</td>
+                              <td className="px-4 py-3 text-right text-foreground font-mono text-xs font-bold">{formatNumber(data.tokens)}</td>
+                              <td className="px-4 py-3 text-right text-text-secondary font-mono text-xs">
+                                {data.count > 0 ? (data.tokens / data.count).toFixed(1) : "—"}
+                              </td>
+                            </tr>
+                          ))}
+                        {Object.keys(revenueData.token_usage.by_operation).length === 0 && (
+                          <tr><td colSpan={4} className="px-4 py-8 text-center text-text-secondary">No token usage yet</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+
+                {/* Per-client usage */}
+                <Card padding="none">
+                  <div className="px-4 py-3 border-b border-border bg-surface">
+                    <h3 className="text-sm font-semibold text-foreground">Token Usage by Client</h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border bg-surface">
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Client</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-text-secondary uppercase tracking-wider">Operations</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-text-secondary uppercase tracking-wider">Tokens Used</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Object.entries(revenueData.token_usage.by_client)
+                          .sort(([, a], [, b]) => b.tokens_used - a.tokens_used)
+                          .slice(0, 20)
+                          .map(([cid, data]) => (
+                            <tr key={cid} className="border-b border-border last:border-0 hover:bg-surface/50 transition-colors">
+                              <td className="px-4 py-3 text-foreground text-xs">
+                                {clientMap.get(cid) || cid.slice(0, 12) + "..."}
+                              </td>
+                              <td className="px-4 py-3 text-right text-foreground font-mono text-xs">{formatNumber(data.operations)}</td>
+                              <td className="px-4 py-3 text-right text-foreground font-mono text-xs font-bold">{formatNumber(data.tokens_used)}</td>
+                            </tr>
+                          ))}
+                        {Object.keys(revenueData.token_usage.by_client).length === 0 && (
+                          <tr><td colSpan={3} className="px-4 py-8 text-center text-text-secondary">No client usage yet</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+
+                {/* Recent token logs */}
+                <Card padding="none">
+                  <div className="px-4 py-3 border-b border-border bg-surface">
+                    <h3 className="text-sm font-semibold text-foreground">Recent Token Logs</h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm min-w-[600px]">
+                      <thead>
+                        <tr className="border-b border-border bg-surface">
+                          {["Time", "Client", "Operation", "Tokens", "Quality", "Balance After"].map(h => (
+                            <th key={h} className={`px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider ${["Tokens", "Balance After"].includes(h) ? "text-right" : "text-left"}`}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {revenueData.recent_logs.map((log) => (
+                          <tr key={log.id} className="border-b border-border last:border-0 hover:bg-surface/50 transition-colors">
+                            <td className="px-4 py-3 text-text-secondary text-xs whitespace-nowrap">{formatTime(log.created_at)}</td>
+                            <td className="px-4 py-3 text-foreground text-xs">
+                              {clientMap.get(log.client_id) || log.client_id.slice(0, 8) + "..."}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="inline-block px-2 py-0.5 bg-accent-light text-accent rounded-lg text-xs font-medium">
+                                {log.operation}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right text-foreground font-mono text-xs font-bold">-{log.tokens_deducted}</td>
+                            <td className="px-4 py-3 text-text-secondary text-xs capitalize">{log.quality}</td>
+                            <td className="px-4 py-3 text-right text-text-secondary font-mono text-xs">{log.balance_after ?? "—"}</td>
+                          </tr>
+                        ))}
+                        {revenueData.recent_logs.length === 0 && (
+                          <tr><td colSpan={6} className="px-4 py-8 text-center text-text-secondary">No token logs yet</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              </div>
+            ) : (
+              <Card padding="lg" className="text-center">
+                <p className="text-text-secondary text-sm">No revenue data available.</p>
+              </Card>
+            )}
           </>
         )}
 

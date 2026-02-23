@@ -11,7 +11,7 @@ export async function shareToWhatsApp(base64: string, filename: string) {
 
   if (navigator.canShare?.({ files: [file] })) {
     try {
-      await navigator.share({ files: [file], title: "SoraPixel Image" });
+      await navigator.share({ files: [file], title: "SoraiPixel Image" });
       return;
     } catch {
       /* user cancelled or share failed — fall through */
@@ -29,7 +29,7 @@ export async function shareToWhatsApp(base64: string, filename: string) {
 
   setTimeout(() => {
     window.open(
-      `https://wa.me/?text=${encodeURIComponent("Check out this image I created with SoraPixel!")}`,
+      `https://wa.me/?text=${encodeURIComponent("Check out this image I created with SoraiPixel!")}`,
       "_blank",
     );
   }, 500);

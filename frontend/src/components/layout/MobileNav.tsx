@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import Logo from "@/components/ui/Logo";
 
 interface MobileNavProps {
   open: boolean;
@@ -61,10 +62,21 @@ const OTHER_ITEMS = [
   },
   {
     label: "Try-On",
-    href: "/tryon",
+    href: "#",
+    disabled: true,
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+      </svg>
+    ),
+  },
+  {
+    label: "Video Generation",
+    href: "#",
+    disabled: true,
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="23 7 16 12 23 17 23 7" /><rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
       </svg>
     ),
   },
@@ -72,7 +84,7 @@ const OTHER_ITEMS = [
 
 const MANAGE_ITEMS = [
   {
-    label: "Projects",
+    label: "My Creations",
     href: "/projects",
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -129,9 +141,22 @@ export default function MobileNav({ open, onClose, isAdmin = false }: MobileNavP
 
   if (!open) return null;
 
-  function NavItem({ item, highlight }: { item: typeof JEWELRY_ITEMS[0] & { primary?: boolean }; highlight?: boolean }) {
-    const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+  function NavItem({ item, highlight }: { item: typeof JEWELRY_ITEMS[0] & { primary?: boolean; disabled?: boolean }; highlight?: boolean }) {
+    const isActive = !item.disabled && (item.href === "/" ? pathname === "/" : pathname.startsWith(item.href));
     const isPrimary = highlight || item.primary;
+
+    if (item.disabled) {
+      return (
+        <div className="relative flex items-center gap-3 px-3 py-3 rounded-xl min-h-[44px] text-[rgba(255,255,255,0.25)] cursor-not-allowed">
+          <span>{item.icon}</span>
+          <span className="text-sm">{item.label}</span>
+          <span className="ml-auto text-[9px] font-bold tracking-[0.1em] uppercase text-[rgba(255,255,255,0.2)] bg-[rgba(255,255,255,0.04)] px-1.5 py-0.5 rounded">
+            soon
+          </span>
+        </div>
+      );
+    }
+
     return (
       <Link
         href={item.href}
@@ -159,18 +184,13 @@ export default function MobileNav({ open, onClose, isAdmin = false }: MobileNavP
   }
 
   return (
-    <div className="fixed inset-0 z-50 lg:hidden">
+    <div className="fixed inset-0 z-[60] lg:hidden">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={onClose} />
       <div className="absolute left-0 top-0 bottom-0 w-72 bg-[#13141A] animate-slide-in-left flex flex-col shadow-2xl border-r border-[rgba(255,255,255,0.06)]">
         {/* Logo */}
         <div className="h-16 flex items-center justify-between px-5 border-b border-[rgba(255,255,255,0.06)]">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center">
-              <span className="text-white text-xs font-bold tracking-tight">SP</span>
-            </div>
-            <span className="font-display text-[15px] font-bold tracking-tight text-white">
-              SoraPixel
-            </span>
+          <div className="flex items-center">
+            <Logo className="text-xl" variant="light" />
           </div>
           <button
             onClick={onClose}
@@ -192,7 +212,7 @@ export default function MobileNav({ open, onClose, isAdmin = false }: MobileNavP
 
           <p className="px-3 pt-5 pb-1.5 text-[10px] font-semibold text-[rgba(255,255,255,0.2)] uppercase tracking-[0.08em]">Other Categories</p>
           {OTHER_ITEMS.map((item) => (
-            <NavItem key={item.href} item={item} />
+            <NavItem key={item.label} item={item} />
           ))}
 
           <p className="px-3 pt-5 pb-1.5 text-[10px] font-semibold text-[rgba(255,255,255,0.2)] uppercase tracking-[0.08em]">Manage</p>
@@ -205,7 +225,7 @@ export default function MobileNav({ open, onClose, isAdmin = false }: MobileNavP
         <div className="p-4 border-t border-[rgba(255,255,255,0.06)]">
           <div className="bg-[rgba(196,166,125,0.06)] border border-[rgba(196,166,125,0.1)] rounded-xl p-3.5">
             <p className="text-[11px] font-medium text-[#c4a67d]">Need help?</p>
-            <a href="mailto:support@sorapixel.com" className="text-[11px] font-semibold text-[#c4a67d] hover:underline">
+            <a href="mailto:support@soraipixel.com" className="text-[11px] font-semibold text-[#c4a67d] hover:underline">
               Contact Support →
             </a>
           </div>

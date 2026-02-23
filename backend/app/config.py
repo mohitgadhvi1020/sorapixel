@@ -6,7 +6,7 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     # App
-    app_name: str = "SoraPixel API"
+    app_name: str = "SoraiPixel API"
     debug: bool = False
     api_v1_prefix: str = "/api/v1"
     cors_origins: list[str] = [

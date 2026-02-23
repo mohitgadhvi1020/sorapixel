@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { safeFetch } from "@/lib/safe-fetch";
 import type { ListingAttributes } from "@/lib/listing-prompt";
+import { LISTING_PRICING } from "@/lib/token-pricing";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 
 /* ─── Types ──────────────────────────────────────────────── */
@@ -222,8 +223,8 @@ export default function BatchListingPage() {
   }, [items, pushedToShopify, pushToShopify, showToast]);
 
   // Token balance
-  const COST_PER_IMAGE = 5;
-  const COST_PER_REGEN = 3;
+  const COST_PER_IMAGE = LISTING_PRICING.costPerImage;
+  const COST_PER_REGEN = LISTING_PRICING.costPerRegen;
   const [tokenBalance, setTokenBalance] = useState<number | null>(null);
   const fetchTokenBalance = useCallback(() => {
     safeFetch<{ balance: number; costPerImage: number; costPerRegen: number }>("/api/listing-tokens")

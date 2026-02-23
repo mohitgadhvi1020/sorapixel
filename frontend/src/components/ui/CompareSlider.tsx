@@ -8,6 +8,8 @@ interface CompareSliderProps {
   beforeLabel?: string;
   afterLabel?: string;
   className?: string;
+  /** w/h ratio, e.g. 1/1, 3/4, 16/9. Defaults to 1/1 (square). */
+  aspectRatio?: string;
 }
 
 export default function CompareSlider({
@@ -16,6 +18,7 @@ export default function CompareSlider({
   beforeLabel = "Original",
   afterLabel = "AI Generated",
   className = "",
+  aspectRatio = "1/1",
 }: CompareSliderProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState(50);
@@ -72,7 +75,8 @@ export default function CompareSlider({
       <img
         src={afterSrc}
         alt={afterLabel}
-        className="block w-full aspect-square object-cover"
+        className="block w-full object-cover"
+        style={{ aspectRatio }}
         draggable={false}
       />
 
