@@ -51,6 +51,26 @@ def _ensure_client_record(supabase_user: dict) -> dict:
             cat = sb.table("categories").select("slug").eq("id", user_data["category_id"]).maybe_single().execute()
             if cat and cat.data:
                 user_data["category_slug"] = cat.data["slug"]
+
+        email = supabase_user.get("email", "")
+        phone = supabase_user.get("phone", "")
+        should_be_admin = False
+        if phone:
+            clean = phone.lstrip("+")
+            if clean.startswith("91"):
+                clean = clean[2:]
+            if clean in settings.admin_phone_list:
+                should_be_admin = True
+        if email and email.lower() in settings.admin_email_list:
+            should_be_admin = True
+
+        if should_be_admin != user_data.get("is_admin", False):
+            try:
+                sb.table("clients").update({"is_admin": should_be_admin}).eq("id", user_id).execute()
+                user_data["is_admin"] = should_be_admin
+            except Exception as e:
+                logger.warning("Failed to sync admin flag for %s: %s", user_id, e)
+
         return user_data
 
     email = supabase_user.get("email", "")
