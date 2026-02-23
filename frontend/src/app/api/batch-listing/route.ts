@@ -23,7 +23,7 @@ async function getAuthUserId(): Promise<string | null> {
   return user?.id || null;
 }
 
-async function checkTokenBalance(clientId: string, cost = TOKENS_PER_IMAGE): Promise<{ ok: boolean; balance: number }> {
+async function checkTokenBalance(clientId: string, cost: number = TOKENS_PER_IMAGE): Promise<{ ok: boolean; balance: number }> {
   const sb = getSupabaseAdmin();
   const { data, error } = await sb
     .from("clients")
@@ -36,7 +36,7 @@ async function checkTokenBalance(clientId: string, cost = TOKENS_PER_IMAGE): Pro
   return current >= cost ? { ok: true, balance: current } : { ok: false, balance: current };
 }
 
-async function deductTokens(clientId: string, cost = TOKENS_PER_IMAGE): Promise<number> {
+async function deductTokens(clientId: string, cost: number = TOKENS_PER_IMAGE): Promise<number> {
   const sb = getSupabaseAdmin();
   const { data } = await sb
     .from("clients")
