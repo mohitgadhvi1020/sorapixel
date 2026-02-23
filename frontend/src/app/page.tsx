@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import Link from "next/link";
+import { useAuth } from "@/hooks/useAuth";
 
 /* ══════════ IMAGE ASSETS ══════════ */
 
@@ -269,6 +270,7 @@ function AnimatedMetric({ value, suffix, label, delay = 0 }: { value: number; su
 
 export default function HomePage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const { user, isAuthenticated } = useAuth();
 
   return (
     <div className="min-h-screen bg-[#f7f7f5]">
@@ -312,12 +314,24 @@ export default function HomePage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
               </svg>
             </button>
-            <Link
-              href="/login"
-              className="ml-1 sm:ml-2 px-4 sm:px-5 py-2 bg-[#0a0a0a] text-white text-[12px] sm:text-[13px] font-semibold rounded-full hover:bg-[#1a1a1a] transition-all duration-200 active:scale-[0.97]"
-            >
-              Sign In
-            </Link>
+            {isAuthenticated ? (
+              <Link
+                href="/jewelry"
+                className="ml-1 sm:ml-2 flex items-center gap-2 px-4 sm:px-5 py-2 bg-[#0a0a0a] text-white text-[12px] sm:text-[13px] font-semibold rounded-full hover:bg-[#1a1a1a] transition-all duration-200 active:scale-[0.97]"
+              >
+                <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-bold">
+                  {(user?.contact_name || user?.company_name || "U").charAt(0).toUpperCase()}
+                </span>
+                Dashboard
+              </Link>
+            ) : (
+              <Link
+                href="/login"
+                className="ml-1 sm:ml-2 px-4 sm:px-5 py-2 bg-[#0a0a0a] text-white text-[12px] sm:text-[13px] font-semibold rounded-full hover:bg-[#1a1a1a] transition-all duration-200 active:scale-[0.97]"
+              >
+                Sign In
+              </Link>
+            )}
           </nav>
         </div>
       </header>

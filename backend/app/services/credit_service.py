@@ -112,6 +112,10 @@ def check_and_deduct_jewelry(client_id: str, operation: str) -> dict:
     hero_used = result.data.get("jewelry_free_hero_used", 0) or 0
     pack_used = result.data.get("jewelry_free_pack_used", 0) or 0
 
+    # Locking disabled for now — all generations are unlocked
+    free_hero_remaining = max(0, JEWELRY_FREE_LIMITS["hero"] - hero_used)
+    free_pack_remaining = max(0, JEWELRY_FREE_LIMITS["pack"] - pack_used)
+
     if operation == "hero":
         if hero_used < JEWELRY_FREE_LIMITS["hero"]:
             sb.table("clients").update(
@@ -120,14 +124,11 @@ def check_and_deduct_jewelry(client_id: str, operation: str) -> dict:
             return {
                 "allowed": True, "used_free": True, "locked": False,
                 "remaining": balance,
-                "free_hero_remaining": JEWELRY_FREE_LIMITS["hero"] - hero_used - 1,
-                "free_pack_remaining": max(0, JEWELRY_FREE_LIMITS["pack"] - pack_used),
+                "free_hero_remaining": free_hero_remaining - 1,
+                "free_pack_remaining": free_pack_remaining,
             }
-        if balance <= 0:
-            return {"allowed": True, "used_free": False, "locked": True, "remaining": 0,
-                    "free_hero_remaining": 0, "free_pack_remaining": max(0, JEWELRY_FREE_LIMITS["pack"] - pack_used)}
         return {"allowed": True, "used_free": False, "locked": False, "remaining": balance,
-                "free_hero_remaining": 0, "free_pack_remaining": max(0, JEWELRY_FREE_LIMITS["pack"] - pack_used)}
+                "free_hero_remaining": 0, "free_pack_remaining": free_pack_remaining}
 
     if operation == "full_pack":
         cost = JEWELRY_PRICING["photoPack"]
@@ -138,31 +139,27 @@ def check_and_deduct_jewelry(client_id: str, operation: str) -> dict:
             return {
                 "allowed": True, "used_free": True, "locked": False,
                 "remaining": balance,
-                "free_hero_remaining": max(0, JEWELRY_FREE_LIMITS["hero"] - hero_used),
-                "free_pack_remaining": JEWELRY_FREE_LIMITS["pack"] - pack_used - 1,
+                "free_hero_remaining": free_hero_remaining,
+                "free_pack_remaining": free_pack_remaining - 1,
             }
-        if balance < cost:
-            return {"allowed": True, "used_free": False, "locked": True, "remaining": balance,
-                    "free_hero_remaining": max(0, JEWELRY_FREE_LIMITS["hero"] - hero_used),
-                    "free_pack_remaining": 0}
-        new_balance = balance - cost
-        sb.table("clients").update({"token_balance": new_balance}).eq("id", client_id).execute()
-        return {"allowed": True, "used_free": False, "locked": False, "remaining": new_balance,
-                "free_hero_remaining": max(0, JEWELRY_FREE_LIMITS["hero"] - hero_used),
+        if balance >= cost:
+            new_balance = balance - cost
+            sb.table("clients").update({"token_balance": new_balance}).eq("id", client_id).execute()
+            balance = new_balance
+        return {"allowed": True, "used_free": False, "locked": False, "remaining": balance,
+                "free_hero_remaining": free_hero_remaining,
                 "free_pack_remaining": 0}
 
     cost = JEWELRY_PRICING.get(operation)
     if cost is None:
         return {"allowed": False, "error": f"Unknown operation: {operation}", "remaining": balance, "locked": False}
-    if balance < cost:
-        return {"allowed": True, "used_free": False, "locked": True, "remaining": balance,
-                "free_hero_remaining": max(0, JEWELRY_FREE_LIMITS["hero"] - hero_used),
-                "free_pack_remaining": max(0, JEWELRY_FREE_LIMITS["pack"] - pack_used)}
-    new_balance = balance - cost
-    sb.table("clients").update({"token_balance": new_balance}).eq("id", client_id).execute()
-    return {"allowed": True, "used_free": False, "locked": False, "remaining": new_balance,
-            "free_hero_remaining": max(0, JEWELRY_FREE_LIMITS["hero"] - hero_used),
-            "free_pack_remaining": max(0, JEWELRY_FREE_LIMITS["pack"] - pack_used)}
+    if balance >= cost:
+        new_balance = balance - cost
+        sb.table("clients").update({"token_balance": new_balance}).eq("id", client_id).execute()
+        balance = new_balance
+    return {"allowed": True, "used_free": False, "locked": False, "remaining": balance,
+            "free_hero_remaining": free_hero_remaining,
+            "free_pack_remaining": free_pack_remaining}
 
 
 def deduct_jewelry_tokens(client_id: str, amount: int) -> bool:

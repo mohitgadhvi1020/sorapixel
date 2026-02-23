@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import Button from "@/components/ui/Button";
 
 function GoogleIcon({ className }: { className?: string }) {
@@ -25,13 +26,25 @@ function PhoneIcon({ className }: { className?: string }) {
   );
 }
 
-export default function OtpLogin() {
-  const { signInWithPhone, verifyPhoneOtp, signInWithGoogle } = useAuth();
+function EmailIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <path d="M22 7l-10 6L2 7" />
+    </svg>
+  );
+}
+
+function OtpLoginInner() {
+  const { signInWithPhone, verifyPhoneOtp, signInWithGoogle, isAuthenticated } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirect") || "/jewelry";
 
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
-  const [step, setStep] = useState<"choose" | "phone" | "otp">("choose");
+  const [step, setStep] = useState<"choose" | "phone" | "phone-otp" | "email" | "email-sent">("choose");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
@@ -39,6 +52,19 @@ export default function OtpLogin() {
 
   const otpRef = useRef<HTMLInputElement>(null);
   const phoneRef = useRef<HTMLInputElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7244/ingest/653765e7-dc9d-43dc-b978-b907e5640153',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OtpLogin.tsx:mount',message:'Login page mounted',data:{isAuthenticated,redirectTo,step},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
+    // #endregion
+    if (isAuthenticated) {
+      // #region agent log
+      fetch('http://127.0.0.1:7244/ingest/653765e7-dc9d-43dc-b978-b907e5640153',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OtpLogin.tsx:autoRedirect',message:'Already authenticated, redirecting',data:{redirectTo},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
+      // #endregion
+      router.replace(redirectTo);
+    }
+  }, [isAuthenticated, redirectTo, router]);
 
   useEffect(() => {
     if (countdown > 0) {
@@ -57,7 +83,7 @@ export default function OtpLogin() {
     setError("");
     try {
       await signInWithPhone(clean);
-      setStep("otp");
+      setStep("phone-otp");
       setCountdown(30);
       setTimeout(() => otpRef.current?.focus(), 100);
     } catch (e: unknown) {
@@ -76,7 +102,7 @@ export default function OtpLogin() {
     setError("");
     try {
       await verifyPhoneOtp(phone.replace(/\D/g, ""), otp);
-      router.push("/");
+      router.replace(redirectTo);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Invalid OTP");
     } finally {
@@ -85,13 +111,49 @@ export default function OtpLogin() {
   };
 
   const handleGoogleSignIn = async () => {
+    // #region agent log
+    fetch('http://127.0.0.1:7244/ingest/653765e7-dc9d-43dc-b978-b907e5640153',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OtpLogin.tsx:handleGoogleSignIn',message:'Google button clicked',data:{redirectTo},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+    // #endregion
     setGoogleLoading(true);
     setError("");
     try {
-      await signInWithGoogle();
+      await signInWithGoogle(redirectTo);
+      // #region agent log
+      fetch('http://127.0.0.1:7244/ingest/653765e7-dc9d-43dc-b978-b907e5640153',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OtpLogin.tsx:handleGoogleSignIn:success',message:'signInWithGoogle returned successfully',data:{},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+      // #endregion
     } catch (e: unknown) {
+      // #region agent log
+      fetch('http://127.0.0.1:7244/ingest/653765e7-dc9d-43dc-b978-b907e5640153',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OtpLogin.tsx:handleGoogleSignIn:error',message:'signInWithGoogle threw error',data:{error: e instanceof Error ? e.message : String(e)},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+      // #endregion
       setError(e instanceof Error ? e.message : "Google sign-in failed");
       setGoogleLoading(false);
+    }
+  };
+
+  const handleSendEmailLink = async () => {
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setError("Enter a valid email address");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const { getSupabaseBrowser } = await import("@/lib/supabase/client");
+      const supabase = getSupabaseBrowser();
+      localStorage.setItem("sp_auth_redirect", redirectTo);
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        email: trimmed,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+      if (otpError) throw new Error(otpError.message);
+      setStep("email-sent");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to send email link");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -99,7 +161,6 @@ export default function OtpLogin() {
     <div className="min-h-screen bg-[#0E0F14] flex">
       {/* Left panel — dark branding */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-[#0E0F14] via-[#1A1520] to-[#0E0F14] items-center justify-center relative overflow-hidden">
-        {/* Subtle glow */}
         <div className="absolute top-1/3 left-1/3 w-64 h-64 bg-[rgba(196,166,125,0.08)] rounded-full blur-[100px]" />
         <div className="absolute bottom-1/3 right-1/4 w-48 h-48 bg-[rgba(124,92,255,0.06)] rounded-full blur-[80px]" />
 
@@ -187,6 +248,18 @@ export default function OtpLogin() {
 
                 <button
                   onClick={() => {
+                    setStep("email");
+                    setError("");
+                    setTimeout(() => emailRef.current?.focus(), 100);
+                  }}
+                  className="w-full flex items-center justify-center gap-3 border border-[rgba(255,255,255,0.1)] rounded-2xl px-6 py-3.5 text-[15px] font-semibold text-white hover:bg-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.2)] transition-all duration-250 cursor-pointer"
+                >
+                  <EmailIcon className="w-5 h-5" />
+                  Continue with Email
+                </button>
+
+                <button
+                  onClick={() => {
                     setStep("phone");
                     setError("");
                     setTimeout(() => phoneRef.current?.focus(), 100);
@@ -195,6 +268,88 @@ export default function OtpLogin() {
                 >
                   <PhoneIcon className="w-5 h-5" />
                   Continue with Phone
+                </button>
+              </div>
+            </>
+          )}
+
+          {step === "email" && (
+            <>
+              <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
+                Enter your email
+              </h1>
+              <p className="mt-2 text-[rgba(255,255,255,0.5)] text-sm leading-relaxed">
+                We&apos;ll send a magic sign-in link to your inbox.
+                <button
+                  onClick={() => { setStep("choose"); setError(""); }}
+                  className="text-[#d4b88f] ml-1.5 font-medium hover:text-[#c4a67d] transition-colors"
+                >
+                  Back
+                </button>
+              </p>
+
+              {error && (
+                <div className="mt-4 bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.2)] text-[#EF4444] px-4 py-2.5 rounded-xl text-sm">
+                  {error}
+                </div>
+              )}
+
+              <div className="mt-8 space-y-5">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-[rgba(255,255,255,0.5)] uppercase tracking-[0.05em]">Email Address</label>
+                  <input
+                    ref={emailRef}
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    className="w-full border border-[rgba(255,255,255,0.08)] rounded-[14px] px-4 py-3.5 text-base outline-none focus:border-[#c4a67d] focus:shadow-[0_0_0_3px_rgba(196,166,125,0.15)] transition-all duration-250 hover:border-[rgba(255,255,255,0.14)] bg-[rgba(255,255,255,0.04)] text-white placeholder:text-[rgba(255,255,255,0.25)]"
+                    autoFocus
+                    onKeyDown={(e) => e.key === "Enter" && handleSendEmailLink()}
+                  />
+                </div>
+                <Button
+                  onClick={handleSendEmailLink}
+                  disabled={!email.trim()}
+                  loading={loading}
+                  fullWidth
+                  size="lg"
+                >
+                  Send Magic Link
+                </Button>
+              </div>
+            </>
+          )}
+
+          {step === "email-sent" && (
+            <>
+              <div className="flex items-center justify-center mb-6">
+                <div className="w-16 h-16 rounded-full bg-[rgba(196,166,125,0.1)] flex items-center justify-center">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#c4a67d" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="4" width="20" height="16" rx="2" />
+                    <path d="M22 7l-10 6L2 7" />
+                  </svg>
+                </div>
+              </div>
+              <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight text-center">
+                Check your email
+              </h1>
+              <p className="mt-3 text-[rgba(255,255,255,0.5)] text-sm leading-relaxed text-center">
+                We sent a sign-in link to <span className="font-semibold text-white">{email}</span>. Click the link in the email to sign in.
+              </p>
+              <div className="mt-8 space-y-3">
+                <Button
+                  onClick={() => { setStep("email"); setError(""); }}
+                  variant="secondary"
+                  fullWidth
+                >
+                  Try a different email
+                </Button>
+                <button
+                  onClick={() => { setStep("choose"); setError(""); setEmail(""); }}
+                  className="w-full text-center text-sm text-[rgba(255,255,255,0.4)] hover:text-white transition-colors py-2"
+                >
+                  Back to all sign-in options
                 </button>
               </div>
             </>
@@ -251,7 +406,7 @@ export default function OtpLogin() {
             </>
           )}
 
-          {step === "otp" && (
+          {step === "phone-otp" && (
             <>
               <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
                 Verify your number
@@ -318,5 +473,17 @@ export default function OtpLogin() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function OtpLogin() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#0E0F14] flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-[rgba(196,166,125,0.2)] border-t-[#c4a67d] rounded-full animate-spin" />
+      </div>
+    }>
+      <OtpLoginInner />
+    </Suspense>
   );
 }

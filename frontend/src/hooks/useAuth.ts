@@ -98,13 +98,22 @@ export function useAuth() {
     if (error) throw new Error(error.message);
   };
 
-  const signInWithGoogle = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
+  const signInWithGoogle = async (redirectAfterLogin?: string) => {
+    const next = redirectAfterLogin || "/jewelry";
+    localStorage.setItem("sp_auth_redirect", next);
+    const callbackUrl = `${window.location.origin}/auth/callback`;
+    // #region agent log
+    fetch('http://127.0.0.1:7244/ingest/653765e7-dc9d-43dc-b978-b907e5640153',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useAuth.ts:signInWithGoogle',message:'Calling supabase.auth.signInWithOAuth',data:{next,callbackUrl,origin:window.location.origin},timestamp:Date.now(),hypothesisId:'H1,H2'})}).catch(()=>{});
+    // #endregion
+    const { error, data } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: callbackUrl,
       },
     });
+    // #region agent log
+    fetch('http://127.0.0.1:7244/ingest/653765e7-dc9d-43dc-b978-b907e5640153',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useAuth.ts:signInWithGoogle:result',message:'signInWithOAuth returned',data:{hasError:!!error,errorMsg:error?.message,dataUrl:data?.url,dataProvider:data?.provider},timestamp:Date.now(),hypothesisId:'H1,H2'})}).catch(()=>{});
+    // #endregion
     if (error) throw new Error(error.message);
   };
 
