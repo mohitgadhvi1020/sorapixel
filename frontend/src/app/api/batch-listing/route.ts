@@ -27,12 +27,12 @@ async function checkTokenBalance(clientId: string, cost: number = TOKENS_PER_IMA
   const sb = getSupabaseAdmin();
   const { data, error } = await sb
     .from("clients")
-    .select("listing_tokens")
+    .select("token_balance")
     .eq("id", clientId)
     .single();
 
   if (error || !data) return { ok: false, balance: 0 };
-  const current = data.listing_tokens ?? 0;
+  const current = data.token_balance ?? 0;
   return current >= cost ? { ok: true, balance: current } : { ok: false, balance: current };
 }
 
@@ -40,13 +40,13 @@ async function deductTokens(clientId: string, cost: number = TOKENS_PER_IMAGE): 
   const sb = getSupabaseAdmin();
   const { data } = await sb
     .from("clients")
-    .select("listing_tokens")
+    .select("token_balance")
     .eq("id", clientId)
     .single();
 
-  const current = data?.listing_tokens ?? 0;
+  const current = data?.token_balance ?? 0;
   const newBalance = Math.max(0, current - cost);
-  await sb.from("clients").update({ listing_tokens: newBalance }).eq("id", clientId);
+  await sb.from("clients").update({ token_balance: newBalance }).eq("id", clientId);
   return newBalance;
 }
 
@@ -217,13 +217,26 @@ export async function POST(req: NextRequest) {
         }, { status: 403 });
       }
 
-      const { listing } = await generateListing(imageBase64, batchDescription, brandConfig);
+      let listing: ListingOutput;
+      try {
+        const result = await generateListing(imageBase64, batchDescription, brandConfig);
+        listing = result.listing;
+      } catch (aiError) {
+        console.error("AI generation failed:", aiError);
+        return NextResponse.json({
+          success: false,
+          error: "AI generation failed. No tokens were deducted. Please try again.",
+          code: "AI_GENERATION_FAILED",
+          balance: tokenCheck.balance,
+        }, { status: 500 });
+      }
+
       const newBalance = await deductTokens(clientId);
       const label = `batch-${(filename || "image").replace(/\.[^.]+$/, "")}`;
       const uploaded = await uploadImage(clientId, imageBase64, label);
 
       let dbId: string | undefined;
-      if (uploaded) {
+      {
         const sb = getSupabaseAdmin();
         const { data, error } = await sb
           .from("batch_listings")
@@ -231,7 +244,7 @@ export async function POST(req: NextRequest) {
             client_id: clientId,
             batch_id: batchId,
             batch_description: batchDescription || "",
-            image_storage_path: uploaded.path,
+            image_storage_path: uploaded?.path || null,
             original_filename: filename || "unknown",
             title: listing.title,
             description: listing.description,
@@ -277,7 +290,20 @@ export async function POST(req: NextRequest) {
         }, { status: 403 });
       }
 
-      const { listing } = await generateListing(imageBase64, batchDescription, brandConfig);
+      let listing: ListingOutput;
+      try {
+        const result = await generateListing(imageBase64, batchDescription, brandConfig);
+        listing = result.listing;
+      } catch (aiError) {
+        console.error("AI regeneration failed:", aiError);
+        return NextResponse.json({
+          success: false,
+          error: "AI regeneration failed. No tokens were deducted. Please try again.",
+          code: "AI_GENERATION_FAILED",
+          balance: tokenCheck.balance,
+        }, { status: 500 });
+      }
+
       const newBalance = await deductTokens(clientId, TOKENS_PER_REGEN);
 
       if (itemId) {

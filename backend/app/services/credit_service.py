@@ -89,7 +89,8 @@ def get_studio_credits(client_id: str) -> dict | None:
     }
 
 
-def check_and_deduct_studio(client_id: str, quality: str = "standard") -> dict:
+def check_studio_balance(client_id: str, quality: str = "standard") -> dict:
+    """Check if client can afford a studio generation WITHOUT deducting."""
     settings = get_settings()
     sb = get_supabase()
     result = sb.table("clients").select(
@@ -104,9 +105,6 @@ def check_and_deduct_studio(client_id: str, quality: str = "standard") -> dict:
     free_limit = settings.free_studio_limit
 
     if free_used < free_limit:
-        sb.table("clients").update(
-            {"studio_free_used": free_used + 1}
-        ).eq("id", client_id).execute()
         return {"allowed": True, "error": None, "remaining": balance, "used_free": True}
 
     cost = STUDIO_PRICING.get(quality, STUDIO_PRICING["standard"])
@@ -117,11 +115,45 @@ def check_and_deduct_studio(client_id: str, quality: str = "standard") -> dict:
             "remaining": balance,
         }
 
-    new_balance = balance - cost
+    return {"allowed": True, "error": None, "remaining": balance, "used_free": False}
+
+
+def deduct_studio_tokens(client_id: str, quality: str = "standard") -> dict:
+    """Deduct tokens for a studio generation AFTER success."""
+    settings = get_settings()
+    sb = get_supabase()
+    result = sb.table("clients").select(
+        "token_balance, studio_free_used"
+    ).eq("id", client_id).single().execute()
+
+    if not result.data:
+        return {"remaining": 0}
+
+    free_used = result.data.get("studio_free_used", 0) or 0
+    balance = result.data.get("token_balance", 0) or 0
+    free_limit = settings.free_studio_limit
+
+    if free_used < free_limit:
+        sb.table("clients").update(
+            {"studio_free_used": free_used + 1}
+        ).eq("id", client_id).execute()
+        return {"remaining": balance, "used_free": True}
+
+    cost = STUDIO_PRICING.get(quality, STUDIO_PRICING["standard"])
+    new_balance = max(0, balance - cost)
     sb.table("clients").update(
         {"token_balance": new_balance}
     ).eq("id", client_id).execute()
-    return {"allowed": True, "error": None, "remaining": new_balance, "used_free": False}
+    return {"remaining": new_balance, "used_free": False}
+
+
+def check_and_deduct_studio(client_id: str, quality: str = "standard") -> dict:
+    """Legacy wrapper — checks and deducts in one call."""
+    check = check_studio_balance(client_id, quality)
+    if not check["allowed"]:
+        return check
+    deduct = deduct_studio_tokens(client_id, quality)
+    return {"allowed": True, "error": None, **deduct}
 
 
 # ─── Jewelry / unified credits ───

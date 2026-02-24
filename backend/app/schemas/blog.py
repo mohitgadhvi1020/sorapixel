@@ -55,6 +55,15 @@ class BlogPostUpdate(BaseModel):
     status: str | None = None
 
 
+class BlogGenerateRequest(BaseModel):
+    topic: str
+    keywords: list[str] = Field(default_factory=list)
+    tone: str = "professional"
+    word_count: int = Field(default=1200, ge=300, le=3000)
+    category_id: str | None = None
+    auto_publish: bool = False
+
+
 class BlogPostOut(BaseModel):
     id: str
     title: str

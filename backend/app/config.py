@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     free_studio_limit: int = 9
     tokens_per_image: int = 1
 
+    # Cron / Automation
+    cron_secret: str = ""
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
     @property

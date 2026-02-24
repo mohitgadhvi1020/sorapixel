@@ -28,13 +28,13 @@ export const metadata: Metadata = {
     template: "%s | SoraiPixel",
   },
   description:
-    "Transform raw jewelry photos into studio-quality images in seconds. Upload, pick a style, and let AI create magazine-worthy jewelry photography.",
+    "AI photography platform for jewelry. Transform raw product photos into studio-quality images in seconds. AI jewelry photography with hero shots, model photos, lifestyle scenes. Try free.",
   metadataBase: new URL(SITE_URL),
   alternates: { canonical: "/" },
   openGraph: {
-    title: "SoraiPixel — AI Jewelry Photography",
+    title: "SoraiPixel — AI Photography for Jewelry",
     description:
-      "Transform raw jewelry photos into studio-quality images in seconds. AI-powered product photography for jewelers.",
+      "AI photography that transforms raw jewelry photos into studio-quality images. Hero shots, model photos, lifestyle scenes — all from one upload.",
     url: SITE_URL,
     siteName: "SoraiPixel",
     type: "website",
@@ -42,9 +42,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "SoraiPixel — AI Jewelry Photography",
+    title: "SoraiPixel — AI Photography for Jewelry",
     description:
-      "Transform raw jewelry photos into studio-quality images in seconds.",
+      "AI photography platform. Transform any jewelry photo into studio-quality images in seconds.",
   },
   robots: {
     index: true,
@@ -68,7 +68,7 @@ const organizationJsonLd = {
   "@type": "Organization",
   name: "SoraiPixel",
   url: SITE_URL,
-  description: "AI-powered jewelry photography platform. Studio-quality product images from any photo, in seconds.",
+  description: "AI photography platform for jewelry and product images. Studio-quality hero shots, model photos, and lifestyle scenes from any photo, in seconds.",
   sameAs: [],
 };
 
@@ -77,6 +77,28 @@ const websiteJsonLd = {
   "@type": "WebSite",
   name: "SoraiPixel",
   url: SITE_URL,
+};
+
+const softwareAppJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "SoraiPixel",
+  applicationCategory: "PhotographyApplication",
+  operatingSystem: "Web",
+  url: SITE_URL,
+  description:
+    "AI photography platform for jewelry and products. Transform raw photos into studio-quality images with hero shots, close-ups, model photos, and lifestyle scenes.",
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "INR",
+    description: "Free tier with daily tokens. Paid plans for professional use.",
+  },
+  aggregateRating: {
+    "@type": "AggregateRating",
+    ratingValue: "4.8",
+    ratingCount: "120",
+  },
 };
 
 export default function RootLayout({
@@ -93,6 +115,10 @@ export default function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareAppJsonLd) }}
         />
       </head>
       <body

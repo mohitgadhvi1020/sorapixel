@@ -6,13 +6,21 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://soraipixel.com";
 
 export const metadata: Metadata = {
-  title: "Blog — SoraiPixel | AI Jewelry Photography Tips & Guides",
+  title: "Blog — AI Photography & Jewelry Photography Tips | SoraiPixel",
   description:
-    "Expert tips on jewelry photography, e-commerce product imagery, and AI-powered photo editing. Learn how to create studio-quality jewelry photos.",
+    "Expert guides on AI photography, AI jewelry photography, product photography tips, and e-commerce imagery. Learn how to create studio-quality photos with AI.",
+  keywords: [
+    "AI photography blog",
+    "AI jewelry photography tips",
+    "product photography guide",
+    "AI photo editing",
+    "jewelry photography tutorial",
+    "ecommerce photography tips",
+  ],
   alternates: { canonical: `${SITE_URL}/blog` },
   openGraph: {
-    title: "Blog — SoraiPixel",
-    description: "Expert tips on jewelry photography and AI-powered product imagery.",
+    title: "Blog — AI Photography Tips & Guides | SoraiPixel",
+    description: "Expert guides on AI photography, jewelry photography, and AI-powered product imagery.",
     url: `${SITE_URL}/blog`,
     siteName: "SoraiPixel",
     type: "website",

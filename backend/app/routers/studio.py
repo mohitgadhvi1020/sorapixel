@@ -8,7 +8,7 @@ from app.middleware.auth import get_current_user
 from app.schemas.studio import GenerateStudioRequest, GenerateResponse, ImageResult
 from app.services.gemini_service import generate_image, generate_image_pro
 from app.services.image_service import crop_to_ratio
-from app.services.credit_service import check_and_deduct_studio, get_studio_credits, STUDIO_PRICING
+from app.services.credit_service import check_studio_balance, deduct_studio_tokens, get_studio_credits, STUDIO_PRICING
 from app.services.tracking_service import track_generation
 from app.services.prompt_service import build_studio_prompt, get_ratio, get_studio_backgrounds
 from app.services.project_service import save_project
@@ -40,7 +40,7 @@ async def list_backgrounds(user: dict = Depends(get_current_user)):
 
 @router.post("/generate", response_model=GenerateResponse)
 async def generate_studio_image(req: GenerateStudioRequest, user: dict = Depends(get_current_user)):
-    credit_check = check_and_deduct_studio(user["id"], req.quality)
+    credit_check = check_studio_balance(user["id"], req.quality)
     if not credit_check["allowed"]:
         raise HTTPException(status_code=403, detail=credit_check["error"])
 
@@ -63,6 +63,8 @@ async def generate_studio_image(req: GenerateStudioRequest, user: dict = Depends
             image_b64 = crop_to_ratio(image_b64, ratio["width"], ratio["height"])
         except Exception as e:
             logger.warning(f"Crop failed: {e}")
+
+        deducted = deduct_studio_tokens(user["id"], req.quality)
 
         usage = result.get("usage", {})
         track_generation(
@@ -88,7 +90,7 @@ async def generate_studio_image(req: GenerateStudioRequest, user: dict = Depends
         return GenerateResponse(
             success=True,
             images=[ImageResult(base64=image_b64, mime_type="image/png", label="Studio Shot")],
-            credits_remaining=credit_check["remaining"],
+            credits_remaining=deducted["remaining"],
         )
     except Exception as e:
         logger.error(f"Studio generation error: {e}")

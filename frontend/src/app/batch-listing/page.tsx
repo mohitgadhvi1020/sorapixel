@@ -98,6 +98,7 @@ export default function BatchListingPage() {
   const cancelRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const detailRef = useRef<HTMLDivElement>(null);
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -107,7 +108,8 @@ export default function BatchListingPage() {
   const [shopifyConnected, setShopifyConnected] = useState(false);
   const [shopifyStoreUrl, setShopifyStoreUrl] = useState("");
   const [shopifyInputUrl, setShopifyInputUrl] = useState("");
-  const [shopifyInputToken, setShopifyInputToken] = useState("");
+  const [shopifyInputClientId, setShopifyInputClientId] = useState("");
+  const [shopifyInputClientSecret, setShopifyInputClientSecret] = useState("");
   const [shopifyConnecting, setShopifyConnecting] = useState(false);
   const [shopifyShowForm, setShopifyShowForm] = useState(false);
   const [pushingToShopify, setPushingToShopify] = useState<string | null>(null);
@@ -126,7 +128,7 @@ export default function BatchListingPage() {
     );
   }, []);
 
-  // Fetch Shopify connection status
+  // Fetch Shopify connection status + handle OAuth redirect
   const fetchShopifyStatus = useCallback(() => {
     safeFetch<{ connected: boolean; storeUrl: string }>("/api/shopify/credentials")
       .then((d) => {
@@ -135,40 +137,54 @@ export default function BatchListingPage() {
       })
       .catch(() => { });
   }, []);
-  useEffect(() => { fetchShopifyStatus(); }, [fetchShopifyStatus]);
+  useEffect(() => {
+    fetchShopifyStatus();
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("shopify_connected") === "true") {
+      showToast("Shopify store connected successfully!", "success");
+      fetchShopifyStatus();
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (params.get("shopify_error")) {
+      showToast(params.get("shopify_error") || "Shopify connection failed", "error");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [fetchShopifyStatus, showToast]);
 
-  // Connect Shopify
+  // Connect Shopify via OAuth
   const connectShopify = useCallback(async () => {
-    if (!shopifyInputUrl.trim() || !shopifyInputToken.trim()) {
-      showToast("Please enter both store URL and access token", "warning");
+    if (!shopifyInputUrl.trim()) {
+      showToast("Please enter your Shopify store URL", "warning");
+      return;
+    }
+    if (!shopifyInputClientId.trim() || !shopifyInputClientSecret.trim()) {
+      showToast("Please enter both Client ID and Client Secret from your Shopify app", "warning");
       return;
     }
     setShopifyConnecting(true);
     try {
-      const result = await safeFetch<{ success?: boolean; connected?: boolean; storeUrl?: string; error?: string }>(
-        "/api/shopify/credentials",
+      const result = await safeFetch<{ authUrl?: string; error?: string }>(
+        "/api/shopify/auth",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ storeUrl: shopifyInputUrl.trim(), accessToken: shopifyInputToken.trim() }),
+          body: JSON.stringify({
+            storeUrl: shopifyInputUrl.trim(),
+            clientId: shopifyInputClientId.trim(),
+            clientSecret: shopifyInputClientSecret.trim(),
+          }),
         }
       );
-      if (result.connected) {
-        setShopifyConnected(true);
-        setShopifyStoreUrl(result.storeUrl || shopifyInputUrl.trim());
-        setShopifyShowForm(false);
-        setShopifyInputUrl("");
-        setShopifyInputToken("");
-        showToast("Shopify store connected successfully!", "success");
+      if (result.authUrl) {
+        window.location.href = result.authUrl;
       } else {
-        showToast(result.error || "Failed to connect", "error");
+        showToast(result.error || "Failed to initiate Shopify connection", "error");
+        setShopifyConnecting(false);
       }
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Failed to connect to Shopify", "error");
-    } finally {
       setShopifyConnecting(false);
     }
-  }, [shopifyInputUrl, shopifyInputToken, showToast]);
+  }, [shopifyInputUrl, shopifyInputClientId, shopifyInputClientSecret, showToast]);
 
   // Push single item to Shopify
   const pushToShopify = useCallback(async (localId: string) => {
@@ -813,37 +829,67 @@ export default function BatchListingPage() {
             </div>
 
             {shopifyConnected && !shopifyShowForm ? (
-              <div className="flex items-center justify-between">
-                <p className="text-[13px] text-white">
-                  Connected to <span className="font-semibold">{shopifyStoreUrl}</span>
-                </p>
-                <button
-                  onClick={() => setShopifyShowForm(true)}
-                  className="text-[11px] text-[rgba(255,255,255,0.4)] hover:text-[#d4b88f] underline transition-colors"
-                >
-                  Change
-                </button>
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <p className="text-[13px] text-white">
+                    Connected to <span className="font-semibold">{shopifyStoreUrl}</span>
+                  </p>
+                  <button
+                    onClick={() => setShopifyShowForm(true)}
+                    className="text-[11px] text-[rgba(255,255,255,0.4)] hover:text-[#d4b88f] underline transition-colors"
+                  >
+                    Change
+                  </button>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-[rgba(16,185,129,0.06)] border border-[rgba(16,185,129,0.15)] rounded-lg">
+                  <svg className="w-3 h-3 text-[#10B981] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  <p className="text-[10px] text-[#10B981]">
+                    Your Shopify connection is secure and encrypted. Only product management access is used.
+                  </p>
+                </div>
               </div>
             ) : (
               <div className="space-y-3">
                 <p className="text-[11px] text-[rgba(255,255,255,0.4)]">
-                  Connect your Shopify store to push listings directly. You&apos;ll need your store URL and an Admin API access token.
+                  Connect your Shopify store to push listings directly. Enter your store URL and app credentials — you&apos;ll be redirected to Shopify to approve.
                 </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="flex items-center gap-2 px-3 py-2 bg-[rgba(16,185,129,0.06)] border border-[rgba(16,185,129,0.15)] rounded-lg">
+                  <svg className="w-3.5 h-3.5 text-[#10B981] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  <p className="text-[10px] text-[#10B981] leading-relaxed">
+                    Your Shopify credentials are securely encrypted and stored. We only request access to manage products — no other store data is accessed.
+                  </p>
+                </div>
+                <div className="space-y-3">
                   <input
                     type="text"
                     value={shopifyInputUrl}
                     onChange={(e) => setShopifyInputUrl(e.target.value)}
                     placeholder="mystore.myshopify.com"
-                    className="rounded-lg border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] px-3 py-2.5 text-[13px] text-white placeholder:text-[rgba(255,255,255,0.25)] focus:outline-none focus:ring-2 focus:ring-[rgba(196,166,125,0.15)] focus:border-[#c4a67d] transition-all"
+                    className="w-full rounded-lg border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] px-3 py-2.5 text-[13px] text-white placeholder:text-[rgba(255,255,255,0.25)] focus:outline-none focus:ring-2 focus:ring-[rgba(196,166,125,0.15)] focus:border-[#c4a67d] transition-all"
                   />
-                  <input
-                    type="password"
-                    value={shopifyInputToken}
-                    onChange={(e) => setShopifyInputToken(e.target.value)}
-                    placeholder="Admin API access token"
-                    className="rounded-lg border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] px-3 py-2.5 text-[13px] text-white placeholder:text-[rgba(255,255,255,0.25)] focus:outline-none focus:ring-2 focus:ring-[rgba(196,166,125,0.15)] focus:border-[#c4a67d] transition-all"
-                  />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      value={shopifyInputClientId}
+                      onChange={(e) => setShopifyInputClientId(e.target.value)}
+                      placeholder="Client ID"
+                      className="rounded-lg border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] px-3 py-2.5 text-[13px] text-white placeholder:text-[rgba(255,255,255,0.25)] focus:outline-none focus:ring-2 focus:ring-[rgba(196,166,125,0.15)] focus:border-[#c4a67d] transition-all"
+                    />
+                    <input
+                      type="password"
+                      value={shopifyInputClientSecret}
+                      onChange={(e) => setShopifyInputClientSecret(e.target.value)}
+                      placeholder="Client Secret"
+                      className="rounded-lg border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] px-3 py-2.5 text-[13px] text-white placeholder:text-[rgba(255,255,255,0.25)] focus:outline-none focus:ring-2 focus:ring-[rgba(196,166,125,0.15)] focus:border-[#c4a67d] transition-all"
+                    />
+                  </div>
+                  <p className="text-[10px] text-[rgba(255,255,255,0.3)] leading-relaxed">
+                    Find these in your Shopify Dev Dashboard under your app&apos;s Settings &gt; Credentials. Make sure your app has <span className="text-[rgba(255,255,255,0.5)]">read_products</span> and <span className="text-[rgba(255,255,255,0.5)]">write_products</span> scopes, and add <span className="text-[rgba(255,255,255,0.5)] font-mono break-all">your-domain.com/api/shopify/callback</span> as a redirect URL.
+                  </p>
                 </div>
                 <div className="flex items-center gap-3">
                   <button
@@ -854,7 +900,7 @@ export default function BatchListingPage() {
                     {shopifyConnecting ? (
                       <span className="flex items-center gap-2">
                         <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        Verifying...
+                        Redirecting to Shopify...
                       </span>
                     ) : (
                       "Connect Shopify"
@@ -908,6 +954,25 @@ export default function BatchListingPage() {
                   Select up to {MAX_FILES} images at once — PNG, JPG, WebP
                 </p>
               </div>
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={(e) => { handleFilesSelected(e.target.files); e.target.value = ""; }}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); cameraInputRef.current?.click(); }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#c4a67d] bg-[rgba(196,166,125,0.1)] hover:bg-[rgba(196,166,125,0.2)] transition-all md:hidden"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                  <circle cx="12" cy="13" r="4" />
+                </svg>
+                Take Photo
+              </button>
             </div>
           </div>
 
@@ -1257,6 +1322,7 @@ export default function BatchListingPage() {
           {historySelected && (
             <HistoryDetailPanel
               item={historySelected}
+              shopifyConnected={shopifyConnected}
               onClose={() => setHistorySelected(null)}
             />
           )}
@@ -1776,13 +1842,50 @@ function CopyButton({
 
 function HistoryDetailPanel({
   item,
+  shopifyConnected,
   onClose,
 }: {
   item: HistoryItem;
+  shopifyConnected: boolean;
   onClose: () => void;
 }) {
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [showFullImage, setShowFullImage] = useState(false);
+  const [pushingToShopify, setPushingToShopify] = useState(false);
+  const [pushedToShopify, setPushedToShopify] = useState(false);
+  const [pushError, setPushError] = useState<string | null>(null);
+
+  const pushToShopify = useCallback(async () => {
+    if (!shopifyConnected || pushingToShopify || pushedToShopify) return;
+    setPushingToShopify(true);
+    setPushError(null);
+    try {
+      const result = await safeFetch<{ success?: boolean; error?: string }>(
+        "/api/shopify/push",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: item.title,
+            description: item.description,
+            metaDescription: item.metaDescription,
+            altText: item.altText,
+            attributes: item.attributes,
+            imageUrl: item.imageUrl || undefined,
+          }),
+        }
+      );
+      if (result.success) {
+        setPushedToShopify(true);
+      } else {
+        setPushError(result.error || "Failed to push to Shopify");
+      }
+    } catch (err) {
+      setPushError(err instanceof Error ? err.message : "Failed to push to Shopify");
+    } finally {
+      setPushingToShopify(false);
+    }
+  }, [item, shopifyConnected, pushingToShopify, pushedToShopify]);
 
   const copyToClipboard = useCallback((text: string, field: string) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -1794,7 +1897,12 @@ function HistoryDetailPanel({
   const a = item.attributes;
 
   return (
-    <div className="bg-[rgba(255,255,255,0.04)] rounded-[20px] border border-[rgba(255,255,255,0.08)] p-5 sm:p-8 space-y-5 animate-scale-in">
+    <div className="fixed inset-0 z-[150] flex items-center justify-center animate-fade-in" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div
+        className="relative z-10 w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto bg-[#141414] rounded-[20px] border border-[rgba(255,255,255,0.1)] p-5 sm:p-8 space-y-5 shadow-[0_25px_60px_rgba(0,0,0,0.6)]"
+        onClick={(e) => e.stopPropagation()}
+      >
       {/* Lightbox */}
       {showFullImage && item.imageUrl && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center animate-fade-in" onClick={() => setShowFullImage(false)}>
@@ -1827,10 +1935,43 @@ function HistoryDetailPanel({
             </p>
           </div>
         </div>
-        <button onClick={onClose} className="px-3 py-2 text-[13px] font-medium text-[rgba(255,255,255,0.7)] rounded-lg hover:bg-[rgba(255,255,255,0.06)] transition-all duration-200">
-          Close
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {shopifyConnected && (
+            <button
+              onClick={pushToShopify}
+              disabled={pushingToShopify || pushedToShopify}
+              className={`px-4 py-2 rounded-full font-semibold text-[12px] transition-all duration-200 active:scale-[0.98] disabled:cursor-not-allowed ${pushedToShopify
+                ? "bg-[rgba(16,185,129,0.12)] text-[#10B981] border border-[rgba(16,185,129,0.3)]"
+                : "bg-[#96bf48] text-white hover:bg-[#7ba33a]"
+                } disabled:opacity-60`}
+            >
+              {pushingToShopify ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Pushing...
+                </span>
+              ) : pushedToShopify ? (
+                <span className="flex items-center gap-1.5">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                  Added to Shopify
+                </span>
+              ) : (
+                "Add to Shopify"
+              )}
+            </button>
+          )}
+          <button onClick={onClose} className="p-2 text-[rgba(255,255,255,0.5)] hover:text-white hover:bg-[rgba(255,255,255,0.08)] rounded-lg transition-all duration-200">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
       </div>
+      {pushError && (
+        <div className="px-3 py-2 bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.2)] rounded-lg">
+          <p className="text-[11px] text-[#EF4444]">{pushError}</p>
+        </div>
+      )}
 
       {/* Title */}
       <div className="rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.06)] p-4">
@@ -1935,6 +2076,7 @@ function HistoryDetailPanel({
       >
         {copiedField === "h-all" ? "All Copied to Clipboard!" : "Copy Entire Listing"}
       </button>
+      </div>
     </div>
   );
 }

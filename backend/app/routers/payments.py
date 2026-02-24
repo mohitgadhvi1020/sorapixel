@@ -19,6 +19,7 @@ router = APIRouter(prefix="/payments", tags=["Payments"])
 
 class CreateOrderRequest(BaseModel):
     plan_id: str
+    currency: str = "INR"
 
 
 class VerifyPaymentRequest(BaseModel):
@@ -40,7 +41,7 @@ async def create_order(
     body: CreateOrderRequest,
     user: dict = Depends(get_current_user),
 ):
-    result = create_razorpay_order(client_id=user["id"], plan_id=body.plan_id)
+    result = create_razorpay_order(client_id=user["id"], plan_id=body.plan_id, currency=body.currency)
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "Order creation failed"))
     return result

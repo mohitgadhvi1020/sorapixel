@@ -231,6 +231,12 @@ export default function AdminPage() {
   const [blogCatSaving, setBlogCatSaving] = useState(false);
   const [blogView, setBlogView] = useState<"posts" | "categories">("posts");
   const [blogFetched, setBlogFetched] = useState(false);
+  const [showAiGenModal, setShowAiGenModal] = useState(false);
+  const [aiGenForm, setAiGenForm] = useState({ topic: "", keywords: "", tone: "professional", word_count: 1200, category_id: "", auto_publish: false });
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [topicSuggestions, setTopicSuggestions] = useState<{ topic: string; keywords: string[]; category: string }[]>([]);
+  const [topicsLoading, setTopicsLoading] = useState(false);
+  const [bulkGenerating, setBulkGenerating] = useState(false);
 
   // Revenue state
   const [revenueData, setRevenueData] = useState<RevenueData | null>(null);
@@ -638,6 +644,68 @@ export default function AdminPage() {
       fetchBlog();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete post");
+    }
+  };
+
+  const handleBulkGenerate = async () => {
+    if (!confirm("This will generate 3 SEO-optimized blog posts targeting 'AI photography' and 'AI jewelry photography' keywords. Continue?")) return;
+    setBulkGenerating(true);
+    try {
+      const res = await api.post<{ results: { topic: string; slug: string; success: boolean; error?: string }[] }>("/blog/admin/bulk-generate", {});
+      const succeeded = res.results.filter(r => r.success).length;
+      const failed = res.results.filter(r => !r.success).length;
+      if (failed > 0) setError(`Generated ${succeeded} posts, ${failed} failed`);
+      fetchBlog();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Bulk generation failed");
+    } finally {
+      setBulkGenerating(false);
+    }
+  };
+
+  const fetchTopicBank = useCallback(async () => {
+    if (topicSuggestions.length > 0) return;
+    setTopicsLoading(true);
+    try {
+      const res = await api.get<{ topics: { topic: string; keywords: string[]; category: string }[] }>("/blog/admin/topic-bank");
+      setTopicSuggestions(res.topics || []);
+    } catch { /* ignore */ }
+    finally { setTopicsLoading(false); }
+  }, [topicSuggestions.length]);
+
+  const generateFreshTopics = async () => {
+    setTopicsLoading(true);
+    try {
+      const res = await api.post<{ topics: { topic: string; keywords: string[]; category: string }[] }>("/blog/admin/generate-topics", {});
+      setTopicSuggestions(prev => [...(res.topics || []), ...prev]);
+    } catch { /* ignore */ }
+    finally { setTopicsLoading(false); }
+  };
+
+  const handleAiGenerate = async () => {
+    if (!aiGenForm.topic.trim()) { setError("Topic is required"); return; }
+    setAiGenerating(true);
+    try {
+      const payload = {
+        topic: aiGenForm.topic,
+        keywords: aiGenForm.keywords.split(",").map(k => k.trim()).filter(Boolean),
+        tone: aiGenForm.tone,
+        word_count: aiGenForm.word_count,
+        category_id: aiGenForm.category_id || undefined,
+        auto_publish: aiGenForm.auto_publish,
+      };
+      const res = await api.post<{ success: boolean; post?: Record<string, unknown>; error?: string; generated_fields?: Record<string, unknown> }>("/blog/admin/generate-post", payload);
+      if (res.success) {
+        setShowAiGenModal(false);
+        setAiGenForm({ topic: "", keywords: "", tone: "professional", word_count: 1200, category_id: "", auto_publish: false });
+        fetchBlog();
+      } else {
+        setError(res.error || "Generation failed");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "AI generation failed");
+    } finally {
+      setAiGenerating(false);
     }
   };
 
@@ -1266,10 +1334,19 @@ export default function AdminPage() {
                   {blogView === "posts" ? "Manage Categories" : "Back to Posts"}
                 </Button>
                 {blogView === "posts" ? (
-                  <Button onClick={openCreatePost} size="sm">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                    New Post
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button onClick={handleBulkGenerate} size="sm" variant="ghost" disabled={bulkGenerating} className="border border-[rgba(196,166,125,0.15)] text-text-secondary text-xs">
+                      {bulkGenerating ? <span className="w-3 h-3 border-2 border-[#c4a67d]/30 border-t-[#c4a67d] rounded-full animate-spin" /> : "Bulk SEO"}
+                    </Button>
+                    <Button onClick={() => setShowAiGenModal(true)} size="sm" variant="ghost" className="border border-[rgba(196,166,125,0.3)] text-[#c4a67d]">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.27 5.82 22 7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                      AI Generate
+                    </Button>
+                    <Button onClick={openCreatePost} size="sm">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                      New Post
+                    </Button>
+                  </div>
                 ) : (
                   <Button onClick={openCreateBlogCat} size="sm">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
@@ -1388,6 +1465,118 @@ export default function AdminPage() {
           </>
         )}
       </div>
+
+      {/* AI Blog Generation Modal */}
+      <Modal open={showAiGenModal} onClose={() => setShowAiGenModal(false)} title="Generate Blog Post with AI" size="lg" sheet>
+        <div className="space-y-4">
+          <Input
+            label="Topic / Title Idea"
+            placeholder="e.g. 10 Tips for Better Jewelry Product Photography"
+            value={aiGenForm.topic}
+            onChange={(e) => setAiGenForm(f => ({ ...f, topic: e.target.value }))}
+          />
+
+          {/* Topic Suggestions */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-text-secondary">Suggested Topics</span>
+              <div className="flex gap-2">
+                <button onClick={fetchTopicBank} className="text-xs text-[#c4a67d] hover:underline">Load Suggestions</button>
+                <button onClick={generateFreshTopics} className="text-xs text-[#c4a67d] hover:underline flex items-center gap-1">
+                  {topicsLoading && <span className="w-3 h-3 border border-[#c4a67d]/30 border-t-[#c4a67d] rounded-full animate-spin" />}
+                  AI Fresh Ideas
+                </button>
+              </div>
+            </div>
+            {topicSuggestions.length > 0 && (
+              <div className="max-h-36 overflow-y-auto space-y-1 rounded-lg border border-border p-2 bg-background">
+                {topicSuggestions.map((t, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setAiGenForm(f => ({ ...f, topic: t.topic, keywords: t.keywords.join(", ") }))}
+                    className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-surface transition-colors group"
+                  >
+                    <span className="text-foreground group-hover:text-[#c4a67d]">{t.topic}</span>
+                    <span className="ml-2 text-text-secondary opacity-60">{t.category}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <Input
+            label="SEO Keywords (comma-separated)"
+            placeholder="e.g. jewelry photography, product photos, AI photography"
+            value={aiGenForm.keywords}
+            onChange={(e) => setAiGenForm(f => ({ ...f, keywords: e.target.value }))}
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-text-secondary mb-1">Tone</label>
+              <select
+                value={aiGenForm.tone}
+                onChange={(e) => setAiGenForm(f => ({ ...f, tone: e.target.value }))}
+                className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus:outline-none focus:border-[#c4a67d]"
+              >
+                <option value="professional">Professional</option>
+                <option value="casual">Casual & Friendly</option>
+                <option value="educational">Educational</option>
+                <option value="persuasive">Persuasive / Sales</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-text-secondary mb-1">Word Count</label>
+              <select
+                value={aiGenForm.word_count}
+                onChange={(e) => setAiGenForm(f => ({ ...f, word_count: Number(e.target.value) }))}
+                className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus:outline-none focus:border-[#c4a67d]"
+              >
+                <option value={600}>Short (~600 words)</option>
+                <option value={1200}>Medium (~1200 words)</option>
+                <option value={2000}>Long (~2000 words)</option>
+                <option value={3000}>In-Depth (~3000 words)</option>
+              </select>
+            </div>
+          </div>
+          {blogCategories.length > 0 && (
+            <div>
+              <label className="block text-xs font-medium text-text-secondary mb-1">Category</label>
+              <select
+                value={aiGenForm.category_id}
+                onChange={(e) => setAiGenForm(f => ({ ...f, category_id: e.target.value }))}
+                className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus:outline-none focus:border-[#c4a67d]"
+              >
+                <option value="">No Category</option>
+                {blogCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+          )}
+          <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
+            <input
+              type="checkbox"
+              checked={aiGenForm.auto_publish}
+              onChange={(e) => setAiGenForm(f => ({ ...f, auto_publish: e.target.checked }))}
+              className="w-4 h-4 accent-[#c4a67d] rounded"
+            />
+            Auto-publish immediately (otherwise saves as draft)
+          </label>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="ghost" size="sm" onClick={() => setShowAiGenModal(false)}>Cancel</Button>
+            <Button size="sm" onClick={handleAiGenerate} disabled={aiGenerating || !aiGenForm.topic.trim()}>
+              {aiGenerating ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Generating...
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.27 5.82 22 7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                  Generate Post
+                </span>
+              )}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Blog Post Create/Edit Modal */}
       <Modal open={showPostModal} onClose={() => setShowPostModal(false)} title={editingPostId ? "Edit Blog Post" : "New Blog Post"} size="lg" sheet>

@@ -66,7 +66,6 @@ async def generate_catalogue(req: GenerateCatalogueRequest, user: dict = Depends
             detail=f"Need {total_cost} tokens, have {credits['token_balance'] if credits else 0}",
         )
 
-    deduct_jewelry_tokens(user["id"], total_cost, operation="ugcPerPose", quality=quality, session_id=req.session_id)
     ratio = get_ratio(req.aspect_ratio_id)
     category_slug = user.get("category_slug")
     is_branding = req.add_logo and user.get("company_name")
@@ -142,6 +141,15 @@ async def generate_catalogue(req: GenerateCatalogueRequest, user: dict = Depends
             images.append({"base64": "", "label": f"{pose.replace('_', ' ').title()} (failed)"})
 
     valid_images = [img for img in images if img.get("base64")]
+
+    # Only charge for images that actually succeeded
+    successful_count = len(valid_images)
+    if successful_count > 0:
+        actual_cost = successful_count * per_pose_cost
+        deduct_jewelry_tokens(user["id"], actual_cost, operation="ugcPerPose", quality=quality, session_id=req.session_id)
+    else:
+        raise HTTPException(status_code=500, detail="All image generations failed. No tokens were deducted.")
+
     if valid_images:
         try:
             ptype = "branding" if is_branding else "catalogue"
@@ -161,7 +169,7 @@ async def generate_catalogue(req: GenerateCatalogueRequest, user: dict = Depends
                 session_id=req.session_id,
                 action_type="ugc",
                 quality=quality,
-                tokens_used=total_cost,
+                tokens_used=actual_cost,
                 input_data={
                     "poses": poses_to_gen,
                     "model_type": req.model_type,

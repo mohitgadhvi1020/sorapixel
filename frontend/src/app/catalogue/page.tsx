@@ -74,6 +74,7 @@ function CatalogueContent() {
   const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const stepTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loaded = useRef(false);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -147,10 +148,10 @@ function CatalogueContent() {
       if (data.success) {
         setResults(data.images.filter(i => i.base64));
         setActiveResult(0);
-      } else setError(data.error || "Generation failed");
+      } else setError(data.error || "Generation failed. No tokens were deducted.");
     } catch (e: unknown) {
       stopProgress(false);
-      setError(e instanceof Error ? e.message : "Something went wrong");
+      setError(e instanceof Error ? e.message : "Something went wrong. No tokens were deducted.");
     } finally { setGenerating(false); }
   };
 
@@ -244,6 +245,25 @@ function CatalogueContent() {
                   <p className="text-xs text-[rgba(255,255,255,0.4)] mt-1.5">Drag and drop or click to browse</p>
                   <p className="text-[10px] text-[rgba(255,255,255,0.25)] mt-3">PNG, JPG up to 10MB</p>
                   <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                  <input
+                    ref={cameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); cameraInputRef.current?.click(); }}
+                    className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#c4a67d] bg-[rgba(196,166,125,0.1)] hover:bg-[rgba(196,166,125,0.2)] transition-all md:hidden"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                      <circle cx="12" cy="13" r="4" />
+                    </svg>
+                    Take Photo
+                  </button>
                 </label>
               )}
             </Card>

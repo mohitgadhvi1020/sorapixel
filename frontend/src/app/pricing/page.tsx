@@ -42,10 +42,13 @@ interface Plan {
   name: string;
   type: string;
   price_inr: number;
+  price_usd: number;
   tokens: number;
   description: string;
   recommended?: boolean;
 }
+
+type Currency = "INR" | "USD";
 
 const TOKEN_COSTS = TOKEN_COSTS_TABLE;
 
@@ -59,6 +62,7 @@ export default function PricingPage() {
   const [payingPlanId, setPayingPlanId] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [currency, setCurrency] = useState<Currency>("INR");
 
   useEffect(() => {
     async function loadPlans() {
@@ -92,7 +96,7 @@ export default function PricingPage() {
           amount: number;
           currency: string;
           error?: string;
-        }>("/payments/create-order", { plan_id: plan.id });
+        }>("/payments/create-order", { plan_id: plan.id, currency });
 
         if (!orderData.success) {
           setErrorMessage(orderData.error || "Failed to create order");
@@ -157,7 +161,7 @@ export default function PricingPage() {
         setPayingPlanId(null);
       }
     },
-    [user, refreshCredits]
+    [user, refreshCredits, currency]
   );
 
   const subscriptions = plans.filter((p) => p.type === "subscription");
@@ -177,6 +181,35 @@ export default function PricingPage() {
           <p className="text-[rgba(255,255,255,0.5)] text-sm md:text-base mt-3 max-w-lg mx-auto">
             Start free. Upgrade when you need more.
           </p>
+
+          {/* Currency toggle */}
+          <div className="flex items-center justify-center gap-1 mt-5 bg-[rgba(255,255,255,0.04)] rounded-full p-1 w-fit mx-auto border border-[rgba(255,255,255,0.06)]">
+            <button
+              onClick={() => setCurrency("INR")}
+              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                currency === "INR"
+                  ? "bg-[rgba(196,166,125,0.15)] text-[#c4a67d] shadow-sm"
+                  : "text-[rgba(255,255,255,0.4)] hover:text-[rgba(255,255,255,0.6)]"
+              }`}
+            >
+              &#8377; INR
+            </button>
+            <button
+              onClick={() => setCurrency("USD")}
+              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                currency === "USD"
+                  ? "bg-[rgba(196,166,125,0.15)] text-[#c4a67d] shadow-sm"
+                  : "text-[rgba(255,255,255,0.4)] hover:text-[rgba(255,255,255,0.6)]"
+              }`}
+            >
+              $ USD
+            </button>
+          </div>
+          {currency === "USD" && (
+            <p className="text-[10px] text-[rgba(255,255,255,0.3)] mt-2">
+              International payments via PayPal
+            </p>
+          )}
         </div>
 
         {/* Success / Error messages */}
@@ -292,7 +325,12 @@ export default function PricingPage() {
                         </div>
                       </div>
                       <div className="mb-4">
-                        <span className="text-3xl font-bold text-white">&#8377;{plan.price_inr}</span>
+                        <span className="text-3xl font-bold text-white">
+                          {currency === "INR"
+                            ? <><span className="text-xl">&#8377;</span>{plan.price_inr}</>
+                            : <><span className="text-xl">$</span>{(plan.price_usd / 100).toFixed(2)}</>
+                          }
+                        </span>
                         <span className="text-sm text-[rgba(255,255,255,0.4)]">/month</span>
                         <p className="text-xs text-[#c4a67d] mt-0.5">{plan.tokens} tokens included</p>
                       </div>
@@ -311,7 +349,9 @@ export default function PricingPage() {
                             Processing…
                           </span>
                         ) : (
-                          `Buy Now — ₹${plan.price_inr}`
+                          currency === "INR"
+                            ? `Buy Now — ₹${plan.price_inr}`
+                            : `Buy Now — $${(plan.price_usd / 100).toFixed(2)}`
                         )}
                       </button>
                     </div>
@@ -333,7 +373,10 @@ export default function PricingPage() {
                       <p className="text-2xl font-bold text-white">{plan.tokens}</p>
                       <p className="text-[10px] text-[rgba(255,255,255,0.4)] uppercase tracking-wider">tokens</p>
                       <p className="text-lg font-bold text-white mt-2">
-                        <span className="text-sm">&#8377;</span>{plan.price_inr}
+                        {currency === "INR"
+                          ? <><span className="text-sm">&#8377;</span>{plan.price_inr}</>
+                          : <><span className="text-sm">$</span>{(plan.price_usd / 100).toFixed(2)}</>
+                        }
                       </p>
                       <button
                         onClick={() => handlePurchase(plan)}
@@ -405,7 +448,7 @@ export default function PricingPage() {
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
               <path d="M7 11V7a5 5 0 0110 0v4" />
             </svg>
-            <span>Secured by Razorpay — UPI, Cards, Net Banking accepted</span>
+            <span>Secured by Razorpay — {currency === "INR" ? "UPI, Cards, Net Banking" : "PayPal"} accepted</span>
           </div>
         </div>
       </div>

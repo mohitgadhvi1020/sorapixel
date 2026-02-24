@@ -74,12 +74,7 @@ async def _generate_all(req: GenerateJewelryRequest, user: dict, ratio: dict):
         raise HTTPException(status_code=500, detail="Could not fetch credits")
 
     free_remaining = credits.get("free_generation_remaining", 0)
-    if free_remaining > 0:
-        credit_result = check_and_deduct_jewelry(user["id"], "first_generation", req.quality, session_id=req.session_id)
-    elif credits["token_balance"] >= total_cost:
-        deduct_jewelry_tokens(user["id"], total_cost, operation="imageGen", quality=req.quality, session_id=req.session_id)
-        credit_result = {"remaining": credits["token_balance"] - total_cost, "free_generation_remaining": 0}
-    else:
+    if free_remaining <= 0 and credits["token_balance"] < total_cost:
         raise HTTPException(
             status_code=403,
             detail=f"Need {total_cost} tokens, have {credits['token_balance']}. Buy tokens to continue.",
@@ -107,6 +102,13 @@ async def _generate_all(req: GenerateJewelryRequest, user: dict, ratio: dict):
     except Exception as e:
         logger.error(f"Hero generation error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+    # Deduct tokens only after successful hero generation
+    if free_remaining > 0:
+        credit_result = check_and_deduct_jewelry(user["id"], "first_generation", req.quality, session_id=req.session_id)
+    else:
+        deduct_jewelry_tokens(user["id"], total_cost, operation="imageGen", quality=req.quality, session_id=req.session_id)
+        credit_result = {"remaining": credits["token_balance"] - total_cost, "free_generation_remaining": 0}
 
     if req.alt_images_base64:
         for idx, alt_b64 in enumerate(req.alt_images_base64):
@@ -166,7 +168,6 @@ async def _regenerate_single(req: GenerateJewelryRequest, user: dict, ratio: dic
     credits = get_jewelry_credits(user["id"])
     if not credits or credits["token_balance"] < regen_cost:
         raise HTTPException(status_code=403, detail=f"Need {regen_cost} tokens to regenerate")
-    deduct_jewelry_tokens(user["id"], regen_cost, operation="regenSingle", quality=req.quality, session_id=req.session_id)
 
     shot_map = {"regen_hero": "hero", "regen_angle": "angle", "regen_closeup": "closeup"}
     shot_type = shot_map[req.step]
@@ -222,6 +223,7 @@ async def _regenerate_single(req: GenerateJewelryRequest, user: dict, ratio: dic
             except Exception as e:
                 logger.warning(f"Session action save failed: {e}")
 
+        deduct_jewelry_tokens(user["id"], regen_cost, operation="regenSingle", quality=req.quality, session_id=req.session_id)
         return GenerateResponse(success=True, images=[ImageResult(base64=img_b64, label=label_map[shot_type])])
     except Exception as e:
         logger.error(f"Regenerate {shot_type} error: {e}")
@@ -234,8 +236,6 @@ async def recolor_jewelry(req: RecolorJewelryRequest, user: dict = Depends(get_c
     cost = get_operation_cost("recolorSingle", req.quality)
     if not credits or credits["token_balance"] < cost:
         raise HTTPException(status_code=403, detail=f"Need {cost} tokens")
-
-    deduct_jewelry_tokens(user["id"], cost, operation="recolorSingle", quality=req.quality, session_id=req.session_id)
 
     prompt = build_recolor_prompt(req.jewelry_type, req.target_metal)
     try:
@@ -251,6 +251,7 @@ async def recolor_jewelry(req: RecolorJewelryRequest, user: dict = Depends(get_c
             metadata={"target_metal": req.target_metal},
         )
 
+        deduct_jewelry_tokens(user["id"], cost, operation="recolorSingle", quality=req.quality, session_id=req.session_id)
         recolor_label = f"Recolored ({req.target_metal})"
         try:
             save_project(
@@ -292,8 +293,6 @@ async def generate_listing(req: RewriteListingRequest, user: dict = Depends(get_
     if not credits or credits["token_balance"] < cost:
         raise HTTPException(status_code=403, detail=f"Need {cost} tokens")
 
-    deduct_jewelry_tokens(user["id"], cost, operation="listing", session_id=req.session_id)
-
     brand_config = get_brand_config(user["id"])
     if brand_config:
         prompt = build_brand_listing_prompt(brand_config, req.jewelry_type)
@@ -311,6 +310,7 @@ async def generate_listing(req: RewriteListingRequest, user: dict = Depends(get_
         except json.JSONDecodeError:
             listing = {"raw_text": text}
 
+        deduct_jewelry_tokens(user["id"], cost, operation="listing", session_id=req.session_id)
         track_generation(
             client_id=user["id"],
             generation_type="listing",

@@ -80,18 +80,30 @@ def get_plan_by_id(plan_id: str) -> dict | None:
     return next((p for p in PLANS if p["id"] == plan_id), None)
 
 
-def create_razorpay_order(client_id: str, plan_id: str) -> dict:
-    """Create a Razorpay order for the given plan and record it in the DB."""
+def create_razorpay_order(client_id: str, plan_id: str, currency: str = "INR") -> dict:
+    """Create a Razorpay order for the given plan and record it in the DB.
+
+    currency: "INR" (default) or "USD". USD orders enable PayPal checkout for
+    international customers.
+    """
     plan = get_plan_by_id(plan_id)
     if not plan:
         return {"success": False, "error": "Unknown plan"}
 
-    amount_paise = plan["price_inr"] * 100
+    currency = currency.upper()
+    if currency not in ("INR", "USD"):
+        return {"success": False, "error": "Unsupported currency. Use INR or USD."}
+
+    if currency == "USD":
+        amount_minor = plan["price_usd"]  # already in cents
+    else:
+        amount_minor = plan["price_inr"] * 100  # convert rupees to paise
+
     client = _get_razorpay_client()
 
     order_data = {
-        "amount": amount_paise,
-        "currency": "INR",
+        "amount": amount_minor,
+        "currency": currency,
         "notes": {
             "client_id": client_id,
             "plan_id": plan_id,
@@ -110,8 +122,8 @@ def create_razorpay_order(client_id: str, plan_id: str) -> dict:
         sb.table("payments").insert({
             "client_id": client_id,
             "razorpay_order_id": order["id"],
-            "amount_paise": amount_paise,
-            "currency": "INR",
+            "amount_paise": amount_minor,
+            "currency": currency,
             "plan_type": plan_id,
             "tokens_added": plan["tokens"],
             "status": "created",
@@ -122,8 +134,8 @@ def create_razorpay_order(client_id: str, plan_id: str) -> dict:
     return {
         "success": True,
         "order_id": order["id"],
-        "amount": amount_paise,
-        "currency": "INR",
+        "amount": amount_minor,
+        "currency": currency,
         "plan": plan,
     }
 

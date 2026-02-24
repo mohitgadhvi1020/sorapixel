@@ -11,12 +11,12 @@ export async function GET() {
   const sb = getSupabaseAdmin();
   const { data } = await sb
     .from("clients")
-    .select("listing_tokens")
+    .select("token_balance")
     .eq("id", user.id)
     .single();
 
   return NextResponse.json({
-    balance: data?.listing_tokens ?? 0,
+    balance: data?.token_balance ?? 0,
     costPerImage: LISTING_PRICING.costPerImage,
     costPerRegen: LISTING_PRICING.costPerRegen,
   });

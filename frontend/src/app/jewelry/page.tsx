@@ -202,6 +202,7 @@ function JewelryPage() {
   const toastIdRef = useRef(0);
   const resultsRef = useRef<HTMLDivElement>(null);
   const altInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   function imgSrc(img: ResultImage): string {
     if (img.url) return img.url;
@@ -442,7 +443,7 @@ function JewelryPage() {
     } catch (err) {
       setStep("idle");
       setGenStatus(null);
-      showToast(err instanceof Error ? err.message : "Generation failed");
+      showToast(err instanceof Error ? err.message : "Generation failed. No tokens were deducted.");
     }
   }
 
@@ -485,7 +486,7 @@ function JewelryPage() {
         );
       }
     } catch (err) {
-      showToast(err instanceof Error ? err.message : "Regeneration failed");
+      showToast(err instanceof Error ? err.message : "Regeneration failed. No tokens were deducted.");
     } finally {
       setRegenIndex(null);
     }
@@ -854,7 +855,7 @@ function JewelryPage() {
               >
                 <input
                   type="file"
-                  accept="image/png,image/jpeg,image/webp"
+                  accept="image/*"
                   onChange={handleMainUpload}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 />
@@ -881,6 +882,25 @@ function JewelryPage() {
                       <p className="text-[rgba(255,255,255,0.4)] text-sm mt-0.5">This will be used for your hero shot</p>
                     </div>
                     <p className="text-[rgba(255,255,255,0.4)] text-xs">PNG, JPG up to 10MB</p>
+                    <input
+                      ref={cameraInputRef}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={handleMainUpload}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); cameraInputRef.current?.click(); }}
+                      className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#c4a67d] bg-[rgba(196,166,125,0.1)] hover:bg-[rgba(196,166,125,0.2)] transition-all md:hidden"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                        <circle cx="12" cy="13" r="4" />
+                      </svg>
+                      Take Photo
+                    </button>
                   </div>
                 )}
               </div>
@@ -927,7 +947,7 @@ function JewelryPage() {
                 <input
                   ref={altInputRef}
                   type="file"
-                  accept="image/png,image/jpeg,image/webp"
+                  accept="image/*"
                   multiple
                   onChange={handleAltUpload}
                   className="hidden"
@@ -1316,6 +1336,31 @@ function JewelryPage() {
             {/* Tweak + regenerate bar */}
             {!isLocked && (
               <div className="flex items-center gap-2">
+                <div className="inline-flex rounded-lg bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] p-0.5 flex-shrink-0">
+                  <button
+                    onClick={() => setQuality("standard")}
+                    className={`px-2.5 py-1.5 rounded-md text-[10px] font-semibold uppercase tracking-wider transition-all ${
+                      quality === "standard"
+                        ? "bg-[rgba(255,255,255,0.1)] text-white"
+                        : "text-[rgba(255,255,255,0.4)] hover:text-[rgba(255,255,255,0.6)]"
+                    }`}
+                  >
+                    Std
+                  </button>
+                  <button
+                    onClick={() => setQuality("pro")}
+                    className={`px-2.5 py-1.5 rounded-md text-[10px] font-semibold uppercase tracking-wider transition-all flex items-center gap-1 ${
+                      quality === "pro"
+                        ? "bg-gradient-to-r from-[rgba(196,166,125,0.2)] to-[rgba(196,166,125,0.1)] text-[#c4a67d] border border-[rgba(196,166,125,0.2)]"
+                        : "text-[rgba(255,255,255,0.4)] hover:text-[rgba(255,255,255,0.6)]"
+                    }`}
+                  >
+                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                    </svg>
+                    Pro
+                  </button>
+                </div>
                 <div className="flex-1 relative">
                   <input
                     type="text"
