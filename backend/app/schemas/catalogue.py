@@ -34,4 +34,5 @@ class AiModel(BaseModel):
 class CatalogueResponse(BaseModel):
     success: bool
     images: list[dict] = []
+    generation_ids: list[str] = []
     error: str | None = None

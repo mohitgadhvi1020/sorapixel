@@ -13,6 +13,7 @@ import { useTheme } from "@/hooks/useTheme";
 import ThemeGallery, { type Theme, type ThemeCategory } from "@/components/jewelry/ThemeGallery";
 import ShotConfigurator, { type ShotConfig } from "@/components/jewelry/ShotConfigurator";
 import InsufficientCreditsModal from "@/components/jewelry/InsufficientCreditsModal";
+import FeedbackWidget from "@/components/jewelry/FeedbackWidget";
 type Step = "upload" | "select_type" | "theme_browse" | "shot_config" | "generating" | "done";
 
 interface ResultImage {
@@ -26,6 +27,7 @@ interface GenerateResponse {
   images: ResultImage[];
   locked?: boolean;
   token_balance?: number;
+  generation_ids?: string[];
 }
 
 interface Toast {
@@ -165,6 +167,7 @@ function JewelryPage() {
   const [step, setStep] = useState<Step>("upload");
   const [genStatus, setGenStatus] = useState<string | null>(null);
   const [resultImages, setResultImages] = useState<ResultImage[]>([]);
+  const [generationIds, setGenerationIds] = useState<string[]>([]);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [compareIndex, setCompareIndex] = useState<number | null>(null);
   const [regenIndex, setRegenIndex] = useState<number | null>(null);
@@ -177,6 +180,7 @@ function JewelryPage() {
   // Feature states
   const [ugcLoading, setUgcLoading] = useState(false);
   const [ugcImages, setUgcImages] = useState<ResultImage[]>([]);
+  const [ugcGenerationIds, setUgcGenerationIds] = useState<string[]>([]);
   const [ugcLightbox, setUgcLightbox] = useState<number | null>(null);
   const [ugcGenCount, setUgcGenCount] = useState(0);
   const [ugcModalOpen, setUgcModalOpen] = useState(false);
@@ -368,6 +372,7 @@ function JewelryPage() {
       });
       if (data.success && data.images.length > 0) {
         setResultImages(data.images);
+        setGenerationIds(data.generation_ids || []);
         setStep("done");
         setGenStatus(null);
         setIsLocked(!!data.locked);
@@ -591,6 +596,7 @@ function JewelryPage() {
       });
       if (data.success && data.images.length > 0) {
         setResultImages(data.images);
+        setGenerationIds(data.generation_ids || []);
         setStep("done");
         setGenStatus(null);
         setIsLocked(!!data.locked);
@@ -637,6 +643,9 @@ function JewelryPage() {
         };
 
         setResultImages((prev) => [newImage, ...prev]);
+        if (data.generation_ids?.length) {
+          setGenerationIds((prev) => [...data.generation_ids!, ...prev]);
+        }
         refreshCredits();
 
         setJustUpdatedIndex(0);
@@ -694,6 +703,9 @@ function JewelryPage() {
           label: `Set ${batch} — ${(img as ResultImage).label || `Photo ${i + 1}`}`,
         }));
         setUgcImages((prev) => [...newImages, ...prev]);
+        if (data.generation_ids?.length) {
+          setUgcGenerationIds((prev) => [...data.generation_ids!, ...prev]);
+        }
         refreshCredits();
         showToast("UGC photos generated!", "success");
       }
@@ -915,12 +927,14 @@ function JewelryPage() {
     setMainImage(null);
     setAltImages([]);
     setResultImages([]);
+    setGenerationIds([]);
     setStep("upload");
     setGenStatus(null);
     setExpandedIndex(null);
     setCompareIndex(null);
     setRegenIndex(null);
     setUgcImages([]);
+    setUgcGenerationIds([]);
     setCatalogueData(null);
     setIsLocked(false);
     setBrandedImages([]);
@@ -1070,29 +1084,31 @@ function JewelryPage() {
             </p>
 
             {/* Upgrade banner */}
-            <div className={`mt-5 flex items-center gap-3 px-4 py-3 rounded-xl ${
+            <div className={`mt-5 flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-3 rounded-xl ${
               isLight
                 ? "bg-gradient-to-r from-[#faf6f0] to-[#f5ede0] border border-[#e8d9c4]"
                 : "bg-gradient-to-r from-[rgba(196,166,125,0.08)] to-[rgba(196,166,125,0.04)] border border-[rgba(196,166,125,0.15)]"
             }`}>
-              <div className={`flex items-center justify-center w-8 h-8 rounded-lg shrink-0 ${
-                isLight ? "bg-[#c4a67d]/15" : "bg-[#c4a67d]/10"
-              }`}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c4a67d" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-                </svg>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className={`text-[13px] font-semibold ${isLight ? "text-[#5a4a36]" : "text-[#e8d5b5]"}`}>
-                  Upgrade to Pro for crystal-clear, studio-grade images
-                </p>
-                <p className={`text-[11px] mt-0.5 ${isLight ? "text-[#8b7355]" : "text-[#c4a67d]/60"}`}>
-                  3x sharper details · True metal shine · Plans from ₹149
-                </p>
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <div className={`flex items-center justify-center w-8 h-8 rounded-lg shrink-0 ${
+                  isLight ? "bg-[#c4a67d]/15" : "bg-[#c4a67d]/10"
+                }`}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c4a67d" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <p className={`text-[13px] font-semibold ${isLight ? "text-[#5a4a36]" : "text-[#e8d5b5]"}`}>
+                    Upgrade to Pro for crystal-clear, studio-grade images
+                  </p>
+                  <p className={`text-[11px] mt-0.5 ${isLight ? "text-[#8b7355]" : "text-[#c4a67d]/60"}`}>
+                    3x sharper details · True metal shine · Plans from ₹149
+                  </p>
+                </div>
               </div>
               <Link
                 href="/pricing"
-                className="shrink-0 px-4 py-2 rounded-lg text-[12px] font-bold text-white bg-gradient-to-r from-[#8b7355] to-[#c4a67d] hover:shadow-lg hover:shadow-[#c4a67d]/25 active:scale-[0.97] transition-all"
+                className="shrink-0 w-full sm:w-auto text-center px-4 py-2 rounded-lg text-[12px] font-bold text-white bg-gradient-to-r from-[#8b7355] to-[#c4a67d] hover:shadow-lg hover:shadow-[#c4a67d]/25 active:scale-[0.97] transition-all"
               >
                 Upgrade →
               </Link>
@@ -1572,6 +1588,11 @@ function JewelryPage() {
               ))}
             </div>
 
+            {/* Feedback widget */}
+            {generationIds.length > 0 && (
+              <FeedbackWidget generationIds={generationIds} />
+            )}
+
             {/* Original upload -- opens in modal */}
             <button
               onClick={() => setShowOriginal(true)}
@@ -1746,6 +1767,9 @@ function JewelryPage() {
                         </div>
                       ));
                     })()}
+                    {ugcGenerationIds.length > 0 && (
+                      <FeedbackWidget generationIds={ugcGenerationIds} imageLabel="UGC Model Photos" compact />
+                    )}
                   </div>
                 ) : ugcLoading ? (
                   <div className={`rounded-2xl overflow-hidden border ${

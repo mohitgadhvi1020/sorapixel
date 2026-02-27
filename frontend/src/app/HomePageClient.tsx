@@ -42,7 +42,7 @@ const features = [
   { title: "Hero Shots", desc: "Stunning front-facing product shots that make your jewelry the star.", img: IMG.cardHero },
   { title: "Close-Up Detail", desc: "Show every facet, stone, and texture with AI-enhanced macro shots.", img: IMG.cardCloseup },
   { title: "Lifestyle Scenes", desc: "Place your jewelry in beautiful real-world contexts automatically.", img: IMG.cardLifestyle },
-  { title: "Model Catalogue", desc: "AI models wearing your jewelry — no photoshoot needed.", img: IMG.cardModel },
+  { title: "Model Shots", desc: "AI models wearing your jewelry — no photoshoot needed.", img: IMG.cardModel },
 ];
 
 const transformations = [
@@ -83,7 +83,6 @@ export default function HomePageClient() {
           </Link>
           <nav className="flex items-center gap-1 sm:gap-2">
             <Link href="/jewelry" className="px-2.5 sm:px-3 py-2 text-[12px] sm:text-[13px] font-medium text-[#0a0a0a] bg-[#f5f0e8] rounded-lg transition-all">Jewelry Studio</Link>
-            <Link href="/catalogue" className="px-2.5 sm:px-3 py-2 text-[12px] sm:text-[13px] font-medium text-[#4a4a4a] rounded-lg hover:text-[#0a0a0a] hover:bg-black/[0.04] transition-all">Catalogue</Link>
             <Link href="/batch-listing" className="px-2.5 sm:px-3 py-2 text-[12px] sm:text-[13px] font-medium text-[#4a4a4a] rounded-lg hover:text-[#0a0a0a] hover:bg-black/[0.04] transition-all hidden sm:block">Bulk Listings</Link>
             <Link href="/pricing" className="px-2.5 sm:px-3 py-2 text-[12px] sm:text-[13px] font-medium text-[#4a4a4a] rounded-lg hover:text-[#0a0a0a] hover:bg-black/[0.04] transition-all hidden sm:block">Pricing</Link>
             {isAuthenticated ? (
@@ -279,7 +278,7 @@ export default function HomePageClient() {
                   Try Jewelry Studio
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 19.5l15-15m0 0H8.25m11.25 0v11.25" /></svg>
                 </Link>
-                <Link href="/catalogue" className="inline-flex items-center gap-2 px-6 py-3 border border-[#e8e5df] text-[#4a4a4a] text-[13px] font-semibold rounded-full hover:border-[#0a0a0a] hover:text-[#0a0a0a] transition-all">Model Catalogue</Link>
+                <Link href="/pricing" className="inline-flex items-center gap-2 px-6 py-3 border border-[#e8e5df] text-[#4a4a4a] text-[13px] font-semibold rounded-full hover:border-[#0a0a0a] hover:text-[#0a0a0a] transition-all">View Pricing</Link>
               </div>
             </div>
 
@@ -474,7 +473,7 @@ export default function HomePageClient() {
               <p className="text-[13px] text-white/30 leading-relaxed">AI-powered jewelry photography. Studio-quality images from any photo, in seconds.</p>
             </div>
             {[
-              { title: "Products", links: [{ l: "Jewelry Studio", h: "/jewelry" }, { l: "Model Catalogue", h: "/catalogue" }, { l: "Bulk Listings", h: "/batch-listing" }, { l: "General Studio", h: "/studio" }] },
+              { title: "Products", links: [{ l: "Jewelry Studio", h: "/jewelry" }, { l: "Bulk Listings", h: "/batch-listing" }, { l: "General Studio", h: "/studio" }] },
               { title: "Resources", links: [{ l: "Pricing", h: "/pricing" }, { l: "Blog", h: "/blog" }, { l: "Gallery", h: "/gallery" }, { l: "AI Photography", h: "/ai-photography" }] },
               { title: "Company", links: [{ l: "AI Jewelry Photography", h: "/ai-jewelry-photography" }, { l: "About", h: "#" }, { l: "Privacy Policy", h: "#" }, { l: "Terms of Service", h: "#" }] },
             ].map((col) => (

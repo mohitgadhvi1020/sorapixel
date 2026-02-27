@@ -91,6 +91,7 @@ async def generate_catalogue(req: GenerateCatalogueRequest, user: dict = Depends
             logger.warning(f"[UGC] Detection step failed (non-blocking): {det_err}")
 
     images = []
+    generation_ids = []
     for pose in poses_to_gen:
         if is_branding:
             prompt = build_branding_prompt(
@@ -143,13 +144,15 @@ async def generate_catalogue(req: GenerateCatalogueRequest, user: dict = Depends
                 )
 
             usage = result.get("usage", {})
-            track_generation(
+            gen_id = track_generation(
                 client_id=user["id"],
                 generation_type="branding" if is_branding else "catalogue",
                 input_tokens=usage.get("input_tokens", 0),
                 output_tokens=usage.get("output_tokens", 0),
                 metadata={"model_type": req.model_type, "pose": pose, "category": category_slug, "quality": quality},
             )
+            if gen_id:
+                generation_ids.append(gen_id)
 
             images.append({"base64": image_b64, "mime_type": "image/png", "label": pose.replace("_", " ").title()})
         except Exception as e:
@@ -200,4 +203,4 @@ async def generate_catalogue(req: GenerateCatalogueRequest, user: dict = Depends
         except Exception as e:
             logger.warning(f"Session action save failed: {e}")
 
-    return CatalogueResponse(success=True, images=images)
+    return CatalogueResponse(success=True, images=images, generation_ids=generation_ids)

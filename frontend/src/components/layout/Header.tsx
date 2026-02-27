@@ -18,7 +18,7 @@ const NAV_LINKS = [
   { href: "/jewelry", label: "Jewelry" },
   { href: "/projects", label: "My Creations" },
   { href: "/studio", label: "Studio" },
-  { href: "/catalogue", label: "Catalogue" },
+
   { href: "/batch-listing", label: "Bulk Listings" },
   { href: "/brand-settings", label: "Brand" },
 ];

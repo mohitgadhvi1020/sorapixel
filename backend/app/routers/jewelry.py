@@ -89,6 +89,7 @@ async def _generate_all(req: GenerateJewelryRequest, user: dict, ratio: dict):
         )
 
     images: list[ImageResult] = []
+    generation_ids: list[str] = []
 
     try:
         detection = detect_jewelry_input(req.image_base64, req.jewelry_type)
@@ -124,13 +125,15 @@ async def _generate_all(req: GenerateJewelryRequest, user: dict, ratio: dict):
                 except Exception:
                     pass
                 usage = result.get("usage", {})
-                track_generation(
+                gen_id = track_generation(
                     client_id=user["id"],
                     generation_type=f"theme_{shot_id}",
                     input_tokens=usage.get("input_tokens", 0),
                     output_tokens=usage.get("output_tokens", 0),
                     model_used=result.get("model", "gemini-2.5-flash-image"),
                 )
+                if gen_id:
+                    generation_ids.append(gen_id)
                 images.append(ImageResult(base64=img_b64, label=shot_label))
             except Exception as e:
                 logger.warning(f"Theme shot {shot_id} generation failed: {e}")
@@ -152,13 +155,15 @@ async def _generate_all(req: GenerateJewelryRequest, user: dict, ratio: dict):
             except Exception:
                 pass
             usage = result.get("usage", {})
-            track_generation(
+            gen_id = track_generation(
                 client_id=user["id"],
                 generation_type="hero",
                 input_tokens=usage.get("input_tokens", 0),
                 output_tokens=usage.get("output_tokens", 0),
                 model_used=result.get("model", "gemini-2.5-flash-image"),
             )
+            if gen_id:
+                generation_ids.append(gen_id)
             images.append(ImageResult(base64=hero_b64, label="Studio Shot 1"))
         except Exception as e:
             logger.error(f"Hero generation error: {e}")
@@ -194,7 +199,9 @@ async def _generate_all(req: GenerateJewelryRequest, user: dict, ratio: dict):
                     alt_img_b64 = crop_to_ratio(alt_img_b64, ratio["width"], ratio["height"])
                 except Exception:
                     pass
-                track_generation(client_id=user["id"], generation_type="studio", model_used=alt_result.get("model", "gemini-2.5-flash-image"))
+                alt_gen_id = track_generation(client_id=user["id"], generation_type="studio", model_used=alt_result.get("model", "gemini-2.5-flash-image"))
+                if alt_gen_id:
+                    generation_ids.append(alt_gen_id)
                 images.append(ImageResult(base64=alt_img_b64, label=f"Studio Shot {len(images) + 1}"))
             except Exception as e:
                 logger.warning(f"Alt image {idx + 1} generation failed: {e}")
@@ -236,6 +243,7 @@ async def _generate_all(req: GenerateJewelryRequest, user: dict, ratio: dict):
     return {
         "success": True,
         "images": [{"base64": img.base64, "label": img.label} for img in images if img.base64],
+        "generation_ids": generation_ids,
         "token_balance": credit_result.get("remaining", 0),
         "free_generation_remaining": credit_result.get("free_generation_remaining", 0),
     }
@@ -259,7 +267,7 @@ async def _regenerate_single(req: GenerateJewelryRequest, user: dict, ratio: dic
         except Exception:
             pass
         usage = result.get("usage", {})
-        track_generation(
+        regen_gen_id = track_generation(
             client_id=user["id"],
             generation_type="regen_hero",
             input_tokens=usage.get("input_tokens", 0),
@@ -291,7 +299,11 @@ async def _regenerate_single(req: GenerateJewelryRequest, user: dict, ratio: dic
                 logger.warning(f"Session action save failed: {e}")
 
         deduct_jewelry_tokens(user["id"], regen_cost, operation="regenSingle", quality=req.quality, session_id=req.session_id)
-        return GenerateResponse(success=True, images=[ImageResult(base64=img_b64, label="Studio Shot")])
+        return {
+            "success": True,
+            "images": [{"base64": img_b64, "label": "Studio Shot"}],
+            "generation_ids": [regen_gen_id] if regen_gen_id else [],
+        }
     except Exception as e:
         logger.error(f"Regenerate hero error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -65,10 +65,10 @@ export default function ProQualityTicker() {
           </span>
         </span>
 
-        <span className="h-3 w-px bg-white/10 shrink-0" />
+        <span className="h-3 w-px bg-white/20 shrink-0" />
 
         <span
-          className={`text-[10px] sm:text-[11px] text-white/50 group-hover:text-white/70 transition-all duration-300 truncate ${
+          className={`text-[10px] sm:text-[11px] text-white/80 group-hover:text-white transition-all duration-300 truncate ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2"
           }`}
         >
@@ -76,7 +76,7 @@ export default function ProQualityTicker() {
         </span>
 
         <svg
-          className="w-3 h-3 text-[#c4a67d]/50 group-hover:text-[#c4a67d] group-hover:translate-x-0.5 transition-all shrink-0 hidden sm:block"
+          className="w-3 h-3 text-[#c4a67d]/80 group-hover:text-[#c4a67d] group-hover:translate-x-0.5 transition-all shrink-0 hidden sm:block"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
