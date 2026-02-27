@@ -1747,29 +1747,53 @@ function JewelryPage() {
                       ));
                     })()}
                   </div>
+                ) : ugcLoading ? (
+                  <div className={`rounded-2xl overflow-hidden border ${
+                    isLight ? "border-[#e5e2dc] bg-white" : "border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.02)]"
+                  }`}>
+                    <div className={`px-4 py-2.5 border-b flex items-center gap-2 ${
+                      isLight ? "border-[#f0ede8]" : "border-[rgba(255,255,255,0.04)]"
+                    }`}>
+                      <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[rgba(234,179,8,0.1)]">
+                        <div className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse" />
+                        <span className="text-[10px] font-semibold text-yellow-500">Generating</span>
+                      </div>
+                      <span className={`text-xs font-semibold uppercase tracking-wider ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>Model Photos</span>
+                    </div>
+                    <div className="relative flex items-center justify-center" style={{ aspectRatio: "4/3" }}>
+                      <div className="relative w-14 h-14">
+                        <svg className="absolute inset-0 w-full h-full animate-spin" viewBox="0 0 56 56" fill="none" style={{ animationDuration: "2s" }}>
+                          <circle cx="28" cy="28" r="24" stroke={isLight ? "rgba(139,115,85,0.1)" : "rgba(196,166,125,0.1)"} strokeWidth="2.5" />
+                          <path d="M28 4a24 24 0 0 1 24 24" stroke={isLight ? "#8b7355" : "#c4a67d"} strokeWidth="2.5" strokeLinecap="round" />
+                        </svg>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={isLight ? "rgba(139,115,85,0.35)" : "rgba(196,166,125,0.4)"} strokeWidth="1.5">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                    <div className={`px-4 py-2.5 border-t flex items-center justify-between ${
+                      isLight ? "border-[#f0ede8]" : "border-[rgba(255,255,255,0.04)]"
+                    }`}>
+                      <span className={`text-[11px] ${isLight ? "text-[#999]" : "text-white/30"}`}>This typically takes 20-40 seconds</span>
+                    </div>
+                  </div>
                 ) : (
                   <button
                     onClick={openUgcModal}
-                    disabled={ugcLoading}
-                    className={`w-full py-3.5 rounded-xl text-[14px] font-bold border border-dashed active:scale-[0.98] transition-all disabled:opacity-50 ${
+                    className={`w-full py-3.5 rounded-xl text-[14px] font-bold border border-dashed active:scale-[0.98] transition-all ${
                       isLight
                         ? "bg-gradient-to-r from-[#8b7355]/10 to-[#8b7355]/[0.04] text-[#8b7355] border-[#8b7355]/25 hover:from-[#8b7355]/15 hover:to-[#8b7355]/[0.08] hover:border-[#8b7355]/40"
                         : "bg-gradient-to-r from-[rgba(196,166,125,0.12)] to-[rgba(196,166,125,0.06)] text-[#c4a67d] border-[rgba(196,166,125,0.25)] hover:from-[rgba(196,166,125,0.18)] hover:to-[rgba(196,166,125,0.1)] hover:border-[rgba(196,166,125,0.4)]"
                     }`}
                   >
-                    {ugcLoading ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <div className="w-4 h-4 border-2 border-[rgba(196,166,125,0.3)] border-t-[#c4a67d] rounded-full animate-spin" />
-                        Generating UGC Photos...
-                      </span>
-                    ) : (
-                      <span className="flex items-center justify-center gap-2">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                          <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-                        </svg>
-                        Generate Model Photos
-                      </span>
-                    )}
+                    <span className="flex items-center justify-center gap-2">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                        <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                      </svg>
+                      Generate Model Photos
+                    </span>
                   </button>
                 )}
               </div>
