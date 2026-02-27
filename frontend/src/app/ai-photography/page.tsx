@@ -89,7 +89,7 @@ const useCases = [
 ];
 
 const comparisons = [
-  { feature: "Cost per session", traditional: "₹5,000 – ₹50,000", ai: "Free – ₹499/mo" },
+  { feature: "Cost per session", traditional: "₹5,000 – ₹50,000", ai: "From ₹15/image" },
   { feature: "Turnaround time", traditional: "1–3 weeks", ai: "< 10 seconds" },
   { feature: "Photos per session", traditional: "10–50", ai: "Unlimited" },
   { feature: "Consistency", traditional: "Varies by photographer", ai: "100% consistent" },
@@ -305,7 +305,7 @@ export default function AIPhotographyPage() {
               Try AI Photography Today — Free
             </h2>
             <p className="text-text-secondary mb-8 max-w-xl mx-auto">
-              5 free tokens every day. No credit card. No commitment.
+              8 free tokens every day — 1 free image daily. No credit card. No commitment.
               See for yourself why thousands of sellers are switching to AI photography.
             </p>
             <Link

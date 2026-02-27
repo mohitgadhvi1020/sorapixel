@@ -14,6 +14,9 @@ class GenerateJewelryRequest(BaseModel):
     special_instructions: str | None = None
     quality: Literal["standard", "pro"] = "standard"
     session_id: str | None = None
+    # Theme-based generation fields
+    theme_id: str | None = None
+    shots: list[dict] | None = None  # [{shot_id, additional_details?, theme_color?}]
 
 
 class RecolorJewelryRequest(BaseModel):

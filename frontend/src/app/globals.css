@@ -135,7 +135,12 @@ button, a, [role="button"], input[type="file"] + label {
 
 /* Display font utility */
 .font-display {
-  font-family: var(--font-display), sans-serif;
+  font-family: var(--font-display), Georgia, "Times New Roman", serif;
+  letter-spacing: -0.01em;
+}
+
+h1, h2, h3 {
+  letter-spacing: -0.02em;
 }
 
 /* ═══════════ DARK APP SHELL ═══════════ */
@@ -143,6 +148,127 @@ button, a, [role="button"], input[type="file"] + label {
 .app-shell {
   background: var(--background);
   color: var(--foreground);
+}
+
+/* ═══════════ LIGHT THEME OVERRIDES ═══════════ */
+/* Scoped to .theme-light (ResponsiveLayout wrapper) so the landing page is never affected */
+
+.theme-light {
+  --background: #f7f7f5;
+  --foreground: #0a0a0a;
+  --surface: rgba(0, 0, 0, 0.03);
+  --surface-hover: rgba(0, 0, 0, 0.05);
+  --surface-elevated: rgba(0, 0, 0, 0.06);
+  --border: rgba(0, 0, 0, 0.08);
+  --border-hover: rgba(0, 0, 0, 0.14);
+  --text-secondary: rgba(0, 0, 0, 0.65);
+  --text-tertiary: rgba(0, 0, 0, 0.4);
+  --shadow-xs: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.12);
+}
+
+/* --- Text: white → dark --- */
+.theme-light .text-white { color: #1a1a1a; }
+.theme-light .text-white\/70 { color: rgba(0,0,0,0.7); }
+.theme-light .text-white\/50 { color: rgba(0,0,0,0.5); }
+.theme-light .text-neutral-300 { color: rgba(0,0,0,0.5); }
+
+/* --- Background: rgba(255,255,255,x) → rgba(0,0,0,x) --- */
+.theme-light .bg-white\/10 { background-color: rgba(0,0,0,0.06); }
+.theme-light .bg-white\/15 { background-color: rgba(0,0,0,0.08); }
+.theme-light .bg-white\/20 { background-color: rgba(0,0,0,0.1); }
+
+/* --- Borders --- */
+.theme-light .border-white\/5 { border-color: rgba(0,0,0,0.05); }
+.theme-light .border-white\/10 { border-color: rgba(0,0,0,0.08); }
+
+/* --- Hover text --- */
+.theme-light .hover\:text-white:hover { color: #1a1a1a; }
+.theme-light .hover\:bg-white\/15:hover { background-color: rgba(0,0,0,0.08); }
+
+/* --- Form inputs --- */
+.theme-light input:not([type="file"]):not([type="checkbox"]):not([type="radio"]),
+.theme-light textarea,
+.theme-light select {
+  color: #1a1a1a;
+}
+
+/* --- Preserve white text on colored overlays/toasts/gradient buttons --- */
+.theme-light .bg-red-500\/90 .text-white,
+.theme-light .bg-red-500\/90.text-white,
+.theme-light .bg-emerald-500\/90 .text-white,
+.theme-light .bg-emerald-500\/90.text-white,
+.theme-light [class*="bg-gradient-to"] .text-white,
+.theme-light [class*="bg-gradient-to"].text-white {
+  color: #fff;
+}
+
+/* --- Glass components --- */
+.theme-light .glass-card {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+}
+
+.theme-light .glass-input {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: #1a1a1a;
+}
+
+.theme-light .glass-input:focus {
+  border-color: #8b7355;
+  box-shadow: 0 0 0 3px rgba(139, 115, 85, 0.15);
+}
+
+.theme-light .glass-input::placeholder {
+  color: rgba(0, 0, 0, 0.35);
+}
+
+.theme-light .glass-nav {
+  background: rgba(247, 247, 245, 0.92);
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+/* --- Scrollbar --- */
+.theme-light ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.theme-light ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* --- Shadow overrides --- */
+.theme-light .shadow-sm {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.theme-light .shadow-lg {
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+}
+
+/* --- Blanket light-mode overrides for arbitrary rgba(255,255,255,...) values --- */
+.theme-light [class*="text-[rgba(255"] { color: rgba(0,0,0,0.5); }
+.theme-light [class*="bg-[rgba(255"] { background-color: rgba(0,0,0,0.03); }
+.theme-light [class*="border-[rgba(255"] { border-color: rgba(0,0,0,0.08); }
+.theme-light [class*="placeholder:text-[rgba(255"]::placeholder { color: rgba(0,0,0,0.3); }
+
+/* --- Preserve white text/colors inside dark overlays --- */
+.theme-light .fixed[class*="bg-black"] .text-white,
+.theme-light .fixed[class*="bg-black"] [class*="text-[rgba(255"],
+.theme-light [class*="bg-[rgba(0"] .text-white,
+.theme-light [class*="bg-[rgba(0"] [class*="text-[rgba(255"],
+.theme-light .bg-black\/60 .text-white,
+.theme-light .bg-black\/80 .text-white {
+  color: #fff;
+}
+
+/* --- Listing content in light mode --- */
+.theme-light .listing-content strong,
+.theme-light .listing-content b {
+  color: rgba(0,0,0,0.85);
 }
 
 /* ═══════════ ANIMATIONS ═══════════ */

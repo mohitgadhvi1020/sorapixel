@@ -20,6 +20,7 @@ from app.services.prompt_service import (
 )
 from app.services.project_service import save_project
 from app.services.session_service import add_session_action
+from app.services.detection_service import detect_jewelry_input
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/catalogue", tags=["Catalogue"])
@@ -79,6 +80,16 @@ async def generate_catalogue(req: GenerateCatalogueRequest, user: dict = Depends
     ]
     outfit = random.choice(OUTFIT_OPTIONS)
 
+    # Run detection for jewelry category to get component-level awareness
+    detection_dict = None
+    if req.jewelry_type and category_slug == "jewellery":
+        try:
+            detection = detect_jewelry_input(req.image_base64, req.jewelry_type)
+            detection_dict = detection.to_dict()
+            logger.info(f"[UGC DETECTION] type={req.jewelry_type}, detection={detection_dict}")
+        except Exception as det_err:
+            logger.warning(f"[UGC] Detection step failed (non-blocking): {det_err}")
+
     images = []
     for pose in poses_to_gen:
         if is_branding:
@@ -99,7 +110,12 @@ async def generate_catalogue(req: GenerateCatalogueRequest, user: dict = Depends
                 gender=req.gender,
                 nationality=req.nationality,
                 skin_tone=req.skin_tone,
+                detection=detection_dict,
             )
+
+        if pose == poses_to_gen[0]:
+            logger.info(f"[UGC PROMPT] type={req.jewelry_type}, pose={pose}, detection={detection_dict is not None}")
+            logger.info(f"[UGC PROMPT] Full prompt ({len(prompt)} chars):\n{prompt}")
 
         try:
             if req.additional_images:

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect, Suspense } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api-client";
 import { useAuth } from "@/hooks/useAuth";
@@ -8,7 +9,11 @@ import { useCredits } from "@/hooks/useCredits";
 import { JEWELRY_TYPES, JEWELRY_BACKGROUNDS } from "@/lib/jewelry-styles";
 import { JEWELRY_PRICING } from "@/lib/token-pricing";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
-type Step = "idle" | "generating" | "done";
+import { useTheme } from "@/hooks/useTheme";
+import ThemeGallery, { type Theme, type ThemeCategory } from "@/components/jewelry/ThemeGallery";
+import ShotConfigurator, { type ShotConfig } from "@/components/jewelry/ShotConfigurator";
+import InsufficientCreditsModal from "@/components/jewelry/InsufficientCreditsModal";
+type Step = "upload" | "select_type" | "theme_browse" | "shot_config" | "generating" | "done";
 
 interface ResultImage {
   label: string;
@@ -124,6 +129,8 @@ export default function JewelryPageWrapper() {
 function JewelryPage() {
   const { user } = useAuth();
   const { credits, refreshCredits } = useCredits();
+  const { theme } = useTheme();
+  const isLight = theme === "light";
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -145,8 +152,17 @@ function JewelryPage() {
   const [specialInstructions, setSpecialInstructions] = useState<string>("");
   const [quality, setQuality] = useState<"standard" | "pro">("standard");
 
+  // Theme state
+  const [themes, setThemes] = useState<Theme[]>([]);
+  const [themeCategories, setThemeCategories] = useState<ThemeCategory[]>([]);
+  const [selectedTheme, setSelectedTheme] = useState<Theme | null>(null);
+  const [shotConfigs, setShotConfigs] = useState<ShotConfig[]>([]);
+  const [themesLoading, setThemesLoading] = useState(false);
+  const [showCreditsModal, setShowCreditsModal] = useState(false);
+  const [requiredCreditsForModal, setRequiredCreditsForModal] = useState(0);
+
   // Generation state
-  const [step, setStep] = useState<Step>("idle");
+  const [step, setStep] = useState<Step>("upload");
   const [genStatus, setGenStatus] = useState<string | null>(null);
   const [resultImages, setResultImages] = useState<ResultImage[]>([]);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
@@ -247,6 +263,140 @@ function JewelryPage() {
     if (user) return true;
     router.push("/login?redirect=/jewelry");
     return false;
+  }
+
+  // Load themes from API — filtered by jewelry type
+  const lastThemeTypeRef = useRef<string>("");
+  async function loadThemes(typeOverride?: string) {
+    const jType = typeOverride || jewelryType;
+    if (themes.length > 0 && lastThemeTypeRef.current === jType) return;
+    setThemesLoading(true);
+    try {
+      const url = jType ? `/themes?jewelry_type=${jType}` : "/themes";
+      const data = await api.get<{ themes: Theme[]; categories: ThemeCategory[] }>(url);
+      setThemes(data.themes);
+      setThemeCategories(data.categories);
+      lastThemeTypeRef.current = jType;
+    } catch (err) {
+      showToast("Failed to load themes");
+    } finally {
+      setThemesLoading(false);
+    }
+  }
+
+  function handleSelectTheme(theme: Theme) {
+    setSelectedTheme(theme);
+    const configs: ShotConfig[] = theme.shots.map((shot) => ({
+      shot_id: shot.id,
+      label: shot.short_name || shot.name,
+      additional_details: "",
+      theme_color: theme.default_color,
+      selected: theme.default_shots.includes(shot.id),
+    }));
+    setShotConfigs(configs);
+    setStep("shot_config");
+  }
+
+  function getThemeTokenCost(): number {
+    const selectedCount = shotConfigs.filter((s) => s.selected).length;
+    const altCount = altImages.length;
+    return (selectedCount + altCount) * JEWELRY_PRICING[quality].imageGen;
+  }
+
+  async function generateWithTheme() {
+    if (!mainImage || !selectedTheme) return;
+    if (!requireAuth()) return;
+
+    const selectedShots = shotConfigs.filter((s) => s.selected);
+    if (selectedShots.length === 0) {
+      showToast("Select at least one shot to generate");
+      return;
+    }
+
+    const cost = getThemeTokenCost();
+    const balance = credits?.token_balance || 0;
+    const isFree = credits?.is_free_tier ?? false;
+
+    if (!isFree && balance < cost) {
+      setRequiredCreditsForModal(cost);
+      setShowCreditsModal(true);
+      return;
+    }
+
+    setStep("generating");
+    const totalCount = selectedShots.length + altImages.length;
+    setGenStatus(`Generating ${totalCount} shot${totalCount > 1 ? "s" : ""} with ${selectedTheme.name}...`);
+    setResultImages([]);
+
+    let activeSessionId = sessionId;
+    if (!activeSessionId) {
+      try {
+        const sessB64 = await resolveBase64(mainImage);
+        const sess = await api.post<{ id: string }>("/sessions", {
+          image_base64: sessB64,
+          jewelry_type: jewelryType,
+          background: selectedTheme.id,
+          aspect_ratio_id: aspectRatioId,
+          quality,
+        });
+        activeSessionId = sess.id;
+        setSessionId(sess.id);
+        window.history.replaceState(null, "", `/jewelry?session=${sess.id}`);
+      } catch {
+        // Non-blocking
+      }
+    }
+
+    try {
+      const mainB64 = await resolveBase64(mainImage);
+      const data = await api.post<GenerateResponse>("/jewelry/generate", {
+        image_base64: mainB64,
+        jewelry_type: jewelryType,
+        theme_id: selectedTheme.id,
+        aspect_ratio_id: aspectRatioId,
+        quality,
+        step: "all",
+        session_id: activeSessionId,
+        shots: selectedShots.map((s) => ({
+          shot_id: s.shot_id,
+          label: s.label,
+          additional_details: s.additional_details || undefined,
+          theme_color: s.theme_color !== selectedTheme.default_color ? s.theme_color : undefined,
+        })),
+        alt_images_base64: altImages.length > 0 ? altImages.map((a) => a.base64) : undefined,
+        special_instructions: specialInstructions.trim() || undefined,
+      });
+      if (data.success && data.images.length > 0) {
+        setResultImages(data.images);
+        setStep("done");
+        setGenStatus(null);
+        setIsLocked(!!data.locked);
+        refreshCredits();
+        scrollToResults();
+        showToast(`${data.images.length} photo${data.images.length > 1 ? "s" : ""} generated!`, "success");
+      } else {
+        throw new Error("No images returned");
+      }
+    } catch (err: unknown) {
+      setStep("shot_config");
+      setGenStatus(null);
+      const apiErr = err as { status?: number; message?: string };
+      if (apiErr.status === 403) {
+        setRequiredCreditsForModal(getThemeTokenCost());
+        setShowCreditsModal(true);
+      } else {
+        showToast(err instanceof Error ? err.message : "Generation failed. No tokens were deducted.");
+      }
+    }
+  }
+
+  function goToThemeBrowse() {
+    if (!mainImage) {
+      showToast("Upload an image first");
+      return;
+    }
+    loadThemes();
+    setStep("theme_browse");
   }
 
   useEffect(() => {
@@ -398,6 +548,16 @@ function JewelryPage() {
   async function generateAll() {
     if (!mainImage) return;
     if (!requireAuth()) return;
+
+    const cost = (1 + altImages.length) * JEWELRY_PRICING[quality].imageGen;
+    const balance = credits?.token_balance || 0;
+    const isFree = credits?.is_free_tier ?? false;
+    if (!isFree && balance < cost) {
+      setRequiredCreditsForModal(cost);
+      setShowCreditsModal(true);
+      return;
+    }
+
     setStep("generating");
     const totalCount = 1 + altImages.length;
     setGenStatus(`Generating ${totalCount} photo${totalCount > 1 ? "s" : ""}...`);
@@ -440,10 +600,17 @@ function JewelryPage() {
       } else {
         throw new Error("No images returned");
       }
-    } catch (err) {
-      setStep("idle");
+    } catch (err: unknown) {
+      setStep("select_type");
       setGenStatus(null);
-      showToast(err instanceof Error ? err.message : "Generation failed. No tokens were deducted.");
+      const apiErr = err as { status?: number; message?: string };
+      if (apiErr.status === 403) {
+        const cost = (1 + altImages.length) * JEWELRY_PRICING[quality].imageGen;
+        setRequiredCreditsForModal(cost);
+        setShowCreditsModal(true);
+      } else {
+        showToast(err instanceof Error ? err.message : "Generation failed. No tokens were deducted.");
+      }
     }
   }
 
@@ -748,7 +915,7 @@ function JewelryPage() {
     setMainImage(null);
     setAltImages([]);
     setResultImages([]);
-    setStep("idle");
+    setStep("upload");
     setGenStatus(null);
     setExpandedIndex(null);
     setCompareIndex(null);
@@ -765,6 +932,8 @@ function JewelryPage() {
     setQuality("standard");
     setSessionId(null);
     setSessionLoaded(false);
+    setSelectedTheme(null);
+    setShotConfigs([]);
     window.history.replaceState(null, "", "/jewelry");
   }
 
@@ -795,7 +964,7 @@ function JewelryPage() {
 
   return (
     <ResponsiveLayout title="Jewelry Studio">
-      {sessionRestoring && (
+      {sessionRestoring && step !== "generating" && step !== "done" && (
         <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-12 h-12 border-2 border-[#c4a67d] border-t-transparent rounded-full animate-spin" />
           <p className="mt-4 text-sm text-neutral-300">Restoring your session...</p>
@@ -820,343 +989,445 @@ function JewelryPage() {
       </div>
 
       <div className="max-w-5xl mx-auto">
-        {/* Page header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-[10px] font-bold text-[#c4a67d] tracking-[0.12em] uppercase bg-[rgba(196,166,125,0.1)] px-2.5 py-1 rounded-full">
-              Jewelry
-            </span>
-            {credits && (
-              <span className="text-[11px] text-[rgba(255,255,255,0.5)] bg-[rgba(255,255,255,0.04)] px-2.5 py-1 rounded-full">
-                {credits.token_balance} tokens
-              </span>
-            )}
-          </div>
-          <h1 className="text-2xl md:text-3xl font-bold text-white font-display">
-            Jewelry Studio
-          </h1>
-          <p className="text-sm text-[rgba(255,255,255,0.55)] mt-1">
-            Upload your jewelry photos and generate studio-quality hero and angle shots.
-          </p>
-        </div>
-
-        {/* ===== UPLOAD + CONFIG ===== */}
-        {step === "idle" && (
-          <div className="space-y-6">
-            {/* Main image upload */}
-            <div>
-              <label className="text-xs font-semibold text-[rgba(255,255,255,0.6)] uppercase tracking-wider mb-3 block">
-                Main Product Photo
-              </label>
-              <div
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={handleMainDrop}
-                className="relative border-2 border-dashed border-[rgba(196,166,125,0.3)] rounded-2xl p-8 md:p-12 text-center hover:border-[rgba(196,166,125,0.5)] transition-colors cursor-pointer bg-[rgba(196,166,125,0.03)]"
-              >
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleMainUpload}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                />
-                {mainImage ? (
-                  <div className="flex flex-col items-center gap-4">
-                    <img
-                      src={mainImage.preview}
-                      alt="Preview"
-                      className="w-40 h-40 object-cover rounded-xl border border-[rgba(255,255,255,0.1)]"
-                    />
-                    <p className="text-sm text-[#c4a67d]">Image ready. Configure below or tap to change.</p>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="w-14 h-14 rounded-2xl bg-[rgba(196,166,125,0.1)] flex items-center justify-center">
-                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#c4a67d" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                        <polyline points="17 8 12 3 7 8" />
-                        <line x1="12" y1="3" x2="12" y2="15" />
-                      </svg>
+        {/* Step indicator */}
+        {(step === "upload" || step === "select_type" || step === "theme_browse" || step === "shot_config") && (
+          <div className="mb-6 flex items-center gap-0">
+            {[
+              { key: "upload", num: 1, label: "Upload" },
+              { key: "select_type", num: 2, label: "Category" },
+              { key: "theme_browse", num: 3, label: "Theme" },
+              { key: "shot_config", num: 4, label: "Configure" },
+            ].map((s, i) => {
+              const steps: Step[] = ["upload", "select_type", "theme_browse", "shot_config"];
+              const current = steps.indexOf(step);
+              const isActive = steps.indexOf(s.key as Step) === current;
+              const isDone = steps.indexOf(s.key as Step) < current;
+              return (
+                <div key={s.key} className="flex items-center">
+                  {i > 0 && (
+                    <div className={`w-6 md:w-10 h-px mx-1 transition-colors ${isDone ? "bg-[#c4a67d]" : isLight ? "bg-[#e0dcd6]" : "bg-[rgba(255,255,255,0.08)]"}`} />
+                  )}
+                  <div className="flex items-center gap-1.5">
+                    <div className={`w-6 h-6 rounded-full text-[10px] font-bold flex items-center justify-center transition-all ${
+                      isActive
+                        ? "bg-[#c4a67d] text-black"
+                        : isDone
+                          ? "bg-[rgba(196,166,125,0.2)] text-[#c4a67d]"
+                          : isLight
+                            ? "bg-[#e8e5df] text-[#999]"
+                            : "bg-[rgba(255,255,255,0.06)] text-[rgba(255,255,255,0.3)]"
+                    }`}>
+                      {isDone ? (
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      ) : s.num}
                     </div>
-                    <div>
-                      <p className="text-white font-semibold">Upload your jewelry photo</p>
-                      <p className="text-[rgba(255,255,255,0.4)] text-sm mt-0.5">This will be used for your hero shot</p>
-                    </div>
-                    <p className="text-[rgba(255,255,255,0.4)] text-xs">PNG, JPG up to 10MB</p>
-                    <input
-                      ref={cameraInputRef}
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      onChange={handleMainUpload}
-                      className="hidden"
-                    />
-                    <button
-                      type="button"
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); cameraInputRef.current?.click(); }}
-                      className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#c4a67d] bg-[rgba(196,166,125,0.1)] hover:bg-[rgba(196,166,125,0.2)] transition-all md:hidden"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                        <circle cx="12" cy="13" r="4" />
-                      </svg>
-                      Take Photo
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Additional photo uploads */}
-            <div>
-              <label className="text-xs font-semibold text-[rgba(255,255,255,0.6)] uppercase tracking-wider mb-3 block">
-                Additional Photos <span className="text-[rgba(255,255,255,0.4)] font-normal">(optional)</span>
-              </label>
-              <p className="text-xs text-[rgba(255,255,255,0.35)] mb-3">
-                Upload more photos. Each gets its own studio-quality enhancement.
-              </p>
-              <div className="flex flex-wrap gap-3">
-                {altImages.map((img, i) => (
-                  <div key={i} className="relative group">
-                    <img
-                      src={img.preview}
-                      alt={`Alt ${i + 1}`}
-                      className="w-24 h-24 object-cover rounded-xl border border-[rgba(255,255,255,0.1)]"
-                    />
-                    <button
-                      onClick={() => removeAltImage(i)}
-                      className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500/80 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
-                    >
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
-                        <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                      </svg>
-                    </button>
-                    <span className="absolute bottom-1 left-1 text-[10px] bg-black/60 text-white/70 px-1.5 py-0.5 rounded-md font-semibold">
-                      Photo {i + 2}
+                    <span className={`text-[11px] font-medium hidden md:inline transition-colors ${
+                      isActive ? (isLight ? "text-[#0a0a0a]" : "text-white") : isDone ? "text-[#c4a67d]" : isLight ? "text-[#999]" : "text-[rgba(255,255,255,0.3)]"
+                    }`}>
+                      {s.label}
                     </span>
                   </div>
-                ))}
-                <button
-                  onClick={() => altInputRef.current?.click()}
-                  className="w-24 h-24 rounded-xl border-2 border-dashed border-[rgba(255,255,255,0.1)] hover:border-[rgba(196,166,125,0.3)] transition-colors flex flex-col items-center justify-center gap-1 text-[rgba(255,255,255,0.3)] hover:text-[#c4a67d]"
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                    <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                  <span className="text-[10px] font-semibold">Add</span>
-                </button>
-                <input
-                  ref={altInputRef}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handleAltUpload}
-                  className="hidden"
-                />
-              </div>
-            </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
-            {/* Jewelry type */}
-            <div>
-              <label className="text-xs font-semibold text-[rgba(255,255,255,0.5)] uppercase tracking-wider mb-3 block">
-                Jewelry Type
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {JEWELRY_TYPES.map((type) => (
-                  <button
-                    key={type.id}
-                    onClick={() => setJewelryType(type.id)}
-                    className={`px-3.5 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
-                      jewelryType === type.id
-                        ? "bg-[rgba(196,166,125,0.15)] text-[#c4a67d] border border-[rgba(196,166,125,0.3)]"
-                        : "bg-[rgba(255,255,255,0.04)] text-[rgba(255,255,255,0.5)] border border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)]"
-                    }`}
-                  >
-                    <span className="mr-1.5">{type.icon}</span>
-                    {type.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Background */}
-            <div>
-              <label className="text-xs font-semibold text-[rgba(255,255,255,0.5)] uppercase tracking-wider mb-3 block">
-                Background
-              </label>
-              <div className="flex flex-wrap gap-3">
-                {JEWELRY_BACKGROUNDS.map((bg) => (
-                  <button
-                    key={bg.id}
-                    onClick={() => setBackgroundId(bg.id)}
-                    className={`flex items-center gap-2.5 px-3.5 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
-                      backgroundId === bg.id
-                        ? "bg-[rgba(196,166,125,0.15)] text-[#c4a67d] border border-[rgba(196,166,125,0.3)]"
-                        : "bg-[rgba(255,255,255,0.04)] text-[rgba(255,255,255,0.5)] border border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)]"
-                    }`}
-                  >
-                    <div
-                      className={`w-8 h-8 rounded-lg border-2 transition-all ${
-                        backgroundId === bg.id
-                          ? "border-[#c4a67d]"
-                          : "border-[rgba(255,255,255,0.12)]"
-                      }`}
-                      style={{ backgroundColor: bg.swatch }}
-                    />
-                    {bg.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Advanced settings toggle */}
-            <button
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className="flex items-center gap-2 text-xs text-[rgba(255,255,255,0.35)] hover:text-[rgba(255,255,255,0.6)] transition-colors"
-            >
-              <svg
-                width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                className={`transition-transform duration-200 ${showAdvanced ? "rotate-90" : ""}`}
-              >
-                <polyline points="9 18 15 12 9 6" />
-              </svg>
-              Advanced Settings
-              {(aspectRatioId !== "square" || quality !== "standard" || specialInstructions.trim()) && (
-                <span className="w-1.5 h-1.5 rounded-full bg-[#c4a67d]" />
+        {/* Page header — contextual per step */}
+        {(step === "upload" || step === "select_type") && (
+          <div className="mb-8">
+            <div className="flex items-center gap-2 mb-3">
+              <span className={`text-[10px] font-bold tracking-[0.12em] uppercase px-2.5 py-1 rounded-full ${
+                isLight
+                  ? "text-[#8b7355] bg-[#f0ebe3] border border-[#e0d6c8]"
+                  : "text-[#c4a67d] bg-[rgba(196,166,125,0.1)]"
+              }`}>
+                Jewelry
+              </span>
+              {credits && (
+                <span className={`text-[11px] px-2.5 py-1 rounded-full ${
+                  isLight
+                    ? "text-[#6b6b6b] bg-[#f0ede8] border border-[#e0dcd6]"
+                    : "text-[rgba(255,255,255,0.5)] bg-[rgba(255,255,255,0.04)]"
+                }`}>
+                  🪙 {credits.token_balance} tokens
+                </span>
               )}
-            </button>
+            </div>
+            <h1 className={`text-3xl md:text-4xl font-extrabold font-display tracking-tight ${
+              isLight ? "text-[#0a0a0a]" : "text-white"
+            }`}>
+              {step === "upload" ? "Jewelry Studio" : "Choose Category"}
+            </h1>
+            <p className={`text-[15px] mt-2 leading-relaxed ${
+              isLight ? "text-[#6b6b6b]" : "text-[rgba(255,255,255,0.55)]"
+            }`}>
+              {step === "upload"
+                ? "Upload your jewelry photos and generate studio-quality product shots."
+                : "Select the type of jewelry to see matching themes and shots."}
+            </p>
 
-            <div
-              className={`space-y-5 overflow-hidden transition-all duration-300 ease-in-out ${
-                showAdvanced ? "max-h-[600px] opacity-100" : "max-h-0 opacity-0"
-              }`}
-            >
-              {/* Aspect Ratio */}
-              <div>
-                <label className="text-xs font-semibold text-[rgba(255,255,255,0.6)] uppercase tracking-wider mb-3 block">
-                  Aspect Ratio
-                </label>
-                <div className="flex flex-wrap gap-3">
-                  {ASPECT_RATIOS.map((ar) => (
-                    <button
-                      key={ar.id}
-                      onClick={() => setAspectRatioId(ar.id)}
-                      className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
-                        aspectRatioId === ar.id
-                          ? "bg-[rgba(196,166,125,0.15)] text-[#c4a67d] border border-[rgba(196,166,125,0.3)]"
-                          : "bg-[rgba(255,255,255,0.04)] text-[rgba(255,255,255,0.6)] border border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)]"
-                      }`}
-                    >
-                      <div
-                        className="border border-current rounded-sm"
-                        style={{
-                          width: `${Math.round(20 * (ar.w / Math.max(ar.w, ar.h)))}px`,
-                          height: `${Math.round(20 * (ar.h / Math.max(ar.w, ar.h)))}px`,
-                        }}
-                      />
-                      {ar.label}
-                    </button>
-                  ))}
-                </div>
+            {/* Upgrade banner */}
+            <div className={`mt-5 flex items-center gap-3 px-4 py-3 rounded-xl ${
+              isLight
+                ? "bg-gradient-to-r from-[#faf6f0] to-[#f5ede0] border border-[#e8d9c4]"
+                : "bg-gradient-to-r from-[rgba(196,166,125,0.08)] to-[rgba(196,166,125,0.04)] border border-[rgba(196,166,125,0.15)]"
+            }`}>
+              <div className={`flex items-center justify-center w-8 h-8 rounded-lg shrink-0 ${
+                isLight ? "bg-[#c4a67d]/15" : "bg-[#c4a67d]/10"
+              }`}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c4a67d" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                </svg>
               </div>
-
-              {/* Special instructions */}
-              <div>
-                <label className="text-xs font-semibold text-[rgba(255,255,255,0.6)] uppercase tracking-wider mb-2 block">
-                  Special Instructions <span className="text-[rgba(255,255,255,0.4)] font-normal">(optional)</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={specialInstructions}
-                    onChange={(e) => setSpecialInstructions(e.target.value.slice(0, 120))}
-                    placeholder="e.g. Add sparkle effects, warm golden tone, dramatic shadows..."
-                    className="w-full px-4 py-3 rounded-xl bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-white text-sm placeholder:text-[rgba(255,255,255,0.25)] focus:outline-none focus:border-[rgba(196,166,125,0.4)] focus:bg-[rgba(196,166,125,0.03)] transition-all"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-[rgba(255,255,255,0.35)]">
-                    {specialInstructions.length}/120
-                  </span>
-                </div>
-              </div>
-
-              {/* Quality toggle */}
-              <div>
-                <label className="text-xs font-semibold text-[rgba(255,255,255,0.6)] uppercase tracking-wider mb-3 block">
-                  Quality
-                </label>
-                <div className="inline-flex rounded-xl bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] p-1">
-                  <button
-                    onClick={() => setQuality("standard")}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                      quality === "standard"
-                        ? "bg-[rgba(255,255,255,0.1)] text-white shadow-sm"
-                        : "text-[rgba(255,255,255,0.5)] hover:text-[rgba(255,255,255,0.7)]"
-                    }`}
-                  >
-                    Standard
-                  </button>
-                  <button
-                    onClick={() => setQuality("pro")}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-1.5 ${
-                      quality === "pro"
-                        ? "bg-gradient-to-r from-[rgba(196,166,125,0.2)] to-[rgba(196,166,125,0.1)] text-[#c4a67d] shadow-sm border border-[rgba(196,166,125,0.2)]"
-                        : "text-[rgba(255,255,255,0.5)] hover:text-[rgba(255,255,255,0.7)]"
-                    }`}
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                    </svg>
-                    Pro
-                  </button>
-                </div>
-                <p className="text-[11px] text-[rgba(255,255,255,0.45)] mt-2">
-                  {quality === "pro"
-                    ? "Studio-quality output — sharper textures, precise lighting (3x token cost)"
-                    : "Fast, high-quality output — great for most uses"}
+              <div className="flex-1 min-w-0">
+                <p className={`text-[13px] font-semibold ${isLight ? "text-[#5a4a36]" : "text-[#e8d5b5]"}`}>
+                  Upgrade to Pro for crystal-clear, studio-grade images
+                </p>
+                <p className={`text-[11px] mt-0.5 ${isLight ? "text-[#8b7355]" : "text-[#c4a67d]/60"}`}>
+                  3x sharper details · True metal shine · Plans from ₹149
                 </p>
               </div>
-            </div>
-
-            {/* Generate button */}
-            <div className="flex flex-wrap gap-3 pt-2">
-              <button
-                onClick={generateAll}
-                disabled={!mainImage}
-                className="px-6 py-3 bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-white text-sm font-semibold rounded-full shadow-[0_4px_20px_rgba(196,166,125,0.3)] hover:shadow-[0_6px_30px_rgba(196,166,125,0.45)] hover:-translate-y-0.5 active:scale-[0.97] transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none"
+              <Link
+                href="/pricing"
+                className="shrink-0 px-4 py-2 rounded-lg text-[12px] font-bold text-white bg-gradient-to-r from-[#8b7355] to-[#c4a67d] hover:shadow-lg hover:shadow-[#c4a67d]/25 active:scale-[0.97] transition-all"
               >
-                Generate Photos
-                {altImages.length > 0 && (
-                  <span className="ml-1.5 opacity-75">({1 + altImages.length} images)</span>
-                )}
-              </button>
-              <span className="flex items-center gap-2 text-xs text-[rgba(255,255,255,0.45)]">
-                {quality === "pro" ? (
-                  <span className="text-[#c4a67d] font-semibold">
-                    ~{(1 + altImages.length) * JEWELRY_PRICING.pro.imageGen} tokens (Pro)
-                  </span>
-                ) : (
-                  <span>~{(1 + altImages.length) * JEWELRY_PRICING.standard.imageGen} tokens</span>
-                )}
-                {credits && <span>/ {credits.token_balance} available</span>}
-              </span>
+                Upgrade →
+              </Link>
             </div>
           </div>
         )}
 
-        {/* ===== GENERATING STATE ===== */}
-        {step === "generating" && (
-          <div className="flex flex-col items-center justify-center py-20">
-            <div className="relative w-24 h-24 mb-6">
-              <div className="absolute inset-0 rounded-full border-3 border-transparent border-t-[#c4a67d] border-r-[#8b7355] animate-spin" style={{ borderWidth: "3px" }} />
-              <div className="absolute inset-3 rounded-full bg-[rgba(196,166,125,0.08)] flex items-center justify-center">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#c4a67d" strokeWidth="1.5">
-                  <path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" />
-                </svg>
+        {/* ===== STEP 1: UPLOAD ===== */}
+        {step === "upload" && (
+          <div className="space-y-6 max-w-xl mx-auto">
+            <div
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={handleMainDrop}
+              className={`relative border-2 border-dashed rounded-2xl p-10 md:p-16 text-center transition-all duration-300 cursor-pointer ${
+                isLight
+                  ? "border-[#c4a67d]/40 bg-gradient-to-b from-[#faf6f0] to-[#f5ede2] hover:border-[#c4a67d]/70 shadow-[0_2px_20px_rgba(196,166,125,0.1)] hover:shadow-[0_8px_40px_rgba(196,166,125,0.18)]"
+                  : "border-[rgba(196,166,125,0.3)] bg-[rgba(196,166,125,0.03)] hover:border-[rgba(196,166,125,0.5)] shadow-[0_2px_16px_rgba(0,0,0,0.06),0_8px_40px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_24px_rgba(0,0,0,0.1),0_12px_48px_rgba(0,0,0,0.06)]"
+              }`}
+            >
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => { handleMainUpload(e); if (e.target.files?.[0]) setTimeout(() => setStep("select_type"), 300); }}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-[1]"
+              />
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={(e) => { handleMainUpload(e); if (e.target.files?.[0]) setTimeout(() => setStep("select_type"), 300); }}
+                className="hidden"
+              />
+              {mainImage ? (
+                <div className="flex flex-col items-center gap-4">
+                  <div className="relative">
+                    <img
+                      src={mainImage.preview}
+                      alt="Preview"
+                      className={`w-44 h-44 object-cover rounded-2xl shadow-lg ${isLight ? "border border-[#e0dcd6]" : "border border-[rgba(255,255,255,0.1)]"}`}
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMainImage(null); }}
+                      className="absolute -top-2.5 -right-2.5 z-10 w-7 h-7 rounded-full bg-red-500/90 hover:bg-red-500 text-white flex items-center justify-center shadow-lg transition-all hover:scale-110"
+                      aria-label="Remove image"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+                        <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  </div>
+                  <p className="text-sm text-[#c4a67d]">Image uploaded</p>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setStep("select_type"); }}
+                    className="z-10 relative px-8 py-3 bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-white text-sm font-semibold rounded-2xl shadow-[0_4px_24px_rgba(196,166,125,0.3)] hover:shadow-[0_6px_32px_rgba(196,166,125,0.45)] hover:-translate-y-0.5 active:scale-[0.97] transition-all"
+                  >
+                    Continue
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline ml-2">
+                      <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
+                    </svg>
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-4">
+                  <div className={`w-20 h-20 rounded-2xl flex items-center justify-center ${
+                    isLight
+                      ? "bg-gradient-to-br from-[#c4a67d] to-[#8b7355] shadow-lg shadow-[#c4a67d]/25"
+                      : "bg-gradient-to-br from-[#c4a67d] to-[#8b7355] shadow-lg shadow-[#c4a67d]/15"
+                  }`}>
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                      <polyline points="17 8 12 3 7 8" />
+                      <line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className={`font-bold text-xl ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>Upload your jewelry photo</p>
+                    <p className={`text-sm mt-1.5 ${isLight ? "text-[#888]" : "text-[rgba(255,255,255,0.4)]"}`}>Tap to upload or drag and drop</p>
+                  </div>
+                  <p className={`text-xs ${isLight ? "text-[#aaa]" : "text-[rgba(255,255,255,0.3)]"}`}>PNG, JPG, JPEG, HEIC, WebP — Max 10MB</p>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); cameraInputRef.current?.click(); }}
+                    className={`mt-2 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all z-10 relative ${
+                      isLight
+                        ? "text-[#8b7355] bg-[#f0ebe3] hover:bg-[#e8dfd2] border border-[#d9cdb8]"
+                        : "text-[#c4a67d] bg-[rgba(196,166,125,0.1)] hover:bg-[rgba(196,166,125,0.2)] border border-[rgba(196,166,125,0.2)]"
+                    }`}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                      <circle cx="12" cy="13" r="4" />
+                    </svg>
+                    Open Camera
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ===== STEP 2: SELECT CATEGORY ===== */}
+        {step === "select_type" && (
+          <div className="space-y-6">
+            {/* Uploaded image preview strip */}
+            <div className="flex items-center gap-4 px-4 py-3 rounded-xl bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)]">
+              {mainImage && (
+                <img
+                  src={mainImage.preview}
+                  alt="Upload"
+                  className="w-14 h-14 rounded-xl object-cover border border-[rgba(255,255,255,0.1)] flex-shrink-0"
+                />
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-white">Product uploaded</p>
+                <p className="text-xs text-[rgba(255,255,255,0.4)]">
+                  {altImages.length > 0 ? `${1 + altImages.length} photos` : "1 photo"}
+                </p>
+              </div>
+              <button
+                onClick={() => setStep("upload")}
+                className="text-xs text-[rgba(255,255,255,0.4)] hover:text-white transition-colors flex-shrink-0"
+              >
+                Change
+              </button>
+            </div>
+
+            {/* Additional photos - compact */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <label className="text-xs font-semibold text-[rgba(255,255,255,0.5)] uppercase tracking-wider">
+                  Additional Photos <span className="text-[rgba(255,255,255,0.3)] font-normal">(optional)</span>
+                </label>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {altImages.map((img, i) => (
+                  <div key={i} className="relative group">
+                    <img src={img.preview} alt={`Alt ${i + 1}`} className="w-16 h-16 object-cover rounded-lg border border-[rgba(255,255,255,0.1)]" />
+                    <button
+                      onClick={() => removeAltImage(i)}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500/80 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+                        <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => altInputRef.current?.click()}
+                  className="w-16 h-16 rounded-lg border border-dashed border-[rgba(255,255,255,0.1)] hover:border-[rgba(196,166,125,0.3)] transition-colors flex items-center justify-center text-[rgba(255,255,255,0.3)] hover:text-[#c4a67d]"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                </button>
+                <input ref={altInputRef} type="file" accept="image/*" multiple onChange={handleAltUpload} className="hidden" />
               </div>
             </div>
-            <p className="text-white font-semibold text-lg">{genStatus}</p>
-            <p className="text-[rgba(255,255,255,0.4)] text-sm mt-2">
-              Creating studio-quality photos with consistent lighting and background...
-            </p>
+
+            {/* Category selection */}
+            <div>
+              <h3 className="text-base font-semibold text-white mb-1">Choose a category to continue</h3>
+              <p className="text-xs text-[rgba(255,255,255,0.4)] mb-4">Select the type of jewelry in your photo</p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {JEWELRY_TYPES.map((type) => (
+                  <button
+                    key={type.id}
+                    onClick={() => {
+                      setJewelryType(type.id);
+                      loadThemes(type.id);
+                      setStep("theme_browse");
+                    }}
+                    className={`flex flex-col items-center gap-2.5 p-5 rounded-2xl border transition-all duration-200 text-center hover:-translate-y-0.5 ${
+                      jewelryType === type.id
+                        ? "bg-[rgba(196,166,125,0.08)] border-[rgba(196,166,125,0.25)] shadow-[0_0_15px_rgba(196,166,125,0.08)]"
+                        : "bg-[rgba(255,255,255,0.02)] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)] hover:bg-[rgba(255,255,255,0.04)]"
+                    }`}
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-[rgba(255,255,255,0.04)] flex items-center justify-center text-2xl">
+                      {type.icon}
+                    </div>
+                    <span className="text-sm font-semibold text-white uppercase tracking-wide">{type.label}</span>
+                    <span className="text-[10px] font-semibold text-[#7dcf5a]">Available</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ===== THEME BROWSING ===== */}
+        {step === "theme_browse" && (
+          <div>
+            {themesLoading ? (
+              <div className="flex flex-col items-center justify-center py-20">
+                <div className="w-10 h-10 border-2 border-[#c4a67d] border-t-transparent rounded-full animate-spin" />
+                <p className="mt-4 text-sm text-[rgba(255,255,255,0.5)]">Loading themes...</p>
+              </div>
+            ) : (
+              <ThemeGallery
+                themes={themes}
+                categories={themeCategories}
+                selectedThemeId={selectedTheme?.id || null}
+                onSelectTheme={handleSelectTheme}
+                onBack={() => setStep("select_type")}
+                jewelryType={jewelryType}
+              />
+            )}
+          </div>
+        )}
+
+        {/* ===== SHOT CONFIGURATION ===== */}
+        {step === "shot_config" && selectedTheme && (
+          <ShotConfigurator
+            theme={selectedTheme}
+            shotConfigs={shotConfigs}
+            onUpdateShots={setShotConfigs}
+            onBack={() => setStep("theme_browse")}
+            onGenerate={generateWithTheme}
+            tokenCost={getThemeTokenCost()}
+            tokenBalance={credits?.token_balance || 0}
+            quality={quality}
+            onQualityChange={(q) => setQuality(q)}
+            aspectRatioId={aspectRatioId}
+            onAspectRatioChange={(id) => setAspectRatioId(id)}
+            isGenerating={false}
+            jewelryType={jewelryType}
+          />
+        )}
+
+        {/* ===== GENERATING STATE ===== */}
+        {step === "generating" && (
+          <div className="space-y-6">
+            {/* Page header — same layout as results page */}
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <h2 className="text-lg font-bold text-white">Your Photos</h2>
+                <p className="text-xs text-[rgba(255,255,255,0.4)] mt-0.5">
+                  {selectedType?.icon} {selectedType?.label}
+                  {selectedTheme ? ` · ${selectedTheme.name}` : selectedBg ? ` on ${selectedBg.label}` : ""}
+                </p>
+              </div>
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[rgba(234,179,8,0.1)] border border-[rgba(234,179,8,0.2)]">
+                <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
+                <span className="text-xs font-semibold text-yellow-500">Generating</span>
+              </div>
+            </div>
+
+            {/* Status bar */}
+            <div className="rounded-xl bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] px-4 py-3 flex items-center gap-3">
+              <div className="w-5 h-5 border-2 border-[#c4a67d]/30 border-t-[#c4a67d] rounded-full animate-spin flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-white font-medium">{genStatus}</p>
+                <p className="text-[11px] text-[rgba(255,255,255,0.35)] mt-0.5">
+                  This typically takes 15-30 seconds per shot
+                </p>
+              </div>
+            </div>
+
+            {/* Generation cards — look like result cards with loading state */}
+            <div className={`grid gap-4 ${
+              (shotConfigs.filter((s) => s.selected).length || 1) === 1
+                ? "grid-cols-1 max-w-lg mx-auto"
+                : (shotConfigs.filter((s) => s.selected).length || 1) <= 3
+                  ? "grid-cols-1 md:grid-cols-" + (shotConfigs.filter((s) => s.selected).length || 1)
+                  : "grid-cols-2 md:grid-cols-3"
+            }`}>
+              {(shotConfigs.filter((s) => s.selected).length > 0
+                ? shotConfigs.filter((s) => s.selected)
+                : [{ shot_id: "hero", label: "Studio Shot 1" }]
+              ).map((shot, i) => (
+                <div
+                  key={shot.shot_id}
+                  className="rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.02)] overflow-hidden"
+                >
+                  {/* Card header */}
+                  <div className="px-3 py-2.5 border-b border-[rgba(255,255,255,0.04)] flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[rgba(234,179,8,0.1)]">
+                        <div className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse" />
+                        <span className="text-[10px] font-semibold text-yellow-500">Generating</span>
+                      </div>
+                      <span className="text-xs font-semibold text-white uppercase tracking-wider">{shot.label}</span>
+                    </div>
+                  </div>
+
+                  {/* Image placeholder with spinner */}
+                  <div
+                    className="relative bg-[rgba(255,255,255,0.02)] flex items-center justify-center"
+                    style={{ aspectRatio: cssAspectRatio }}
+                  >
+                    <div className="relative w-14 h-14">
+                      <svg className="absolute inset-0 w-full h-full animate-spin" viewBox="0 0 56 56" fill="none" style={{ animationDuration: `${1.8 + i * 0.4}s` }}>
+                        <circle cx="28" cy="28" r="24" stroke="rgba(196,166,125,0.1)" strokeWidth="2.5" />
+                        <path
+                          d="M28 4a24 24 0 0 1 24 24"
+                          stroke="#c4a67d"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(196,166,125,0.4)" strokeWidth="1.5">
+                          <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card footer — pre-rendered but disabled */}
+                  <div className="px-3 py-2.5 border-t border-[rgba(255,255,255,0.04)] flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <button disabled className="text-[11px] text-[rgba(255,255,255,0.2)] uppercase tracking-wider font-semibold flex items-center gap-1 cursor-not-allowed">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M1 4v6h6" /><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+                        </svg>
+                        Redo
+                      </button>
+                      <button disabled className="text-[11px] text-[rgba(255,255,255,0.2)] uppercase tracking-wider font-semibold cursor-not-allowed">
+                        Compare
+                      </button>
+                    </div>
+                    <button disabled className="text-[11px] text-[rgba(255,255,255,0.2)] uppercase tracking-wider font-semibold flex items-center gap-1 cursor-not-allowed">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                      </svg>
+                      Download
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -1168,7 +1439,8 @@ function JewelryPage() {
               <div>
                 <h2 className="text-lg font-bold text-white">Your Photos</h2>
                 <p className="text-xs text-[rgba(255,255,255,0.4)] mt-0.5">
-                  {selectedType?.icon} {selectedType?.label} on {selectedBg?.label}
+                  {selectedType?.icon} {selectedType?.label}
+                  {selectedTheme ? ` · ${selectedTheme.name}` : selectedBg ? ` on ${selectedBg.label}` : ""}
                 </p>
               </div>
               <div className="flex gap-2">
@@ -1339,23 +1611,23 @@ function JewelryPage() {
                 <div className="inline-flex rounded-lg bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] p-0.5 flex-shrink-0">
                   <button
                     onClick={() => setQuality("standard")}
-                    className={`px-2.5 py-1.5 rounded-md text-[10px] font-semibold uppercase tracking-wider transition-all ${
+                    className={`px-3 py-2 rounded-md text-[11px] font-bold uppercase tracking-wider transition-all ${
                       quality === "standard"
-                        ? "bg-[rgba(255,255,255,0.1)] text-white"
-                        : "text-[rgba(255,255,255,0.4)] hover:text-[rgba(255,255,255,0.6)]"
+                        ? isLight ? "bg-[#0a0a0a]/10 text-[#0a0a0a]" : "bg-[rgba(255,255,255,0.12)] text-white"
+                        : isLight ? "text-[#8c8c8c] hover:text-[#0a0a0a]" : "text-[rgba(255,255,255,0.5)] hover:text-[rgba(255,255,255,0.7)]"
                     }`}
                   >
                     Std
                   </button>
                   <button
                     onClick={() => setQuality("pro")}
-                    className={`px-2.5 py-1.5 rounded-md text-[10px] font-semibold uppercase tracking-wider transition-all flex items-center gap-1 ${
+                    className={`px-3 py-2 rounded-md text-[11px] font-bold uppercase tracking-wider transition-all flex items-center gap-1 ${
                       quality === "pro"
-                        ? "bg-gradient-to-r from-[rgba(196,166,125,0.2)] to-[rgba(196,166,125,0.1)] text-[#c4a67d] border border-[rgba(196,166,125,0.2)]"
-                        : "text-[rgba(255,255,255,0.4)] hover:text-[rgba(255,255,255,0.6)]"
+                        ? isLight ? "bg-[#8b7355]/15 text-[#8b7355] border border-[#8b7355]/25" : "bg-gradient-to-r from-[rgba(196,166,125,0.2)] to-[rgba(196,166,125,0.1)] text-[#c4a67d] border border-[rgba(196,166,125,0.25)]"
+                        : isLight ? "text-[#8c8c8c] hover:text-[#0a0a0a]" : "text-[rgba(255,255,255,0.5)] hover:text-[rgba(255,255,255,0.7)]"
                     }`}
                   >
-                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                     </svg>
                     Pro
@@ -1370,15 +1642,23 @@ function JewelryPage() {
                       if (e.key === "Enter" && specialInstructions.trim()) regenerateShot(0);
                     }}
                     placeholder="Describe changes, e.g. 'add softer lighting', 'brighter background'..."
-                    className="w-full px-4 py-2.5 pr-20 rounded-xl bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-sm text-white placeholder:text-[rgba(255,255,255,0.25)] focus:outline-none focus:border-[rgba(196,166,125,0.3)] focus:ring-1 focus:ring-[rgba(196,166,125,0.15)] transition-all"
+                    className={`w-full px-4 py-3 pr-20 rounded-xl text-[14px] focus:outline-none focus:border-[rgba(196,166,125,0.3)] focus:ring-1 focus:ring-[rgba(196,166,125,0.15)] transition-all ${
+                      isLight
+                        ? "bg-white border border-[#e5e2dc] text-[#0a0a0a] placeholder:text-[#b5b5b5]"
+                        : "bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.1)] text-white placeholder:text-[rgba(255,255,255,0.3)]"
+                    }`}
                   />
                   <button
                     onClick={() => regenerateShot(0)}
                     disabled={regenIndex !== null}
-                    className="absolute right-1.5 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-lg text-[11px] font-semibold uppercase tracking-wider transition-all disabled:opacity-40 bg-[rgba(196,166,125,0.15)] text-[#c4a67d] hover:bg-[rgba(196,166,125,0.25)]"
+                    className={`absolute right-1.5 top-1/2 -translate-y-1/2 px-4 py-2 rounded-lg text-[12px] font-bold uppercase tracking-wider transition-all disabled:opacity-40 ${
+                      isLight
+                        ? "bg-[#8b7355]/15 text-[#8b7355] hover:bg-[#8b7355]/25"
+                        : "bg-[rgba(196,166,125,0.15)] text-[#c4a67d] hover:bg-[rgba(196,166,125,0.25)]"
+                    }`}
                   >
                     {regenIndex !== null ? (
-                      <div className="w-3.5 h-3.5 border-2 border-[rgba(196,166,125,0.3)] border-t-[#c4a67d] rounded-full animate-spin" />
+                      <div className={`w-4 h-4 border-2 rounded-full animate-spin ${isLight ? "border-[#8b7355]/30 border-t-[#8b7355]" : "border-[rgba(196,166,125,0.3)] border-t-[#c4a67d]"}`} />
                     ) : (
                       "Redo"
                     )}
@@ -1388,26 +1668,26 @@ function JewelryPage() {
             )}
 
             {/* ===== UGC / MODEL PHOTOS — Featured Section ===== */}
-            <div className="pt-5 border-t border-[rgba(255,255,255,0.06)]">
-              <div className="rounded-2xl border border-[rgba(196,166,125,0.12)] bg-gradient-to-br from-[rgba(196,166,125,0.04)] to-[rgba(255,255,255,0.02)] p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-[rgba(196,166,125,0.12)] flex items-center justify-center">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c4a67d" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <div className={`pt-6 border-t ${isLight ? "border-[#e5e2dc]" : "border-[rgba(255,255,255,0.08)]"}`}>
+              <div className={`rounded-2xl p-5 md:p-6 ${isLight ? "border border-[#8b7355]/20 bg-gradient-to-br from-[#8b7355]/[0.04] to-[#f5f0e8]/50" : "border border-[rgba(196,166,125,0.18)] bg-gradient-to-br from-[rgba(196,166,125,0.06)] to-[rgba(255,255,255,0.02)]"}`}>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isLight ? "bg-[#8b7355]/10" : "bg-[rgba(196,166,125,0.15)]"}`}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={isLight ? "#8b7355" : "#c4a67d"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                         <circle cx="12" cy="7" r="4" />
                       </svg>
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold text-white">Model / UGC Photos</h3>
-                      <p className="text-[11px] text-white/50">Generate AI model photos wearing your jewelry</p>
+                      <h3 className={`text-[15px] font-bold tracking-tight ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>Model / UGC Photos</h3>
+                      <p className={`text-[13px] ${isLight ? "text-[#6b6b6b]" : "text-white/60"}`}>Generate AI model photos wearing your jewelry</p>
                     </div>
                   </div>
                   {ugcImages.length > 0 && (
                     <button
                       onClick={openUgcModal}
                       disabled={ugcLoading}
-                      className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-[#c4a67d] border border-[rgba(196,166,125,0.2)] hover:bg-[rgba(196,166,125,0.08)] transition-all disabled:opacity-50"
+                      className={`px-3.5 py-1.5 rounded-lg text-[12px] font-bold border transition-all disabled:opacity-50 ${isLight ? "text-[#8b7355] border-[#8b7355]/25 hover:bg-[#8b7355]/10" : "text-[#c4a67d] border-[rgba(196,166,125,0.25)] hover:bg-[rgba(196,166,125,0.1)]"}`}
                     >
                       {ugcLoading ? "Generating..." : "+ Generate More"}
                     </button>
@@ -1471,16 +1751,20 @@ function JewelryPage() {
                   <button
                     onClick={openUgcModal}
                     disabled={ugcLoading}
-                    className="w-full py-3 rounded-xl text-sm font-semibold bg-[rgba(196,166,125,0.08)] text-[#c4a67d] border border-dashed border-[rgba(196,166,125,0.2)] hover:bg-[rgba(196,166,125,0.12)] hover:border-[rgba(196,166,125,0.35)] active:scale-[0.98] transition-all disabled:opacity-50"
+                    className={`w-full py-3.5 rounded-xl text-[14px] font-bold border border-dashed active:scale-[0.98] transition-all disabled:opacity-50 ${
+                      isLight
+                        ? "bg-gradient-to-r from-[#8b7355]/10 to-[#8b7355]/[0.04] text-[#8b7355] border-[#8b7355]/25 hover:from-[#8b7355]/15 hover:to-[#8b7355]/[0.08] hover:border-[#8b7355]/40"
+                        : "bg-gradient-to-r from-[rgba(196,166,125,0.12)] to-[rgba(196,166,125,0.06)] text-[#c4a67d] border-[rgba(196,166,125,0.25)] hover:from-[rgba(196,166,125,0.18)] hover:to-[rgba(196,166,125,0.1)] hover:border-[rgba(196,166,125,0.4)]"
+                    }`}
                   >
                     {ugcLoading ? (
                       <span className="flex items-center justify-center gap-2">
-                        <div className="w-3.5 h-3.5 border-2 border-[rgba(196,166,125,0.3)] border-t-[#c4a67d] rounded-full animate-spin" />
+                        <div className="w-4 h-4 border-2 border-[rgba(196,166,125,0.3)] border-t-[#c4a67d] rounded-full animate-spin" />
                         Generating UGC Photos...
                       </span>
                     ) : (
                       <span className="flex items-center justify-center gap-2">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                           <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
                         </svg>
                         Generate Model Photos
@@ -1492,43 +1776,47 @@ function JewelryPage() {
             </div>
 
             {/* ===== FEATURE CARDS ===== */}
-            <div className="pt-4 border-t border-[rgba(255,255,255,0.06)]">
-              <h3 className="text-base font-bold text-white mb-1">Do more with your photos</h3>
-              <p className="text-[13px] text-[rgba(255,255,255,0.5)] mb-4">
+            <div className={`pt-6 border-t ${isLight ? "border-[#e5e2dc]" : "border-[rgba(255,255,255,0.08)]"}`}>
+              <h3 className={`text-lg font-bold tracking-tight mb-1.5 ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>Do more with your photos</h3>
+              <p className={`text-[14px] mb-5 leading-relaxed ${isLight ? "text-[#6b6b6b]" : "text-[rgba(255,255,255,0.6)]"}`}>
                 Enhance your generated images with branding, listings, or recoloring.
               </p>
 
               <div className="space-y-4">
 
                 {/* ── Branding Card ── */}
-                <div className="rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.02)] p-5">
+                <div className={`rounded-2xl p-5 md:p-6 ${isLight ? "border border-[#e5e2dc] bg-white" : "border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)]"}`}>
                   <div className="flex flex-col md:flex-row md:items-start gap-4">
                     {/* Left: header + action */}
-                    <div className="md:w-[200px] flex-shrink-0 flex flex-col">
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="w-8 h-8 rounded-lg bg-[rgba(196,166,125,0.1)] flex items-center justify-center">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c4a67d" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <div className="md:w-[220px] flex-shrink-0 flex flex-col">
+                      <div className="flex items-center gap-2.5 mb-4">
+                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${isLight ? "bg-[#8b7355]/10" : "bg-[rgba(196,166,125,0.12)]"}`}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={isLight ? "#8b7355" : "#c4a67d"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                             <rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
                           </svg>
                         </div>
                         <div>
-                          <h4 className="text-sm font-semibold text-white">Add Branding</h4>
-                          <p className="text-[11px] text-[rgba(255,255,255,0.5)]">Brand strip below images</p>
+                          <h4 className={`text-[15px] font-bold tracking-tight ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>Add Branding</h4>
+                          <p className={`text-[13px] ${isLight ? "text-[#6b6b6b]" : "text-[rgba(255,255,255,0.55)]"}`}>Brand strip below images</p>
                         </div>
                       </div>
                       <button
                         onClick={openBrandingModal}
-                        className="w-full py-2.5 rounded-xl text-xs font-semibold bg-[rgba(196,166,125,0.08)] text-[#c4a67d] border border-[rgba(196,166,125,0.15)] hover:bg-[rgba(196,166,125,0.15)] hover:border-[rgba(196,166,125,0.25)] active:scale-[0.98] transition-all"
+                        className={`w-full py-2.5 rounded-xl text-[13px] font-bold border active:scale-[0.98] transition-all ${
+                          isLight
+                            ? "bg-[#8b7355]/10 text-[#8b7355] border-[#8b7355]/20 hover:bg-[#8b7355]/15 hover:border-[#8b7355]/35"
+                            : "bg-[rgba(196,166,125,0.1)] text-[#c4a67d] border-[rgba(196,166,125,0.2)] hover:bg-[rgba(196,166,125,0.18)] hover:border-[rgba(196,166,125,0.35)]"
+                        }`}
                       >
                         {brandedImages.length > 0 ? (
                           <span className="flex items-center justify-center gap-1.5">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
                             Brand More Photos
                           </span>
                         ) : "Add Branding Strip"}
                       </button>
                       {brandedImages.length > 0 && (
-                        <p className="text-[11px] text-[rgba(255,255,255,0.4)] mt-2 text-center">{brandedImages.length} branded photo{brandedImages.length !== 1 ? "s" : ""}</p>
+                        <p className={`text-[12px] mt-2 text-center ${isLight ? "text-[#8c8c8c]" : "text-[rgba(255,255,255,0.45)]"}`}>{brandedImages.length} branded photo{brandedImages.length !== 1 ? "s" : ""}</p>
                       )}
                     </div>
                     {/* Right: branded image gallery — horizontal scroll */}
@@ -1556,13 +1844,13 @@ function JewelryPage() {
                 </div>
 
                 {/* ── Product Listing Card ── */}
-                <div className="rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.02)] p-5">
+                <div className={`rounded-2xl p-5 md:p-6 ${isLight ? "border border-[#e5e2dc] bg-white" : "border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)]"}`}>
                   <div className="flex flex-col md:flex-row md:items-start gap-4">
                     {/* Left: header + actions */}
-                    <div className="md:w-[200px] flex-shrink-0 flex flex-col">
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="w-8 h-8 rounded-lg bg-[rgba(196,166,125,0.1)] flex items-center justify-center">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c4a67d" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <div className="md:w-[220px] flex-shrink-0 flex flex-col">
+                      <div className="flex items-center gap-2.5 mb-4">
+                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${isLight ? "bg-[#8b7355]/10" : "bg-[rgba(196,166,125,0.12)]"}`}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={isLight ? "#8b7355" : "#c4a67d"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                             <polyline points="14 2 14 8 20 8" />
                             <line x1="16" y1="13" x2="8" y2="13" />
@@ -1571,8 +1859,8 @@ function JewelryPage() {
                           </svg>
                         </div>
                         <div>
-                          <h4 className="text-sm font-semibold text-white">Product Listing</h4>
-                          <p className="text-[11px] text-[rgba(255,255,255,0.5)]">E-commerce listing</p>
+                          <h4 className={`text-[15px] font-bold tracking-tight ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>Product Listing</h4>
+                          <p className={`text-[13px] ${isLight ? "text-[#6b6b6b]" : "text-[rgba(255,255,255,0.55)]"}`}>E-commerce listing</p>
                         </div>
                       </div>
                       {catalogueData && (
@@ -1582,10 +1870,12 @@ function JewelryPage() {
                         </span>
                       )}
                       {catalogueData ? (
-                        <div className="space-y-2">
+                        <div className="space-y-2.5">
                           <button
                             onClick={openListingModal}
-                            className="w-full py-2.5 rounded-xl text-xs font-semibold bg-[rgba(196,166,125,0.08)] text-[#c4a67d] border border-[rgba(196,166,125,0.15)] hover:bg-[rgba(196,166,125,0.15)] active:scale-[0.98] transition-all"
+                            className={`w-full py-2.5 rounded-xl text-[13px] font-bold border active:scale-[0.98] transition-all ${
+                              isLight ? "bg-[#8b7355]/10 text-[#8b7355] border-[#8b7355]/20 hover:bg-[#8b7355]/15" : "bg-[rgba(196,166,125,0.1)] text-[#c4a67d] border-[rgba(196,166,125,0.2)] hover:bg-[rgba(196,166,125,0.18)]"
+                            }`}
                           >
                             View &amp; Edit
                           </button>
@@ -1595,14 +1885,18 @@ function JewelryPage() {
                                 navigator.clipboard.writeText(JSON.stringify(catalogueData, null, 2));
                                 showToast("Copied to clipboard!", "success");
                               }}
-                              className="flex-1 py-2 rounded-xl text-[11px] font-semibold text-[rgba(255,255,255,0.55)] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.15)] hover:text-white transition-all"
+                              className={`flex-1 py-2 rounded-xl text-[12px] font-semibold border transition-all ${
+                                isLight ? "text-[#4a4a4a] border-[#e5e2dc] hover:border-[#0a0a0a] hover:text-[#0a0a0a]" : "text-[rgba(255,255,255,0.65)] border-[rgba(255,255,255,0.1)] hover:border-[rgba(255,255,255,0.2)] hover:text-white"
+                              }`}
                             >
                               Copy
                             </button>
                             <button
                               onClick={generateCatalogue}
                               disabled={catalogueLoading}
-                              className="flex-1 py-2 rounded-xl text-[11px] font-semibold text-[rgba(255,255,255,0.55)] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.15)] hover:text-white transition-all disabled:opacity-50"
+                              className={`flex-1 py-2 rounded-xl text-[12px] font-semibold border transition-all disabled:opacity-50 ${
+                                isLight ? "text-[#4a4a4a] border-[#e5e2dc] hover:border-[#0a0a0a] hover:text-[#0a0a0a]" : "text-[rgba(255,255,255,0.65)] border-[rgba(255,255,255,0.1)] hover:border-[rgba(255,255,255,0.2)] hover:text-white"
+                              }`}
                             >
                               {catalogueLoading ? "..." : "Redo"}
                             </button>
@@ -1611,18 +1905,20 @@ function JewelryPage() {
                       ) : (
                         <>
                           {hasBrandConfig === false && (
-                            <p className="text-[11px] text-[rgba(255,255,255,0.45)] leading-relaxed mb-3">
-                              <button onClick={() => router.push("/brand-settings")} className="text-[#c4a67d] font-semibold hover:underline">Set up brand voice</button> for personalized listings.
+                            <p className={`text-[13px] leading-relaxed mb-3 ${isLight ? "text-[#6b6b6b]" : "text-[rgba(255,255,255,0.5)]"}`}>
+                              <button onClick={() => router.push("/brand-settings")} className={`font-bold hover:underline ${isLight ? "text-[#8b7355]" : "text-[#c4a67d]"}`}>Set up brand voice</button> for personalized listings.
                             </p>
                           )}
                           <button
                             onClick={generateCatalogue}
                             disabled={catalogueLoading}
-                            className="w-full py-2.5 rounded-xl text-xs font-semibold bg-[rgba(196,166,125,0.08)] text-[#c4a67d] border border-[rgba(196,166,125,0.15)] hover:bg-[rgba(196,166,125,0.15)] hover:border-[rgba(196,166,125,0.25)] active:scale-[0.98] transition-all disabled:opacity-50"
+                            className={`w-full py-2.5 rounded-xl text-[13px] font-bold border active:scale-[0.98] transition-all disabled:opacity-50 ${
+                              isLight ? "bg-[#8b7355]/10 text-[#8b7355] border-[#8b7355]/20 hover:bg-[#8b7355]/15 hover:border-[#8b7355]/35" : "bg-[rgba(196,166,125,0.1)] text-[#c4a67d] border-[rgba(196,166,125,0.2)] hover:bg-[rgba(196,166,125,0.18)] hover:border-[rgba(196,166,125,0.35)]"
+                            }`}
                           >
                             {catalogueLoading ? (
                               <span className="flex items-center justify-center gap-2">
-                                <div className="w-3 h-3 border-2 border-[rgba(196,166,125,0.3)] border-t-[#c4a67d] rounded-full animate-spin" />
+                                <div className="w-3.5 h-3.5 border-2 border-[rgba(196,166,125,0.3)] border-t-[#c4a67d] rounded-full animate-spin" />
                                 Generating...
                               </span>
                             ) : "Generate Listing"}
@@ -1680,18 +1976,18 @@ function JewelryPage() {
                 </div>
 
                 {/* ── Recolor Card ── */}
-                <div className="rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.02)] p-5">
+                <div className={`rounded-2xl p-5 md:p-6 ${isLight ? "border border-[#e5e2dc] bg-white" : "border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)]"}`}>
                   {/* Header + controls row */}
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-8 h-8 rounded-lg bg-[rgba(196,166,125,0.1)] flex items-center justify-center">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c4a67d" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <div className="flex items-center gap-2.5 mb-4">
+                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${isLight ? "bg-[#8b7355]/10" : "bg-[rgba(196,166,125,0.12)]"}`}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={isLight ? "#8b7355" : "#c4a67d"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                         <circle cx="13.5" cy="6.5" r="2.5" /><circle cx="17.5" cy="10.5" r="2.5" /><circle cx="8.5" cy="7.5" r="2.5" />
                         <circle cx="6.5" cy="12.5" r="2.5" /><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 011.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z" />
                       </svg>
                     </div>
                     <div>
-                      <h4 className="text-sm font-semibold text-white">Recolor Metal</h4>
-                      <p className="text-[11px] text-[rgba(255,255,255,0.5)]">Only metal changes — stones &amp; gems stay intact</p>
+                      <h4 className={`text-[15px] font-bold tracking-tight ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>Recolor Metal</h4>
+                      <p className={`text-[13px] ${isLight ? "text-[#6b6b6b]" : "text-[rgba(255,255,255,0.55)]"}`}>Only metal changes — stones &amp; gems stay intact</p>
                     </div>
                   </div>
 
@@ -1700,7 +1996,7 @@ function JewelryPage() {
                     {/* Source image selector */}
                     {resultImages.length > 1 && (
                       <div className="flex-shrink-0">
-                        <p className="text-[11px] text-[rgba(255,255,255,0.55)] mb-1.5 font-medium">Source photo</p>
+                        <p className={`text-[12px] mb-2 font-semibold ${isLight ? "text-[#4a4a4a]" : "text-[rgba(255,255,255,0.65)]"}`}>Source photo</p>
                         <div className="flex gap-2">
                           {resultImages.map((img, i) => (
                             <button
@@ -1722,15 +2018,19 @@ function JewelryPage() {
 
                     {/* Metal presets */}
                     <div className="flex-1 min-w-0">
-                      <p className="text-[11px] text-[rgba(255,255,255,0.55)] mb-1.5 font-medium">Target metal</p>
-                      <div className="flex flex-wrap gap-1.5">
+                      <p className={`text-[12px] mb-2 font-semibold ${isLight ? "text-[#4a4a4a]" : "text-[rgba(255,255,255,0.65)]"}`}>Target metal</p>
+                      <div className="flex flex-wrap gap-2">
                         {METAL_PRESETS.map((m) => (
                           <button
                             key={m.id}
                             onClick={() => { setRecolorMetal(m.id); if (m.id !== "custom") setRecolorCustom(""); }}
-                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-medium transition-all ${recolorMetal === m.id ? "border-[#c4a67d] bg-[rgba(196,166,125,0.1)] text-white" : "border-[rgba(255,255,255,0.06)] text-[rgba(255,255,255,0.6)] hover:border-[rgba(255,255,255,0.12)]"}`}
+                            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-[12px] font-semibold transition-all ${
+                              recolorMetal === m.id
+                                ? isLight ? "border-[#8b7355] bg-[#8b7355]/10 text-[#0a0a0a]" : "border-[#c4a67d] bg-[rgba(196,166,125,0.12)] text-white"
+                                : isLight ? "border-[#e5e2dc] text-[#4a4a4a] hover:border-[#8b7355]/30 hover:text-[#0a0a0a]" : "border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.7)] hover:border-[rgba(255,255,255,0.15)] hover:text-white"
+                            }`}
                           >
-                            <span className="w-3.5 h-3.5 rounded-full flex-shrink-0 border border-[rgba(255,255,255,0.1)]" style={{ background: m.swatch }} />
+                            <span className={`w-4 h-4 rounded-full flex-shrink-0 border ${isLight ? "border-[#e5e2dc]" : "border-[rgba(255,255,255,0.12)]"}`} style={{ background: m.swatch }} />
                             {m.label}
                           </button>
                         ))}
@@ -1742,7 +2042,9 @@ function JewelryPage() {
                             value={recolorCustom}
                             onChange={(e) => setRecolorCustom(e.target.value)}
                             placeholder="e.g. brushed brass, #FF69B4"
-                            className="w-full max-w-xs px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[13px] text-white placeholder:text-[rgba(255,255,255,0.3)] focus:outline-none focus:border-[rgba(196,166,125,0.3)] transition-all"
+                            className={`w-full max-w-xs px-3 py-2 rounded-lg text-[13px] focus:outline-none focus:border-[rgba(196,166,125,0.3)] transition-all ${
+                              isLight ? "bg-white border border-[#e5e2dc] text-[#0a0a0a] placeholder:text-[#b5b5b5]" : "bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-white placeholder:text-[rgba(255,255,255,0.3)]"
+                            }`}
                           />
                         </div>
                       )}
@@ -1750,16 +2052,24 @@ function JewelryPage() {
 
                     {/* Quality + generate */}
                     <div className="flex items-center gap-3 flex-shrink-0">
-                      <div className="flex rounded-lg border border-[rgba(255,255,255,0.08)] overflow-hidden">
+                      <div className={`flex rounded-lg border overflow-hidden ${isLight ? "border-[#e5e2dc]" : "border-[rgba(255,255,255,0.1)]"}`}>
                         <button
                           onClick={() => setRecolorQuality("standard")}
-                          className={`px-3 py-1.5 text-[11px] font-semibold transition-all ${recolorQuality === "standard" ? "bg-[rgba(196,166,125,0.15)] text-[#c4a67d]" : "text-[rgba(255,255,255,0.5)] hover:text-white"}`}
+                          className={`px-3.5 py-2 text-[12px] font-bold transition-all ${
+                            recolorQuality === "standard"
+                              ? isLight ? "bg-[#8b7355]/15 text-[#8b7355]" : "bg-[rgba(196,166,125,0.15)] text-[#c4a67d]"
+                              : isLight ? "text-[#8c8c8c] hover:text-[#0a0a0a]" : "text-[rgba(255,255,255,0.6)] hover:text-white"
+                          }`}
                         >
                           Standard
                         </button>
                         <button
                           onClick={() => setRecolorQuality("pro")}
-                          className={`px-3 py-1.5 text-[11px] font-semibold transition-all ${recolorQuality === "pro" ? "bg-[rgba(196,166,125,0.15)] text-[#c4a67d]" : "text-[rgba(255,255,255,0.5)] hover:text-white"}`}
+                          className={`px-3.5 py-2 text-[12px] font-bold transition-all ${
+                            recolorQuality === "pro"
+                              ? isLight ? "bg-[#8b7355]/15 text-[#8b7355]" : "bg-[rgba(196,166,125,0.15)] text-[#c4a67d]"
+                              : isLight ? "text-[#8c8c8c] hover:text-[#0a0a0a]" : "text-[rgba(255,255,255,0.6)] hover:text-white"
+                          }`}
                         >
                           Pro
                         </button>
@@ -1767,11 +2077,15 @@ function JewelryPage() {
                       <button
                         onClick={recolorImage}
                         disabled={!recolorMetal || recolorLoading || (recolorMetal === "custom" && !recolorCustom.trim())}
-                        className="px-5 py-2.5 rounded-xl text-xs font-semibold bg-[rgba(196,166,125,0.08)] text-[#c4a67d] border border-[rgba(196,166,125,0.15)] hover:bg-[rgba(196,166,125,0.15)] active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+                        className={`px-5 py-2.5 rounded-xl text-[13px] font-bold border active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap ${
+                          isLight
+                            ? "bg-[#8b7355]/10 text-[#8b7355] border-[#8b7355]/20 hover:bg-[#8b7355]/15 hover:border-[#8b7355]/35"
+                            : "bg-[rgba(196,166,125,0.1)] text-[#c4a67d] border-[rgba(196,166,125,0.2)] hover:bg-[rgba(196,166,125,0.18)] hover:border-[rgba(196,166,125,0.35)]"
+                        }`}
                       >
                         {recolorLoading ? (
                           <span className="flex items-center justify-center gap-2">
-                            <div className="w-3 h-3 border-2 border-[rgba(196,166,125,0.3)] border-t-[#c4a67d] rounded-full animate-spin" />
+                            <div className={`w-3.5 h-3.5 border-2 rounded-full animate-spin ${isLight ? "border-[#8b7355]/30 border-t-[#8b7355]" : "border-[rgba(196,166,125,0.3)] border-t-[#c4a67d]"}`} />
                             Recoloring...
                           </span>
                         ) : (
@@ -1783,10 +2097,10 @@ function JewelryPage() {
 
                   {/* Results — full-width horizontal scroll below */}
                   {recolorResults.length > 0 && (
-                    <div className="mt-4 pt-4 border-t border-[rgba(255,255,255,0.06)]">
-                      <div className="flex items-center gap-2 mb-2">
-                        <p className="text-[11px] text-[rgba(255,255,255,0.55)] font-medium">Results</p>
-                        <span className="text-[11px] font-semibold text-[rgba(255,255,255,0.4)] bg-[rgba(255,255,255,0.05)] px-2 py-0.5 rounded-full">{recolorResults.length}</span>
+                    <div className={`mt-4 pt-4 border-t ${isLight ? "border-[#e5e2dc]" : "border-[rgba(255,255,255,0.08)]"}`}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <p className={`text-[13px] font-semibold ${isLight ? "text-[#4a4a4a]" : "text-[rgba(255,255,255,0.65)]"}`}>Results</p>
+                        <span className={`text-[12px] font-bold px-2 py-0.5 rounded-full ${isLight ? "text-[#6b6b6b] bg-[#0a0a0a]/5" : "text-[rgba(255,255,255,0.5)] bg-[rgba(255,255,255,0.06)]"}`}>{recolorResults.length}</span>
                       </div>
                       <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
                         {recolorResults.map((img, i) => (
@@ -1917,268 +2231,278 @@ function JewelryPage() {
       {/* ===== UGC CONFIG MODAL ===== */}
       {ugcModalOpen && (
         <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in"
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-md animate-fade-in"
           onClick={() => setUgcModalOpen(false)}
         >
           <div
-            className="relative w-full max-w-md mx-4 bg-[#141414] border border-[rgba(255,255,255,0.1)] rounded-2xl p-6 animate-scale-in shadow-2xl max-h-[90vh] overflow-y-auto"
+            className="relative w-full max-w-md mx-4 bg-[#0E0F14] border border-[rgba(196,166,125,0.15)] rounded-2xl animate-scale-in shadow-[0_24px_80px_rgba(0,0,0,0.6)] max-h-[90vh] overflow-y-auto scrollbar-thin"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-base font-bold text-white">Generate UGC Photos</h3>
+            {/* Header */}
+            <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-[rgba(255,255,255,0.06)] bg-[#0E0F14]/95 backdrop-blur-sm rounded-t-2xl">
+              <h3 className="text-base font-bold text-white font-display">Generate UGC Photos</h3>
               <button
                 onClick={() => setUgcModalOpen(false)}
-                className="w-7 h-7 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                className="w-8 h-8 flex items-center justify-center rounded-xl bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.1)] transition-colors"
               >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2" strokeLinecap="round">
                   <line x1="18" y1="6" x2="6" y2="18" />
                   <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
               </button>
             </div>
 
-            {/* Source Image Selection */}
-            {resultImages.length > 1 && (
-              <div className="mb-5">
-                <label className="block text-[11px] font-semibold text-white/50 uppercase tracking-wider mb-2">Select Source Image</label>
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  {resultImages.map((img, i) => (
-                    <button
-                      key={`ugc-src-${i}`}
-                      onClick={() => setUgcSourceIndex(i)}
-                      className={`relative flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all ${
-                        ugcSourceIndex === i
-                          ? "border-[#c4a67d] ring-1 ring-[rgba(196,166,125,0.3)]"
-                          : "border-transparent hover:border-white/20"
-                      }`}
-                    >
-                      <img src={imgSrc(img)} alt={img.label} className="w-full h-full object-cover" />
-                      {ugcSourceIndex === i && (
-                        <div className="absolute inset-0 bg-[rgba(196,166,125,0.15)] flex items-center justify-center">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c4a67d" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        </div>
-                      )}
-                      <span className="absolute bottom-0 inset-x-0 bg-black/70 text-[8px] text-white/80 text-center py-0.5 font-semibold truncate px-0.5">
-                        {img.label}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Gender */}
-            <div className="mb-5">
-              <label className="block text-[11px] font-semibold text-white/50 uppercase tracking-wider mb-2">Gender</label>
-              <div className="flex gap-2">
-                {UGC_GENDERS.map((g) => (
-                  <button
-                    key={g.id}
-                    onClick={() => setUgcGender(g.id)}
-                    className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all ${
-                      ugcGender === g.id
-                        ? "bg-[rgba(196,166,125,0.15)] text-[#c4a67d] border border-[rgba(196,166,125,0.3)]"
-                        : "bg-white/5 text-white/50 border border-white/10 hover:text-white/70"
-                    }`}
-                  >
-                    {g.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Nationality */}
-            <div className="mb-5 relative">
-              <label className="block text-[11px] font-semibold text-white/50 uppercase tracking-wider mb-2">Nationality / Ethnicity</label>
-              <button
-                onClick={() => setUgcNatOpen(!ugcNatOpen)}
-                className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium bg-white/5 border border-white/10 text-white/80 hover:border-white/20 transition-colors"
-              >
-                {ugcNationality}
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className={`transition-transform ${ugcNatOpen ? "rotate-180" : ""}`}>
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
-              </button>
-              {ugcNatOpen && (
-                <div className="absolute left-0 right-0 top-full mt-1 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl z-10 max-h-48 overflow-hidden flex flex-col">
-                  <div className="p-2 border-b border-white/5">
-                    <input
-                      type="text"
-                      value={ugcNatSearch}
-                      onChange={(e) => setUgcNatSearch(e.target.value)}
-                      placeholder="Search..."
-                      className="w-full px-2.5 py-1.5 rounded-md text-xs bg-white/5 border border-white/10 text-white placeholder-white/30 outline-none focus:border-[rgba(196,166,125,0.3)]"
-                      autoFocus
-                    />
-                  </div>
-                  <div className="overflow-y-auto max-h-36">
-                    {UGC_NATIONALITIES.filter((n) =>
-                      n.toLowerCase().includes(ugcNatSearch.toLowerCase())
-                    ).map((n) => (
+            <div className="px-6 py-5 space-y-5">
+              {/* Source Image Selection */}
+              {resultImages.length > 1 && (
+                <div>
+                  <label className="block text-[10px] font-semibold text-[rgba(255,255,255,0.45)] uppercase tracking-[0.1em] mb-2.5">Select Source Image</label>
+                  <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+                    {resultImages.map((img, i) => (
                       <button
-                        key={n}
-                        onClick={() => { setUgcNationality(n); setUgcNatOpen(false); setUgcNatSearch(""); }}
-                        className={`w-full text-left px-3 py-1.5 text-xs hover:bg-white/5 transition-colors ${
-                          ugcNationality === n ? "text-[#c4a67d] font-semibold" : "text-white/60"
+                        key={`ugc-src-${i}`}
+                        onClick={() => setUgcSourceIndex(i)}
+                        className={`relative flex-shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 transition-all ${
+                          ugcSourceIndex === i
+                            ? "border-[#c4a67d] shadow-[0_0_12px_rgba(196,166,125,0.25)]"
+                            : "border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.15)]"
                         }`}
                       >
-                        {n}
+                        <img src={imgSrc(img)} alt={img.label} className="w-full h-full object-cover" />
+                        {ugcSourceIndex === i && (
+                          <div className="absolute inset-0 bg-[rgba(196,166,125,0.15)] flex items-center justify-center">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c4a67d" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          </div>
+                        )}
+                        <span className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent text-[8px] text-white/80 text-center py-1 font-semibold truncate px-1">
+                          {img.label}
+                        </span>
                       </button>
                     ))}
                   </div>
                 </div>
               )}
-            </div>
 
-            {/* Skin Tone */}
-            <div className="mb-5">
-              <label className="block text-[11px] font-semibold text-white/50 uppercase tracking-wider mb-2">Skin Tone</label>
-              <div className="flex items-center gap-3">
-                {UGC_SKIN_TONES.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => setUgcSkinTone(t.id)}
-                    className="flex flex-col items-center gap-1 group"
-                    title={t.label}
-                  >
-                    <div
-                      className={`w-8 h-8 rounded-full border-2 transition-all ${
-                        ugcSkinTone === t.id
-                          ? "border-[#c4a67d] scale-110 shadow-[0_0_8px_rgba(196,166,125,0.3)]"
-                          : "border-transparent hover:border-white/20"
+              {/* Gender */}
+              <div>
+                <label className="block text-[10px] font-semibold text-[rgba(255,255,255,0.45)] uppercase tracking-[0.1em] mb-2.5">Gender</label>
+                <div className="flex gap-2">
+                  {UGC_GENDERS.map((g) => (
+                    <button
+                      key={g.id}
+                      onClick={() => setUgcGender(g.id)}
+                      className={`flex-1 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 ${
+                        ugcGender === g.id
+                          ? "bg-[rgba(196,166,125,0.12)] text-[#c4a67d] border border-[rgba(196,166,125,0.3)] shadow-[0_0_12px_rgba(196,166,125,0.1)]"
+                          : "bg-[rgba(255,255,255,0.04)] text-[rgba(255,255,255,0.5)] border border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)] hover:text-[rgba(255,255,255,0.7)]"
                       }`}
-                      style={{ backgroundColor: t.color }}
-                    />
-                    <span className={`text-[10px] font-medium ${ugcSkinTone === t.id ? "text-[#c4a67d]" : "text-white/40 group-hover:text-white/55"}`}>
-                      {t.label}
-                    </span>
-                  </button>
-                ))}
+                    >
+                      {g.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
 
-            {/* Background */}
-            <div className="mb-5">
-              <label className="block text-[11px] font-semibold text-white/50 uppercase tracking-wider mb-2">Background</label>
-              <div className="flex flex-wrap gap-2">
-                {UGC_BACKGROUNDS.map((bg) => (
+              {/* Nationality */}
+              <div className="relative">
+                <label className="block text-[10px] font-semibold text-[rgba(255,255,255,0.45)] uppercase tracking-[0.1em] mb-2.5">Nationality / Ethnicity</label>
+                <button
+                  onClick={() => setUgcNatOpen(!ugcNatOpen)}
+                  className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-xs font-medium bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.8)] hover:border-[rgba(255,255,255,0.14)] transition-all"
+                >
+                  {ugcNationality}
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={`transition-transform duration-200 ${ugcNatOpen ? "rotate-180" : ""}`}>
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+                {ugcNatOpen && (
+                  <div className="absolute left-0 right-0 top-full mt-1.5 bg-[#12131A] border border-[rgba(255,255,255,0.08)] rounded-xl shadow-[0_16px_48px_rgba(0,0,0,0.5)] z-10 max-h-52 overflow-hidden flex flex-col">
+                    <div className="p-2.5 border-b border-[rgba(255,255,255,0.06)]">
+                      <input
+                        type="text"
+                        value={ugcNatSearch}
+                        onChange={(e) => setUgcNatSearch(e.target.value)}
+                        placeholder="Search..."
+                        className="w-full px-3 py-2 rounded-lg text-xs bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-white placeholder:text-[rgba(255,255,255,0.25)] outline-none focus:border-[rgba(196,166,125,0.4)] transition-colors"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="overflow-y-auto max-h-40 scrollbar-thin">
+                      {UGC_NATIONALITIES.filter((n) =>
+                        n.toLowerCase().includes(ugcNatSearch.toLowerCase())
+                      ).map((n) => (
+                        <button
+                          key={n}
+                          onClick={() => { setUgcNationality(n); setUgcNatOpen(false); setUgcNatSearch(""); }}
+                          className={`w-full text-left px-3.5 py-2 text-xs transition-colors ${
+                            ugcNationality === n
+                              ? "text-[#c4a67d] font-semibold bg-[rgba(196,166,125,0.06)]"
+                              : "text-[rgba(255,255,255,0.55)] hover:text-white hover:bg-[rgba(255,255,255,0.04)]"
+                          }`}
+                        >
+                          {n}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Skin Tone */}
+              <div>
+                <label className="block text-[10px] font-semibold text-[rgba(255,255,255,0.45)] uppercase tracking-[0.1em] mb-2.5">Skin Tone</label>
+                <div className="flex items-center gap-3">
+                  {UGC_SKIN_TONES.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => setUgcSkinTone(t.id)}
+                      className="flex flex-col items-center gap-1.5 group"
+                      title={t.label}
+                    >
+                      <div
+                        className={`w-9 h-9 rounded-full border-2 transition-all duration-200 ${
+                          ugcSkinTone === t.id
+                            ? "border-[#c4a67d] scale-110 shadow-[0_0_12px_rgba(196,166,125,0.3)]"
+                            : "border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.2)]"
+                        }`}
+                        style={{ backgroundColor: t.color }}
+                      />
+                      <span className={`text-[10px] font-medium transition-colors ${ugcSkinTone === t.id ? "text-[#c4a67d]" : "text-[rgba(255,255,255,0.35)] group-hover:text-[rgba(255,255,255,0.55)]"}`}>
+                        {t.label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Background */}
+              <div>
+                <label className="block text-[10px] font-semibold text-[rgba(255,255,255,0.45)] uppercase tracking-[0.1em] mb-2.5">Background</label>
+                <div className="flex flex-wrap gap-2">
+                  {UGC_BACKGROUNDS.map((bg) => (
+                    <button
+                      key={bg.id}
+                      onClick={() => setUgcBackground(bg.id)}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-medium transition-all duration-200 ${
+                        ugcBackground === bg.id
+                          ? "bg-[rgba(196,166,125,0.12)] text-[#c4a67d] border border-[rgba(196,166,125,0.3)]"
+                          : "bg-[rgba(255,255,255,0.04)] text-[rgba(255,255,255,0.5)] border border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)]"
+                      }`}
+                    >
+                      <span
+                        className={`w-4.5 h-4.5 rounded-full flex-shrink-0 border ${ugcBackground === bg.id ? "border-[rgba(196,166,125,0.3)]" : "border-[rgba(255,255,255,0.1)]"}`}
+                        style={{ background: bg.swatch, width: 18, height: 18 }}
+                      />
+                      {bg.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Poses */}
+              <div>
+                <label className="block text-[10px] font-semibold text-[rgba(255,255,255,0.45)] uppercase tracking-[0.1em] mb-1">
+                  Poses
+                  {jewelryType && (
+                    <span className="ml-1.5 text-[#c4a67d]/50 normal-case font-medium">
+                      — recommended for {jewelryType}
+                    </span>
+                  )}
+                </label>
+                <p className="text-[11px] text-[rgba(255,255,255,0.35)] mb-2.5">Select 1-4 poses. Each pose generates one image.</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {(() => {
+                    const jType = jewelryType?.toLowerCase().replace(/\s+/g, "") || "";
+                    const recommended = JEWELRY_POSE_MAP[jType] || [];
+                    const sorted = [...UGC_ALL_POSES].sort((a, b) => {
+                      const aR = recommended.includes(a.id) ? 0 : 1;
+                      const bR = recommended.includes(b.id) ? 0 : 1;
+                      return aR - bR;
+                    });
+                    return sorted.map((p) => {
+                      const isRec = recommended.includes(p.id);
+                      const isSelected = ugcPoses.includes(p.id);
+                      return (
+                        <button
+                          key={p.id}
+                          onClick={() => {
+                            setUgcPoses((prev) =>
+                              prev.includes(p.id)
+                                ? prev.filter((x) => x !== p.id)
+                                : prev.length < 4
+                                ? [...prev, p.id]
+                                : prev
+                            );
+                          }}
+                          className={`py-2.5 px-3 rounded-xl text-xs font-medium transition-all duration-200 text-left flex items-center gap-2.5 ${
+                            isSelected
+                              ? "bg-[rgba(196,166,125,0.12)] text-[#c4a67d] border border-[rgba(196,166,125,0.3)]"
+                              : "bg-[rgba(255,255,255,0.04)] text-[rgba(255,255,255,0.5)] border border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)] hover:text-[rgba(255,255,255,0.7)]"
+                          }`}
+                        >
+                          <span className={`w-4 h-4 rounded-[5px] border-[1.5px] flex items-center justify-center flex-shrink-0 transition-all ${
+                            isSelected ? "border-[#c4a67d] bg-[#c4a67d]" : "border-[rgba(255,255,255,0.15)]"
+                          }`}>
+                            {isSelected && (
+                              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#0E0F14" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                            )}
+                          </span>
+                          {p.label}
+                          {isRec && (
+                            <span className="ml-auto text-[9px] font-bold text-[#c4a67d]/50 bg-[rgba(196,166,125,0.08)] px-1.5 py-0.5 rounded uppercase">rec</span>
+                          )}
+                        </button>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+
+              {/* Quality Toggle */}
+              <div>
+                <label className="block text-[10px] font-semibold text-[rgba(255,255,255,0.45)] uppercase tracking-[0.1em] mb-2.5">Quality</label>
+                <div className="inline-flex rounded-xl bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] p-1 w-full">
                   <button
-                    key={bg.id}
-                    onClick={() => setUgcBackground(bg.id)}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
-                      ugcBackground === bg.id
-                        ? "bg-[rgba(196,166,125,0.15)] text-[#c4a67d] border border-[rgba(196,166,125,0.3)]"
-                        : "bg-white/5 text-white/50 border border-white/10 hover:text-white/70"
+                    onClick={() => setUgcQuality("standard")}
+                    className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                      ugcQuality === "standard"
+                        ? "bg-[rgba(255,255,255,0.08)] text-white shadow-sm"
+                        : "text-[rgba(255,255,255,0.45)] hover:text-[rgba(255,255,255,0.65)]"
                     }`}
                   >
-                    <span
-                      className="w-4 h-4 rounded-full flex-shrink-0 border border-white/10"
-                      style={{ background: bg.swatch }}
-                    />
-                    {bg.label}
+                    Standard — {JEWELRY_PRICING.standard.ugcPerPose * ugcPoses.length} tokens
                   </button>
-                ))}
+                  <button
+                    onClick={() => setUgcQuality("pro")}
+                    className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-1.5 ${
+                      ugcQuality === "pro"
+                        ? "bg-gradient-to-r from-[rgba(196,166,125,0.15)] to-[rgba(196,166,125,0.08)] text-[#c4a67d] shadow-sm border border-[rgba(196,166,125,0.2)]"
+                        : "text-[rgba(255,255,255,0.45)] hover:text-[rgba(255,255,255,0.65)]"
+                    }`}
+                  >
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                    </svg>
+                    Pro — {JEWELRY_PRICING.pro.ugcPerPose * ugcPoses.length} tokens
+                  </button>
+                </div>
               </div>
             </div>
 
-            {/* Poses */}
-            <div className="mb-6">
-              <label className="block text-[11px] font-semibold text-white/50 uppercase tracking-wider mb-1">
-                Poses
-                {jewelryType && (
-                  <span className="ml-1 text-[#c4a67d]/60 normal-case">
-                    — recommended for {jewelryType}
-                  </span>
-                )}
-              </label>
-              <p className="text-[11px] text-white/45 mb-2">Select 1-4 poses. Each pose generates one image.</p>
-              <div className="grid grid-cols-2 gap-2">
-                {(() => {
-                  const jType = jewelryType?.toLowerCase().replace(/\s+/g, "") || "";
-                  const recommended = JEWELRY_POSE_MAP[jType] || [];
-                  const sorted = [...UGC_ALL_POSES].sort((a, b) => {
-                    const aR = recommended.includes(a.id) ? 0 : 1;
-                    const bR = recommended.includes(b.id) ? 0 : 1;
-                    return aR - bR;
-                  });
-                  return sorted.map((p) => {
-                    const isRec = recommended.includes(p.id);
-                    const isSelected = ugcPoses.includes(p.id);
-                    return (
-                      <button
-                        key={p.id}
-                        onClick={() => {
-                          setUgcPoses((prev) =>
-                            prev.includes(p.id)
-                              ? prev.filter((x) => x !== p.id)
-                              : prev.length < 4
-                              ? [...prev, p.id]
-                              : prev
-                          );
-                        }}
-                        className={`py-2 px-3 rounded-lg text-xs font-medium transition-all text-left flex items-center gap-2 ${
-                          isSelected
-                            ? "bg-[rgba(196,166,125,0.15)] text-[#c4a67d] border border-[rgba(196,166,125,0.3)]"
-                            : "bg-white/5 text-white/50 border border-white/10 hover:text-white/70 hover:border-white/15"
-                        }`}
-                      >
-                        <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${
-                          isSelected ? "border-[#c4a67d] bg-[#c4a67d]" : "border-white/20"
-                        }`}>
-                          {isSelected && (
-                            <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
-                              <polyline points="20 6 9 17 4 12" />
-                            </svg>
-                          )}
-                        </span>
-                        {p.label}
-                        {isRec && (
-                          <span className="ml-auto text-[9px] font-bold text-[#c4a67d]/60 uppercase">rec</span>
-                        )}
-                      </button>
-                    );
-                  });
-                })()}
-              </div>
+            {/* Generate Button - sticky footer */}
+            <div className="sticky bottom-0 px-6 py-4 border-t border-[rgba(255,255,255,0.06)] bg-[#0E0F14]/95 backdrop-blur-sm rounded-b-2xl">
+              <button
+                onClick={generateUGC}
+                disabled={ugcPoses.length === 0}
+                className="w-full py-3 rounded-full text-sm font-bold bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-white shadow-[0_4px_20px_rgba(196,166,125,0.3)] hover:shadow-[0_6px_30px_rgba(196,166,125,0.45)] hover:-translate-y-0.5 active:scale-[0.97] transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none"
+              >
+                Generate {ugcPoses.length} Photo{ugcPoses.length !== 1 ? "s" : ""} ({(ugcQuality === "pro" ? JEWELRY_PRICING.pro.ugcPerPose : JEWELRY_PRICING.standard.ugcPerPose) * ugcPoses.length} tokens)
+              </button>
             </div>
-
-            {/* Quality Toggle */}
-            <div className="mb-5">
-              <label className="block text-[11px] font-semibold text-white/50 uppercase tracking-wider mb-2">Quality</label>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setUgcQuality("standard")}
-                  className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all ${
-                    ugcQuality === "standard"
-                      ? "bg-[rgba(196,166,125,0.15)] text-[#c4a67d] border border-[rgba(196,166,125,0.3)]"
-                      : "bg-white/5 text-white/50 border border-white/10 hover:text-white/70"
-                  }`}
-                >
-                  Standard — {JEWELRY_PRICING.standard.ugcPerPose * ugcPoses.length} tokens
-                </button>
-                <button
-                  onClick={() => setUgcQuality("pro")}
-                  className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all ${
-                    ugcQuality === "pro"
-                      ? "bg-[rgba(196,166,125,0.15)] text-[#c4a67d] border border-[rgba(196,166,125,0.3)]"
-                      : "bg-white/5 text-white/50 border border-white/10 hover:text-white/70"
-                  }`}
-                >
-                  Pro — {JEWELRY_PRICING.pro.ugcPerPose * ugcPoses.length} tokens
-                </button>
-              </div>
-            </div>
-
-            {/* Generate Button */}
-            <button
-              onClick={generateUGC}
-              disabled={ugcPoses.length === 0}
-              className="w-full py-3 rounded-xl text-sm font-bold bg-gradient-to-r from-[#c4a67d] to-[#a8895c] text-black hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Generate {ugcPoses.length} Photo{ugcPoses.length !== 1 ? "s" : ""} ({(ugcQuality === "pro" ? JEWELRY_PRICING.pro.ugcPerPose : JEWELRY_PRICING.standard.ugcPerPose) * ugcPoses.length} tokens)
-            </button>
           </div>
         </div>
       )}
@@ -2186,29 +2510,30 @@ function JewelryPage() {
       {/* ===== BRANDING MODAL ===== */}
       {brandingModalOpen && (
         <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in"
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-md animate-fade-in"
           onClick={() => !brandingLoading && setBrandingModalOpen(false)}
         >
           <div
-            className="relative w-full max-w-lg mx-4 bg-[#141414] border border-[rgba(255,255,255,0.1)] rounded-2xl p-6 animate-scale-in shadow-2xl max-h-[90vh] overflow-y-auto"
+            className="relative w-full max-w-lg mx-4 bg-[#0E0F14] border border-[rgba(196,166,125,0.15)] rounded-2xl animate-scale-in shadow-[0_24px_80px_rgba(0,0,0,0.6)] max-h-[90vh] overflow-y-auto scrollbar-thin"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-base font-bold text-white">Add Branding</h3>
+            <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-[rgba(255,255,255,0.06)] bg-[#0E0F14]/95 backdrop-blur-sm rounded-t-2xl">
+              <h3 className="text-base font-bold text-white font-display">Add Branding</h3>
               <button
                 onClick={() => !brandingLoading && setBrandingModalOpen(false)}
-                className="w-7 h-7 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                className="w-8 h-8 flex items-center justify-center rounded-xl bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.1)] transition-colors"
               >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2" strokeLinecap="round">
                   <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
               </button>
             </div>
 
+            <div className="px-6 py-5">
             {/* Photo selector */}
             <div className="mb-5">
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-[11px] font-semibold text-white/55 uppercase tracking-wider">
+                <label className="block text-[10px] font-semibold text-[rgba(255,255,255,0.45)] uppercase tracking-[0.1em]">
                   Select Photos to Brand
                 </label>
                 <button
@@ -2283,21 +2608,25 @@ function JewelryPage() {
               </div>
             </div>
 
+            </div>
+
             {/* Generate button */}
-            <button
-              onClick={applyBranding}
-              disabled={brandingLoading || brandingSelectedIdxs.length === 0 || (!brandName.trim() && !brandPhone.trim())}
-              className="w-full py-3 rounded-xl text-sm font-bold bg-gradient-to-r from-[#c4a67d] to-[#a8895c] text-black hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {brandingLoading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <div className="w-3.5 h-3.5 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-                  Applying Branding...
-                </span>
-              ) : (
-                `Brand ${brandingSelectedIdxs.length} Photo${brandingSelectedIdxs.length !== 1 ? "s" : ""}`
-              )}
-            </button>
+            <div className="sticky bottom-0 px-6 py-4 border-t border-[rgba(255,255,255,0.06)] bg-[#0E0F14]/95 backdrop-blur-sm rounded-b-2xl">
+              <button
+                onClick={applyBranding}
+                disabled={brandingLoading || brandingSelectedIdxs.length === 0 || (!brandName.trim() && !brandPhone.trim())}
+                className="w-full py-3 rounded-full text-sm font-bold bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-white shadow-[0_4px_20px_rgba(196,166,125,0.3)] hover:shadow-[0_6px_30px_rgba(196,166,125,0.45)] hover:-translate-y-0.5 active:scale-[0.97] transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none"
+              >
+                {brandingLoading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Applying Branding...
+                  </span>
+                ) : (
+                  `Brand ${brandingSelectedIdxs.length} Photo${brandingSelectedIdxs.length !== 1 ? "s" : ""}`
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -2593,6 +2922,13 @@ function JewelryPage() {
           </div>
         </div>
       )}
+      {/* Insufficient Credits Modal */}
+      <InsufficientCreditsModal
+        isOpen={showCreditsModal}
+        onClose={() => setShowCreditsModal(false)}
+        requiredCredits={requiredCreditsForModal}
+        currentBalance={credits?.token_balance || 0}
+      />
     </ResponsiveLayout>
   );
 }

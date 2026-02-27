@@ -1,17 +1,18 @@
 import type { Metadata, Viewport } from "next";
-import { DM_Sans, Syne, JetBrains_Mono } from "next/font/google";
+import { Inter, Playfair_Display, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const dmSans = DM_Sans({
+const inter = Inter({
   variable: "--font-body",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
 });
 
-const syne = Syne({
+const playfair = Playfair_Display({
   variable: "--font-display",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
+  style: ["normal", "italic"],
 });
 
 const jetBrainsMono = JetBrains_Mono({
@@ -105,7 +106,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <script src="https://checkout.razorpay.com/v1/checkout.js" async />
         <script
@@ -122,7 +123,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${dmSans.variable} ${syne.variable} ${jetBrainsMono.variable} antialiased`}
+        className={`${inter.variable} ${playfair.variable} ${jetBrainsMono.variable} antialiased`}
       >
         {children}
       </body>

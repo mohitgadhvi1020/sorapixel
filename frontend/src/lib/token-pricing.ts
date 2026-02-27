@@ -29,7 +29,7 @@ export const LISTING_PRICING = {
   costPerRegen: 3,
 } as const;
 
-export const DAILY_REWARD_TOKENS = 5;
+export const DAILY_REWARD_TOKENS = 8;
 export const FREE_FIRST_GENERATION = 1;
 
 export type Quality = "standard" | "pro";

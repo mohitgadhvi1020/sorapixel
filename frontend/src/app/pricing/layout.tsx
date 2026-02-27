@@ -5,7 +5,7 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://soraipixel.com";
 export const metadata: Metadata = {
   title: "Pricing — AI Jewelry Photography Plans",
   description:
-    "Simple, transparent pricing for AI jewelry photography. Start free with 5 daily tokens. Upgrade for studio-quality hero shots, model photos, and bulk listings.",
+    "Simple, transparent pricing for AI jewelry photography. Start free with 8 daily tokens. Upgrade for studio-quality hero shots, model photos, and bulk listings.",
   keywords: [
     "AI jewelry photography pricing",
     "product photography pricing",

@@ -12,7 +12,7 @@ from app.schemas.jewelry import (
 from app.schemas.studio import GenerateResponse, ImageResult
 from app.services.gemini_service import generate_image, generate_image_pro, generate_text
 from app.services.image_service import (
-    crop_to_ratio, center_crop_closeup, add_branding_bar,
+    crop_to_ratio, add_branding_bar,
 )
 from app.services.credit_service import (
     get_jewelry_credits, deduct_jewelry_tokens, check_and_deduct_jewelry,
@@ -20,13 +20,15 @@ from app.services.credit_service import (
 )
 from app.services.tracking_service import track_generation
 from app.services.prompt_service import (
-    build_jewelry_prompt, build_recolor_prompt,
+    build_jewelry_prompt, build_jewelry_regen_prompt, build_recolor_prompt,
+    build_jewelry_theme_prompt,
     get_ratio, build_listing_prompt,
     build_brand_listing_prompt, get_brand_config,
     JEWELRY_BACKGROUND_PROMPTS,
 )
 from app.services.project_service import save_project
 from app.services.session_service import add_session_action
+from app.services.detection_service import detect_jewelry_input
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/jewelry", tags=["Jewelry"])
@@ -51,20 +53,25 @@ async def jewelry_credits(user: dict = Depends(get_current_user)):
 async def generate_jewelry(req: GenerateJewelryRequest, user: dict = Depends(get_current_user)):
     ratio = get_ratio(req.aspect_ratio_id)
 
-    SINGLE_REGEN_STEPS = {"regen_hero", "regen_angle", "regen_closeup"}
-    if req.step in SINGLE_REGEN_STEPS:
+    if req.step == "regen_hero":
         return await _regenerate_single(req, user, ratio)
 
     if req.step == "all":
         return await _generate_all(req, user, ratio)
 
-    raise HTTPException(status_code=400, detail=f"Unknown step: {req.step}. Use 'all' or 'regen_hero/angle/closeup'.")
+    raise HTTPException(status_code=400, detail=f"Unknown step: {req.step}. Use 'all' or 'regen_hero'.")
 
 
 async def _generate_all(req: GenerateJewelryRequest, user: dict, ratio: dict):
-    """Unified generation: hero from main image + one shot per alt image."""
+    """Unified generation: supports both legacy background mode and new theme+shots mode."""
+    use_theme = bool(req.theme_id)
+    shot_configs = req.shots or [{"shot_id": "hero"}]
     alt_count = len(req.alt_images_base64) if req.alt_images_base64 else 0
-    total_images = 1 + alt_count
+
+    if use_theme:
+        total_images = len(shot_configs) + alt_count
+    else:
+        total_images = 1 + alt_count
 
     per_image_cost = get_operation_cost("imageGen", req.quality)
     total_cost = per_image_cost * total_images
@@ -78,43 +85,108 @@ async def _generate_all(req: GenerateJewelryRequest, user: dict, ratio: dict):
         raise HTTPException(
             status_code=403,
             detail=f"Need {total_cost} tokens, have {credits['token_balance']}. Buy tokens to continue.",
+            headers={"X-Required-Credits": str(total_cost), "X-Current-Balance": str(credits["token_balance"])},
         )
 
     images: list[ImageResult] = []
 
-    hero_prompt = build_jewelry_prompt(req.jewelry_type, req.background, "hero", req.special_instructions, ratio_id=req.aspect_ratio_id)
     try:
-        result = _gen_image(req.quality, hero_prompt, req.image_base64, aspect_ratio_id=req.aspect_ratio_id)
-        hero_b64 = result["base64"]
-        try:
-            hero_b64 = crop_to_ratio(hero_b64, ratio["width"], ratio["height"])
-        except Exception:
-            pass
-        usage = result.get("usage", {})
-        track_generation(
-            client_id=user["id"],
-            generation_type="hero",
-            input_tokens=usage.get("input_tokens", 0),
-            output_tokens=usage.get("output_tokens", 0),
-            model_used=result.get("model", "gemini-2.5-flash-image"),
-        )
-        images.append(ImageResult(base64=hero_b64, label="Studio Shot 1"))
-    except Exception as e:
-        logger.error(f"Hero generation error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        detection = detect_jewelry_input(req.image_base64, req.jewelry_type)
+        detection_dict = detection.to_dict()
+    except Exception as det_err:
+        logger.warning(f"Detection step failed (non-blocking): {det_err}")
+        detection_dict = None
 
-    # Deduct tokens only after successful hero generation
+    if use_theme:
+        # Theme-based multi-shot generation
+        for i, shot_cfg in enumerate(shot_configs):
+            shot_id = shot_cfg.get("shot_id", "hero")
+            shot_details = shot_cfg.get("additional_details")
+            shot_color = shot_cfg.get("theme_color")
+
+            prompt = build_jewelry_theme_prompt(
+                jewelry_type=req.jewelry_type,
+                theme_id=req.theme_id,
+                shot_id=shot_id,
+                additional_details=shot_details,
+                theme_color_override=shot_color,
+                special_instructions=req.special_instructions,
+                ratio_id=req.aspect_ratio_id,
+                detection=detection_dict,
+            )
+            shot_label = shot_cfg.get("label", f"Shot {i + 1}")
+            logger.info(f"[THEME GEN] theme={req.theme_id}, shot={shot_id}, quality={req.quality}")
+            try:
+                result = _gen_image(req.quality, prompt, req.image_base64, aspect_ratio_id=req.aspect_ratio_id)
+                img_b64 = result["base64"]
+                try:
+                    img_b64 = crop_to_ratio(img_b64, ratio["width"], ratio["height"])
+                except Exception:
+                    pass
+                usage = result.get("usage", {})
+                track_generation(
+                    client_id=user["id"],
+                    generation_type=f"theme_{shot_id}",
+                    input_tokens=usage.get("input_tokens", 0),
+                    output_tokens=usage.get("output_tokens", 0),
+                    model_used=result.get("model", "gemini-2.5-flash-image"),
+                )
+                images.append(ImageResult(base64=img_b64, label=shot_label))
+            except Exception as e:
+                logger.warning(f"Theme shot {shot_id} generation failed: {e}")
+                if i == 0:
+                    raise HTTPException(status_code=500, detail=str(e))
+                images.append(ImageResult(base64="", label=f"{shot_label} (failed)"))
+    else:
+        # Legacy background-based generation
+        hero_prompt = build_jewelry_prompt(
+            req.jewelry_type, req.background, "hero", req.special_instructions,
+            ratio_id=req.aspect_ratio_id, detection=detection_dict,
+        )
+        logger.info(f"[HERO PROMPT] type={req.jewelry_type}, bg={req.background}, quality={req.quality}")
+        try:
+            result = _gen_image(req.quality, hero_prompt, req.image_base64, aspect_ratio_id=req.aspect_ratio_id)
+            hero_b64 = result["base64"]
+            try:
+                hero_b64 = crop_to_ratio(hero_b64, ratio["width"], ratio["height"])
+            except Exception:
+                pass
+            usage = result.get("usage", {})
+            track_generation(
+                client_id=user["id"],
+                generation_type="hero",
+                input_tokens=usage.get("input_tokens", 0),
+                output_tokens=usage.get("output_tokens", 0),
+                model_used=result.get("model", "gemini-2.5-flash-image"),
+            )
+            images.append(ImageResult(base64=hero_b64, label="Studio Shot 1"))
+        except Exception as e:
+            logger.error(f"Hero generation error: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    # Deduct tokens after successful generation
     if free_remaining > 0:
         credit_result = check_and_deduct_jewelry(user["id"], "first_generation", req.quality, session_id=req.session_id)
     else:
-        deduct_jewelry_tokens(user["id"], total_cost, operation="imageGen", quality=req.quality, session_id=req.session_id)
-        credit_result = {"remaining": credits["token_balance"] - total_cost, "free_generation_remaining": 0}
+        successful_count = len([img for img in images if img.base64])
+        actual_cost = per_image_cost * successful_count
+        deduct_jewelry_tokens(user["id"], actual_cost, operation="imageGen", quality=req.quality, session_id=req.session_id)
+        credit_result = {"remaining": credits["token_balance"] - actual_cost, "free_generation_remaining": 0}
 
+    # Alt images (same prompt as hero for legacy mode)
     if req.alt_images_base64:
         for idx, alt_b64 in enumerate(req.alt_images_base64):
-            alt_prompt = build_jewelry_prompt(
-                req.jewelry_type, req.background, "hero", req.special_instructions, ratio_id=req.aspect_ratio_id
-            )
+            if use_theme:
+                alt_prompt = build_jewelry_theme_prompt(
+                    req.jewelry_type, req.theme_id, "hero",
+                    special_instructions=req.special_instructions,
+                    ratio_id=req.aspect_ratio_id, detection=detection_dict,
+                )
+            else:
+                alt_prompt = build_jewelry_prompt(
+                    req.jewelry_type, req.background, "hero", req.special_instructions,
+                    ratio_id=req.aspect_ratio_id, detection=detection_dict,
+                )
             try:
                 alt_result = _gen_image(req.quality, alt_prompt, alt_b64, aspect_ratio_id=req.aspect_ratio_id)
                 alt_img_b64 = alt_result["base64"]
@@ -123,20 +195,27 @@ async def _generate_all(req: GenerateJewelryRequest, user: dict, ratio: dict):
                 except Exception:
                     pass
                 track_generation(client_id=user["id"], generation_type="studio", model_used=alt_result.get("model", "gemini-2.5-flash-image"))
-                images.append(ImageResult(base64=alt_img_b64, label=f"Studio Shot {idx + 2}"))
+                images.append(ImageResult(base64=alt_img_b64, label=f"Studio Shot {len(images) + 1}"))
             except Exception as e:
                 logger.warning(f"Alt image {idx + 1} generation failed: {e}")
-                images.append(ImageResult(base64="", label=f"Studio Shot {idx + 2} (failed)"))
+                images.append(ImageResult(base64="", label=f"Studio Shot {len(images) + 1} (failed)"))
 
     try:
         save_images = [{"base64": req.image_base64, "label": "Original Upload"}]
         save_images += [{"base64": img.base64, "label": img.label} for img in images if img.base64]
+        meta = {"jewelry_type": req.jewelry_type, "detection": detection_dict}
+        if use_theme:
+            meta["theme_id"] = req.theme_id
+            meta["shots"] = req.shots
+        else:
+            meta["background"] = req.background
+            meta["alt_count"] = alt_count
         save_project(
             client_id=user["id"],
             project_type="jewelry_all",
             title=f"Jewelry – {req.jewelry_type.title()} ({len(images)} shots)",
             images=save_images,
-            metadata={"jewelry_type": req.jewelry_type, "background": req.background, "alt_count": alt_count},
+            metadata=meta,
         )
     except Exception as save_err:
         logger.warning(f"Project save failed (non-blocking): {save_err}")
@@ -147,8 +226,8 @@ async def _generate_all(req: GenerateJewelryRequest, user: dict, ratio: dict):
                 session_id=req.session_id,
                 action_type="jewelry_gen",
                 quality=req.quality,
-                tokens_used=total_cost,
-                input_data={"jewelry_type": req.jewelry_type, "background": req.background, "step": req.step},
+                tokens_used=per_image_cost * len([img for img in images if img.base64]),
+                input_data={"jewelry_type": req.jewelry_type, "theme_id": req.theme_id, "step": req.step},
                 output_images_b64=[{"base64": img.base64, "label": img.label} for img in images if img.base64],
             )
         except Exception as e:
@@ -163,27 +242,15 @@ async def _generate_all(req: GenerateJewelryRequest, user: dict, ratio: dict):
 
 
 async def _regenerate_single(req: GenerateJewelryRequest, user: dict, ratio: dict):
-    """Regenerate a single shot type (hero, angle, or closeup) — costs 1 token."""
+    """Regenerate a hero shot — fresh or with tweaks. Focused regen prompt."""
     regen_cost = get_operation_cost("regenSingle", req.quality)
     credits = get_jewelry_credits(user["id"])
     if not credits or credits["token_balance"] < regen_cost:
         raise HTTPException(status_code=403, detail=f"Need {regen_cost} tokens to regenerate")
 
-    shot_map = {"regen_hero": "hero", "regen_angle": "angle", "regen_closeup": "closeup"}
-    shot_type = shot_map[req.step]
-    label_map = {"hero": "Studio Shot", "angle": "Studio Shot", "closeup": "Close-up Detail"}
-
-    is_tweak = bool(req.special_instructions and req.special_instructions.strip())
-    if is_tweak:
-        bg_prompt = JEWELRY_BACKGROUND_PROMPTS.get(req.background, JEWELRY_BACKGROUND_PROMPTS["black-velvet"])
-        prompt = (
-            f"Edit this jewelry product photo. Apply the following change: {req.special_instructions.strip()}. "
-            f"Keep the {req.jewelry_type} IDENTICAL — same design, stones, metal color, proportions. "
-            f"Background must remain: {bg_prompt}. "
-            f"Output a clean, professional product photo."
-        )
-    else:
-        prompt = build_jewelry_prompt(req.jewelry_type, req.background, shot_type, None, ratio_id=req.aspect_ratio_id)
+    prompt = build_jewelry_regen_prompt(
+        req.jewelry_type, req.background, req.special_instructions,
+    )
     try:
         result = _gen_image(req.quality, prompt, req.image_base64, aspect_ratio_id=req.aspect_ratio_id)
         img_b64 = result["base64"]
@@ -194,7 +261,7 @@ async def _regenerate_single(req: GenerateJewelryRequest, user: dict, ratio: dic
         usage = result.get("usage", {})
         track_generation(
             client_id=user["id"],
-            generation_type=f"regen_{shot_type}",
+            generation_type="regen_hero",
             input_tokens=usage.get("input_tokens", 0),
             output_tokens=usage.get("output_tokens", 0),
             model_used=result.get("model", "gemini-2.5-flash-image"),
@@ -203,9 +270,9 @@ async def _regenerate_single(req: GenerateJewelryRequest, user: dict, ratio: dic
             save_project(
                 client_id=user["id"],
                 project_type="jewelry_regen",
-                title=f"Jewelry Regen – {label_map[shot_type]}",
-                images=[{"base64": img_b64, "label": label_map[shot_type]}],
-                metadata={"jewelry_type": req.jewelry_type, "background": req.background, "shot_type": shot_type},
+                title="Jewelry Regen – Studio Shot",
+                images=[{"base64": img_b64, "label": "Studio Shot"}],
+                metadata={"jewelry_type": req.jewelry_type, "background": req.background},
             )
         except Exception as save_err:
             logger.warning(f"Project save failed (non-blocking): {save_err}")
@@ -217,16 +284,16 @@ async def _regenerate_single(req: GenerateJewelryRequest, user: dict, ratio: dic
                     action_type="regen",
                     quality=req.quality,
                     tokens_used=regen_cost,
-                    input_data={"shot_type": shot_type, "special_instructions": req.special_instructions},
-                    output_images_b64=[{"base64": img_b64, "label": label_map[shot_type]}],
+                    input_data={"special_instructions": req.special_instructions},
+                    output_images_b64=[{"base64": img_b64, "label": "Studio Shot"}],
                 )
             except Exception as e:
                 logger.warning(f"Session action save failed: {e}")
 
         deduct_jewelry_tokens(user["id"], regen_cost, operation="regenSingle", quality=req.quality, session_id=req.session_id)
-        return GenerateResponse(success=True, images=[ImageResult(base64=img_b64, label=label_map[shot_type])])
+        return GenerateResponse(success=True, images=[ImageResult(base64=img_b64, label="Studio Shot")])
     except Exception as e:
-        logger.error(f"Regenerate {shot_type} error: {e}")
+        logger.error(f"Regenerate hero error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

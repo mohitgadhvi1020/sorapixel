@@ -160,7 +160,7 @@ const faqs = [
   },
   {
     q: "How much does AI jewelry photography cost compared to a studio?",
-    a: "A professional jewelry photography session costs ₹5,000–₹50,000. With SoraiPixel, you start free with 5 daily tokens. Paid plans start at a fraction of a single studio session, and you can generate unlimited varieties.",
+    a: "A professional jewelry photography session costs ₹5,000–₹50,000. With SoraiPixel, you start free with 8 daily tokens. Paid plans start at a fraction of a single studio session, and you can generate unlimited varieties.",
   },
 ];
 
@@ -406,7 +406,7 @@ export default function AIJewelryPhotographyPage() {
               Ready to Try AI Jewelry Photography?
             </h2>
             <p className="text-text-secondary mb-8 max-w-xl mx-auto">
-              Start free with 5 daily tokens. No credit card required.
+              Start free with 8 daily tokens — 1 free image every day. No credit card required.
               Upload your first jewelry photo and see the results in seconds.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">

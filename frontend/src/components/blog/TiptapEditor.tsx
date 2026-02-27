@@ -5,7 +5,7 @@ import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 interface TiptapEditorProps {
   content: Record<string, unknown> | null;
@@ -48,6 +48,7 @@ export default function TiptapEditor({
   placeholder = "Start writing your blog post...",
 }: TiptapEditorProps) {
   const editor = useEditor({
+    immediatelyRender: false,
     extensions: [
       StarterKit.configure({
         heading: { levels: [2, 3, 4] },
@@ -57,8 +58,10 @@ export default function TiptapEditor({
       Placeholder.configure({ placeholder }),
     ],
     content: content || undefined,
-    onUpdate: ({ editor }) => {
-      onChange(editor.getJSON() as Record<string, unknown>);
+    onUpdate: ({ editor: e }) => {
+      if (!isExternalUpdate.current) {
+        onChange(e.getJSON() as Record<string, unknown>);
+      }
     },
     editorProps: {
       attributes: {
@@ -75,6 +78,19 @@ export default function TiptapEditor({
       },
     },
   });
+
+  const isExternalUpdate = useRef(false);
+
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return;
+    const current = JSON.stringify(editor.getJSON());
+    const incoming = JSON.stringify(content || { type: "doc", content: [] });
+    if (current !== incoming) {
+      isExternalUpdate.current = true;
+      editor.commands.setContent(content || { type: "doc", content: [] });
+      isExternalUpdate.current = false;
+    }
+  }, [editor, content]);
 
   const addImage = useCallback(async () => {
     if (!editor || !onImageUpload) return;

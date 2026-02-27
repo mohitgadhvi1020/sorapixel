@@ -228,6 +228,65 @@ JEWELRY_UGC_POSES = {
     },
 }
 
+JEWELRY_UGC_RULES: dict[str, str] = {
+    "ring": (
+        "- The model must wear ONLY the ring from the input — no other rings or jewelry.\n"
+        "- The ring must sit naturally on the finger at its real size.\n"
+        "- Preserve exact band thickness, stone shape, and setting style."
+    ),
+    "necklace": (
+        "- The model must wear ONLY the necklace from the input — no earrings, rings, or other jewelry.\n"
+        "- The necklace must drape naturally following the collarbone curve.\n"
+        "- Chain thickness, pendant size, and overall length must match the input exactly.\n"
+        "- The outfit neckline MUST be low enough to fully reveal the necklace."
+    ),
+    "earring": (
+        "- The model must wear ONLY the earrings from the input — no necklace, rings, or other jewelry.\n"
+        "- If the input shows a PAIR, BOTH earrings MUST be visible on the model.\n"
+        "- Hair MUST be tucked or swept back to fully reveal both ears.\n"
+        "- Earring size, drop length, and design must match the input exactly."
+    ),
+    "bracelet": (
+        "- The model must wear ONLY the bracelet from the input — no rings, bangles, or other jewelry on the same hand.\n"
+        "- The bracelet must sit naturally on the wrist at its real size.\n"
+        "- Hand and forearm elegantly positioned to showcase the bracelet."
+    ),
+    "bangle": (
+        "- The model must wear ONLY the bangle(s) from the input — no bracelets, rings, or other jewelry.\n"
+        "- Bangle must appear as a rigid circular band at realistic proportions.\n"
+        "- If multiple bangles in input, stack them naturally on the forearm."
+    ),
+    "pendant": (
+        "- The model must wear ONLY the pendant from the input — no earrings, rings, or other jewelry.\n"
+        "- The pendant hangs from a SIMPLE, THIN chain that does NOT distract from the pendant itself.\n"
+        "- Do NOT invent an elaborate necklace chain — use a minimal plain chain.\n"
+        "- Pendant size and design must match the input exactly.\n"
+        "- The chain must be proportional — not thick, not overly decorative."
+    ),
+    "brooch": (
+        "- The model must wear ONLY the brooch from the input — no other jewelry.\n"
+        "- Brooch must be pinned to the outfit, not worn as a pendant.\n"
+        "- Brooch size must be realistic (3-6cm), not enlarged."
+    ),
+    "anklet": (
+        "- The model must wear ONLY the anklet from the input — no other jewelry on the feet or ankles.\n"
+        "- The anklet must be a thin, delicate chain at realistic proportions.\n"
+        "- Feet and ankles must be clearly visible."
+    ),
+    "chain": (
+        "- The model must wear ONLY the chain from the input — no pendant, no earrings, no other jewelry.\n"
+        "- Do NOT add a pendant to the chain — it must remain a plain chain.\n"
+        "- Chain link size, thickness, and length must match the input exactly."
+    ),
+    "set": (
+        "- The model must wear ONLY the pieces that are part of this set — NOTHING extra.\n"
+        "- Do NOT add any jewelry that is not visible in the input image.\n"
+        "- Do NOT hallucinate rings, bracelets, bangles, or any piece not shown in the input.\n"
+        "- Each set piece must be worn at its correct body position.\n"
+        "- All pieces must maintain their exact design from the input."
+    ),
+}
+
 POSE_DESCRIPTIONS = {
     "best_match": "in a natural, confident pose that best showcases the product. Frame as a 3/4-length portrait (head to mid-thigh). The head must sit in the upper 20% of the canvas with empty space above the crown",
     "standing": "standing upright in a confident stance facing the camera. Full-length shot from feet to well above the head. Zoom out enough so the full body fits with generous headroom — the head should be at roughly 15-20% from the top edge",
@@ -280,6 +339,7 @@ def build_catalogue_prompt(
     gender: str | None = None,
     nationality: str | None = None,
     skin_tone: str | None = None,
+    detection: dict | None = None,
 ) -> str:
     """Build prompt for Catalogue/UGC generation — category-aware model interaction."""
     if gender and nationality:
@@ -329,6 +389,61 @@ def build_catalogue_prompt(
 
     if jewelry_type and jewelry_type in JEWELRY_SIZE_HINTS:
         prompt += f"- Size reference: {JEWELRY_SIZE_HINTS[jewelry_type]}\n"
+
+    # Product preservation block — prevents AI from redesigning jewelry
+    prompt += (
+        "\nPRODUCT PRESERVATION — CRITICAL:\n"
+        "- The jewelry MUST be EXACTLY identical to the provided product image.\n"
+        "- Do NOT resize disproportionately.\n"
+        "- Use realistic real-world scale.\n"
+        "- Do NOT redesign, enhance, or modify the jewelry in any way.\n"
+        "- Do NOT change stone shape, count, metal color, or proportions.\n"
+        "- Preserve the EXACT color palette — every metal tone, gemstone hue, and surface finish.\n"
+        "- Do NOT reinterpret transparent or open areas as solid colored surfaces.\n"
+    )
+
+    # Category-specific UGC rules — anti-hallucination per jewelry type
+    if jewelry_type and jewelry_type in JEWELRY_UGC_RULES:
+        prompt += f"\n{jewelry_type.upper()} — WEARING RULES:\n"
+        prompt += JEWELRY_UGC_RULES[jewelry_type] + "\n"
+
+    # Detection-aware component listing — tells AI exactly what to show and what NOT to add
+    if detection and jewelry_type:
+        components = detection.get("components", [])
+        is_set = detection.get("is_set", False)
+        is_pair = detection.get("is_pair", False)
+        item_count = detection.get("item_count", 1)
+
+        if is_set and components:
+            comp_str = ", ".join(components)
+            prompt += (
+                f"\nSET COMPONENTS — EXACT (from input analysis):\n"
+                f"- This set contains EXACTLY: {comp_str}.\n"
+                f"- The model MUST wear ONLY these {item_count} pieces — nothing else.\n"
+                f"- Do NOT add rings, bracelets, bangles, chains, or ANY jewelry not listed above.\n"
+                f"- If the set does NOT include a ring, the model must NOT wear any ring.\n"
+                f"- If the set does NOT include a necklace chain, use a minimal plain chain for the pendant only.\n"
+            )
+        elif is_pair:
+            prompt += (
+                f"\nPAIR DETECTED:\n"
+                f"- The input contains a matching pair of {jewelry_type}s.\n"
+                f"- BOTH pieces MUST be visible on the model.\n"
+            )
+
+        prompt += (
+            "\nNO EXTRA JEWELRY — MANDATORY:\n"
+            "- The model must wear ONLY the jewelry from the input image.\n"
+            "- Do NOT add any additional jewelry (rings, bracelets, bangles, earrings, necklaces) that is not in the input.\n"
+            "- The model's hands, wrists, ears, neck, and ankles should be bare EXCEPT for the input jewelry.\n"
+        )
+    elif jewelry_type:
+        prompt += (
+            "\nNO EXTRA JEWELRY — MANDATORY:\n"
+            "- The model must wear ONLY the jewelry from the input image.\n"
+            "- Do NOT add any additional jewelry (rings, bracelets, bangles, earrings, necklaces) that is not in the input.\n"
+            "- The model's hands, wrists, ears, neck, and ankles should be bare EXCEPT for the input jewelry.\n"
+        )
 
     prompt += (
         "\nCOMPOSITION GUIDE:\n"
@@ -392,7 +507,7 @@ def get_ratio(ratio_id: str | None) -> dict:
     return ASPECT_RATIOS[ratio_id]
 
 
-# ─── Jewelry-specific prompts ───
+# ─── Jewelry Hero Prompt — Master System ───
 
 JEWELRY_BACKGROUND_PROMPTS = {
     "black-velvet": "on a solid, uniform deep black velvet surface, soft even studio lighting, luxury feel",
@@ -405,37 +520,85 @@ JEWELRY_BACKGROUND_PROMPTS = {
     "navy-velvet": "on a deep navy blue velvet surface, cool-toned studio lighting with subtle highlights, sophisticated luxury feel",
 }
 
-ANGLE_BY_TYPE = {
-    "ring": "tilted 45 degrees toward camera showing both the top face and the side band profile",
-    "necklace": "flat-lay overhead, the full necklace laid in a natural open arc showing its length and pendant",
-    "earring": "side angle at 30 degrees showing the drop depth, hook, and three-dimensional form",
-    "bracelet": "standing upright in its circular form, eye-level, showing the full shape and clasp",
-    "bangle": "standing upright, slightly above eye-level, showing the round silhouette and width",
-    "pendant": "tilted 45 degrees from the side showing depth, bail, and how it hangs",
-    "brooch": "slight 30-degree tilt showing three-dimensional relief and raised elements",
-    "anklet": "flat-lay overhead, laid in a gentle curve showing full length and charm detail",
-    "chain": "flat-lay overhead, arranged in an S-curve showing link detail and full length",
-    "set": "flat-lay overhead, each piece spaced apart in a balanced editorial layout",
+# Object count defaults per category — earring = pair, set = multiple, rest = 1
+JEWELRY_OBJECT_COUNT: dict[str, str] = {
+    "ring": "EXACTLY 1 ring",
+    "necklace": "EXACTLY 1 necklace",
+    "earring": "EXACTLY 2 earrings (a pair). Both earrings MUST be visible",
+    "bracelet": "EXACTLY 1 bracelet",
+    "bangle": "EXACTLY 1 bangle (or the exact number shown in input if multiple)",
+    "pendant": "EXACTLY 1 pendant",
+    "brooch": "EXACTLY 1 brooch",
+    "anklet": "EXACTLY 1 anklet",
+    "chain": "EXACTLY 1 chain",
+    "set": "ALL components of the set exactly as shown in input. Do NOT remove any piece",
 }
 
-CLOSEUP_BY_TYPE = {
-    "ring": "Zoom into the center stone and setting — show facets, prongs, metal texture around the stone.",
-    "necklace": "Zoom into the pendant or most ornate section — show stonework, bail, metal detail.",
-    "earring": "Zoom into the main decorative element — stones, drop design, or filigree detail.",
-    "bracelet": "Zoom into the most detailed section — clasp, stone settings, or link pattern.",
-    "bangle": "Zoom into the surface — show engravings, stone settings, or textured patterns.",
-    "pendant": "Zoom into the pendant face — show stone setting, bail, surface finish detail.",
-    "brooch": "Zoom into the central motif — show stones, enamel, or filigree relief.",
-    "anklet": "Zoom into the charm or most decorative element — show chain links and dangling pieces.",
-    "chain": "Zoom into 4-6 individual links — show metal texture and connection craftsmanship.",
-    "set": "Zoom into the most prominent piece's finest detail — typically the pendant or center stone.",
+# Type-specific geometry rules — short, strict, structural
+JEWELRY_TYPE_RULES: dict[str, str] = {
+    "ring": (
+        "- The full circular band MUST be visible.\n"
+        "- Maintain EXACT band thickness.\n"
+        "- Stone MUST remain same size relative to band.\n"
+        "- Do NOT alter prong count or setting style."
+    ),
+    "necklace": (
+        "- Entire chain MUST be visible end to end.\n"
+        "- Pendant (if present) MUST be centered.\n"
+        "- Chain thickness MUST remain unchanged.\n"
+        "- Maintain exact clasp and connector design."
+    ),
+    "earring": (
+        "- If pair exists in input, BOTH earrings MUST be visible in output.\n"
+        "- Maintain perfect symmetry between the pair.\n"
+        "- Do NOT output a single earring if pair exists.\n"
+        "- Preserve hook/post/clip-on mechanism as-is."
+    ),
+    "bracelet": (
+        "- Bracelet MUST form a complete loop or natural open cuff shape.\n"
+        "- Maintain EXACT thickness and pattern.\n"
+        "- Do NOT alter clasp design.\n"
+        "- Entire bracelet MUST be fully visible."
+    ),
+    "bangle": (
+        "- MUST appear as a rigid circular band.\n"
+        "- Maintain EXACT width and engraving.\n"
+        "- Do NOT reshape into bracelet or cuff.\n"
+        "- Full circumference MUST be visible."
+    ),
+    "pendant": (
+        "- Pendant design MUST remain identical.\n"
+        "- Chain (if present) MUST NOT change thickness.\n"
+        "- Pendant MUST be centered.\n"
+        "- Do NOT enlarge or shrink stone.\n"
+        "- If pendant-only shot (no chain), do NOT hallucinate a chain."
+    ),
+    "brooch": (
+        "- Preserve pin structure and backing.\n"
+        "- Do NOT convert into pendant.\n"
+        "- Maintain decorative symmetry.\n"
+        "- Entire brooch MUST be visible."
+    ),
+    "anklet": (
+        "- Maintain chain thickness and charm count.\n"
+        "- Preserve clasp.\n"
+        "- MUST form realistic ankle-sized loop.\n"
+        "- Do NOT scale like bracelet — anklet is thinner and more delicate."
+    ),
+    "chain": (
+        "- Maintain link size and density.\n"
+        "- Preserve EXACT chain thickness.\n"
+        "- Entire length MUST be visible.\n"
+        "- Do NOT convert into necklace with pendant."
+    ),
+    "set": (
+        "- Preserve ALL components of the set exactly as shown.\n"
+        "- Maintain matching design language across all pieces.\n"
+        "- Necklace centered, earrings symmetrically placed.\n"
+        "- No component may be removed or hidden.\n"
+        "- Arrange in balanced, catalog-style composition."
+    ),
 }
-
-JEWELRY_CORE_RULE = (
-    "The jewelry must be IDENTICAL to the input photo — same stones, same design, same metal color, "
-    "same proportions. Do NOT add, remove, or change any detail. Remove all hands, stands, boxes, "
-    "and props — show ONLY the jewelry."
-)
 
 RATIO_SHAPE_HINTS = {
     "square": "a SQUARE (1:1) image",
@@ -446,67 +609,208 @@ RATIO_SHAPE_HINTS = {
 }
 
 
-def _output_rules(ratio_id: str | None = None) -> str:
-    shape = RATIO_SHAPE_HINTS.get(ratio_id or "square", RATIO_SHAPE_HINTS["square"])
-    return (
-        f"OUTPUT RULES: Generate {shape}. The COMPLETE jewelry piece must be fully visible "
-        "within the frame — nothing cropped or cut off at any edge. Center the jewelry with even "
-        "padding on all sides. The background must be uniform and consistent edge-to-edge with no "
-        "vignette or dark borders."
-    )
-
-
 def build_jewelry_prompt(
     jewelry_type: str,
     background_id: str,
-    shot_type: str,
+    shot_type: str = "hero",
     special_instructions: str | None = None,
     ratio_id: str | None = None,
+    detection: dict | None = None,
 ) -> str:
+    """Master hero prompt — structured sections for Gemini image models.
+    When `detection` dict is provided (from detect_jewelry_input), uses real
+    item counts and injects conditional defense layers for reflections/quality/cropping.
+    """
     bg_prompt = JEWELRY_BACKGROUND_PROMPTS.get(background_id, JEWELRY_BACKGROUND_PROMPTS["black-velvet"])
-    extras = f"\nAdditional request: {special_instructions}" if special_instructions else ""
-    output_rules = _output_rules(ratio_id)
+    type_rules = JEWELRY_TYPE_RULES.get(jewelry_type, JEWELRY_TYPE_RULES.get("ring", ""))
+    shape_hint = RATIO_SHAPE_HINTS.get(ratio_id or "square", RATIO_SHAPE_HINTS["square"])
 
-    if shot_type == "hero":
-        return (
-            f"Professional product photo of this {jewelry_type}. "
-            f"Keep the EXACT same camera angle and perspective as the input photo. "
-            f"Replace the background: {bg_prompt}. "
-            f"The ENTIRE {jewelry_type} must be fully visible — nothing cut off. "
-            f"Center it with even padding on all sides. "
-            f"{JEWELRY_CORE_RULE} "
-            f"{output_rules}"
-            f"{extras}"
-        )
+    # Use detection results for object count, fall back to static defaults
+    if detection:
+        count = detection.get("item_count", 1)
+        components = detection.get("components", [])
+        if detection.get("is_set") and components:
+            count_str = f"EXACTLY these {count} items: {', '.join(components)}"
+        elif detection.get("is_pair"):
+            count_str = f"EXACTLY {count} items (a matching pair). BOTH pieces MUST be visible"
+        else:
+            count_str = f"EXACTLY {count} {jewelry_type}{'s' if count > 1 else ''}"
+    else:
+        count_str = JEWELRY_OBJECT_COUNT.get(jewelry_type, f"EXACTLY 1 {jewelry_type}")
 
-    if shot_type == "closeup":
-        closeup_desc = CLOSEUP_BY_TYPE.get(jewelry_type, CLOSEUP_BY_TYPE["ring"])
-        return (
-            f"Close-up detail photo of this {jewelry_type}. "
-            f"{closeup_desc} "
-            f"Background: {bg_prompt}. "
-            f"Shallow depth of field — jewelry sharp, background softly blurred. "
-            f"The close-up should show roughly 30-40% of the piece, focused on the finest detail. "
-            f"{JEWELRY_CORE_RULE} "
-            f"{output_rules}"
-            f"{extras}"
-        )
+    sections = []
 
-    angle_desc = ANGLE_BY_TYPE.get(jewelry_type, ANGLE_BY_TYPE["ring"])
-    return (
-        f"Alternate angle product photo of this {jewelry_type}: {angle_desc}. "
-        f"Background: {bg_prompt}. "
-        f"The ENTIRE {jewelry_type} must be fully visible — nothing cut off at any edge. "
-        f"Center the piece with even padding. "
-        f"{JEWELRY_CORE_RULE} "
-        f"{output_rules}"
-        f"{extras}"
+    # SECTION 1: Role
+    sections.append(
+        "You are a professional high-end jewelry product photographer and retouching expert."
     )
+
+    # SECTION 2: Object preservation — the most critical block
+    sections.append(
+        "OBJECT PRESERVATION — CRITICAL\n"
+        "- The jewelry design MUST remain 100% IDENTICAL to the input image.\n"
+        "- Do NOT redesign, enhance, beautify, or modify stones.\n"
+        "- Do NOT change stone shape, count, size, setting, metal color, engraving, or proportions.\n"
+        "- Do NOT add or remove parts.\n"
+        "- If multiple items are present, preserve ALL items.\n"
+        "- Maintain exact geometry and symmetry.\n"
+        "- Preserve the EXACT color palette — every metal tone, gemstone hue, and surface finish.\n"
+        "- This is a background replacement and professional cleanup task ONLY."
+    )
+
+    # SECTION 3: Object count — uses real detection when available
+    sections.append(
+        f"OBJECT COUNT — MANDATORY\n"
+        f"- The output MUST contain {count_str}.\n"
+        f"- Do NOT merge, duplicate, remove, or hide items.\n"
+        f"- If it is a pair (like earrings), both pieces MUST be visible."
+    )
+
+    # SECTION 4: Category-specific geometry rules
+    sections.append(
+        f"CATEGORY RULES — {jewelry_type.upper()}\n"
+        f"{type_rules}"
+    )
+
+    # SECTION 5: Category consistency — prevents AI from reinterpreting
+    sections.append(
+        "CATEGORY CONSISTENCY RULE\n"
+        f"- This is a {jewelry_type}. Do NOT reinterpret as another category.\n"
+        "- Do NOT convert between ring, bracelet, bangle, chain, necklace, or pendant."
+    )
+
+    # SECTION 6: Background
+    sections.append(
+        f"BACKGROUND\n"
+        f"- Replace the background with: {bg_prompt}.\n"
+        f"- Keep realistic natural shadows under the jewelry.\n"
+        f"- Do NOT alter jewelry lighting direction."
+    )
+
+    # SECTION 7: Cleanup — handle messy user uploads
+    cleanup_lines = [
+        "CLEANUP RULES",
+        "- Remove camera reflections, unwanted glare, dust, and fingerprints.",
+        "- Preserve original metal tone and gemstone color.",
+        "- Do NOT oversharpen.",
+        "- Do NOT smooth fine details.",
+        "- Remove all hands, stands, boxes, tags, and props — show ONLY the jewelry.",
+    ]
+    sections.append("\n".join(cleanup_lines))
+
+    # SECTION 8: Color fidelity — prevents AI from recoloring or filling open areas
+    sections.append(
+        "COLOR FIDELITY — CRITICAL\n"
+        "- Preserve the EXACT color palette from the input image.\n"
+        "- Metal tone must match precisely: if input shows antique gold, output must be the same antique gold — not brighter, not rosier, not shinier.\n"
+        "- Gemstone and stone colors must be pixel-accurate — do NOT shift hues.\n"
+        "- Do NOT reinterpret transparent, open, or see-through areas as solid colored surfaces.\n"
+        "- If the jewelry has filigree, jali work, cutout patterns, or openwork mesh, those openings MUST remain open/transparent — do NOT fill them with solid enamel or color.\n"
+        "- If the input shows bare metal behind openwork, reproduce bare metal — do NOT add enamel, paint, or colored fill.\n"
+        "- Enamel areas must retain their exact original color — do NOT intensify, brighten, or change the hue.\n"
+        "- Pearl, kundan, polki, and meenakari elements must retain their original appearance without color shifts."
+    )
+
+    # SECTION 9: Conditional defense layers — injected from detection
+    if detection:
+        defenses = []
+
+        if detection.get("has_reflections"):
+            defenses.append(
+                "REFLECTION DETECTED\n"
+                "- The input contains camera/photographer reflections on the metal surface.\n"
+                "- Remove ALL reflections while preserving the original metal surface finish.\n"
+                "- Do NOT alter the underlying metal tone or texture."
+            )
+
+        if detection.get("has_props"):
+            props = detection.get("props_list", [])
+            props_str = ", ".join(props) if props else "hands/stands/props"
+            defenses.append(
+                f"PROPS DETECTED\n"
+                f"- The input contains: {props_str}.\n"
+                f"- Remove ALL props completely.\n"
+                f"- Reconstruct any jewelry geometry hidden behind props.\n"
+                f"- Show ONLY the jewelry on the background."
+            )
+
+        if detection.get("is_low_quality"):
+            defenses.append(
+                "LOW QUALITY INPUT\n"
+                "- The input image is low resolution or blurry.\n"
+                "- Preserve all EXISTING fine details — do NOT hallucinate new ones.\n"
+                "- Do NOT invent stone shapes, engravings, or patterns not visible in the input.\n"
+                "- Enhance clarity only where details are already visible."
+            )
+
+        if detection.get("is_cropped"):
+            defenses.append(
+                "CROPPED INPUT\n"
+                "- Parts of the jewelry may be cut off at the image edges.\n"
+                "- Do NOT crop further. Preserve full geometry as visible.\n"
+                "- If reconstructing cropped edges, match the existing design exactly."
+            )
+
+        for d in defenses:
+            sections.append(d)
+
+    # SECTION 10: Framing
+    sections.append(
+        "FRAMING\n"
+        "- Entire jewelry MUST be fully visible — nothing cropped or cut off at any edge.\n"
+        "- Even padding on all sides.\n"
+        "- Center composition.\n"
+        "- Keep exact original perspective and angle."
+    )
+
+    # SECTION 11: Output spec
+    sections.append(
+        f"OUTPUT\n"
+        f"- Generate {shape_hint}.\n"
+        f"- Professional studio product photo.\n"
+        f"- Ultra clean, commercial catalog ready.\n"
+        f"- Background MUST be uniform and consistent edge-to-edge — no vignette or dark borders."
+    )
+
+    # SECTION 12: Special instructions (optional)
+    if special_instructions and special_instructions.strip():
+        sections.append(
+            f"ADDITIONAL REQUEST\n"
+            f"- {special_instructions.strip()}"
+        )
+
+    return "\n\n".join(sections)
+
+
+def build_jewelry_regen_prompt(
+    jewelry_type: str,
+    background_id: str,
+    special_instructions: str | None = None,
+) -> str:
+    """Focused regen/edit prompt — shorter, keeps Gemini on task."""
+    bg_prompt = JEWELRY_BACKGROUND_PROMPTS.get(background_id, JEWELRY_BACKGROUND_PROMPTS["black-velvet"])
+    object_count = JEWELRY_OBJECT_COUNT.get(jewelry_type, f"EXACTLY 1 {jewelry_type}")
+
+    if special_instructions and special_instructions.strip():
+        return (
+            f"Edit this jewelry product photo.\n\n"
+            f"APPLY THIS CHANGE:\n"
+            f"- {special_instructions.strip()}\n\n"
+            f"STRICT RULES:\n"
+            f"- Jewelry MUST remain IDENTICAL in design.\n"
+            f"- Do NOT change stones, metal, shape, or proportions.\n"
+            f"- Do NOT alter item count. Output MUST contain {object_count}.\n"
+            f"- Background MUST remain: {bg_prompt}.\n"
+            f"- Keep professional product framing.\n"
+            f"- Do NOT reinterpret this {jewelry_type} as another category."
+        )
+
+    return build_jewelry_prompt(jewelry_type, background_id, "hero")
 
 
 def build_recolor_prompt(jewelry_type: str, target_metal: str) -> str:
     return (
-        f"Recolor ONLY the metal parts of this {jewelry_type} to {target_metal}. "
+        f"Recolor ONLY the metal parts of this {jewelry_type} to {target_metal}.\n\n"
         f"CRITICAL RULES:\n"
         f"- ONLY change the metal color/tone/finish (the gold, silver, platinum, copper, brass parts)\n"
         f"- DO NOT change diamonds, gemstones, pearls, beads, enamel, or any non-metal elements\n"
@@ -514,7 +818,8 @@ def build_recolor_prompt(jewelry_type: str, target_metal: str) -> str:
         f"- Keep the exact same design, shape, proportions, engravings, and textures\n"
         f"- Background, lighting, shadows, and camera angle must stay identical\n"
         f"- The metal should look realistic with proper reflections and luster for {target_metal}\n"
-        f"{JEWELRY_CORE_RULE}"
+        f"- The jewelry MUST be IDENTICAL to the input — same stones, same design, same proportions.\n"
+        f"- Do NOT add, remove, or change any detail."
     )
 
 
@@ -675,6 +980,140 @@ def get_brand_config(client_id: str) -> dict | None:
     if not brand.data:
         return None
     return brand.data.get("config", {})
+
+
+# ─── Theme-aware Jewelry Prompt Builder ───
+
+def build_jewelry_theme_prompt(
+    jewelry_type: str,
+    theme_id: str,
+    shot_id: str = "hero",
+    additional_details: str | None = None,
+    theme_color_override: str | None = None,
+    special_instructions: str | None = None,
+    ratio_id: str | None = None,
+    detection: dict | None = None,
+) -> str:
+    """Build a jewelry prompt using the theme system instead of simple background IDs.
+
+    This wraps build_jewelry_prompt but replaces the background with a full
+    theme scene prompt + shot-specific instructions.
+    """
+    from app.services.theme_service import build_theme_prompt, get_theme_by_id
+
+    theme = get_theme_by_id(theme_id)
+    if not theme:
+        return build_jewelry_prompt(jewelry_type, "black-velvet", "hero", special_instructions, ratio_id, detection)
+
+    scene_prompt = build_theme_prompt(theme_id, shot_id, additional_details, theme_color_override)
+    type_rules = JEWELRY_TYPE_RULES.get(jewelry_type, JEWELRY_TYPE_RULES.get("ring", ""))
+    shape_hint = RATIO_SHAPE_HINTS.get(ratio_id or "square", RATIO_SHAPE_HINTS["square"])
+
+    if detection:
+        count = detection.get("item_count", 1)
+        components = detection.get("components", [])
+        if detection.get("is_set") and components:
+            count_str = f"EXACTLY these {count} items: {', '.join(components)}"
+        elif detection.get("is_pair"):
+            count_str = f"EXACTLY {count} items (a matching pair). BOTH pieces MUST be visible"
+        else:
+            count_str = f"EXACTLY {count} {jewelry_type}{'s' if count > 1 else ''}"
+    else:
+        count_str = JEWELRY_OBJECT_COUNT.get(jewelry_type, f"EXACTLY 1 {jewelry_type}")
+
+    sections = []
+
+    sections.append(
+        "You are a professional high-end jewelry product photographer and retouching expert."
+    )
+
+    sections.append(
+        "OBJECT PRESERVATION — CRITICAL\n"
+        "- The jewelry design MUST remain 100% IDENTICAL to the input image.\n"
+        "- Do NOT redesign, enhance, beautify, or modify stones.\n"
+        "- Do NOT change stone shape, count, size, setting, metal color, engraving, or proportions.\n"
+        "- Do NOT add or remove parts.\n"
+        "- Preserve the EXACT color palette — every metal tone, gemstone hue, and surface finish.\n"
+        "- This is a background replacement and professional cleanup task ONLY."
+    )
+
+    sections.append(
+        f"OBJECT COUNT — MANDATORY\n"
+        f"- The output MUST contain {count_str}.\n"
+        f"- Do NOT merge, duplicate, remove, or hide items.\n"
+        f"- If it is a pair (like earrings), both pieces MUST be visible."
+    )
+
+    sections.append(
+        f"CATEGORY RULES — {jewelry_type.upper()}\n"
+        f"{type_rules}"
+    )
+
+    sections.append(
+        f"SCENE & COMPOSITION\n"
+        f"- {scene_prompt}"
+    )
+
+    cleanup_lines = [
+        "CLEANUP RULES",
+        "- Remove camera reflections, unwanted glare, dust, and fingerprints.",
+        "- Preserve original metal tone and gemstone color.",
+        "- Remove all hands, stands, boxes, tags, and props — show ONLY the jewelry.",
+    ]
+    sections.append("\n".join(cleanup_lines))
+
+    sections.append(
+        "COLOR FIDELITY — CRITICAL\n"
+        "- Preserve the EXACT color palette from the input image.\n"
+        "- Metal tone must match precisely.\n"
+        "- Gemstone and stone colors must be pixel-accurate — do NOT shift hues.\n"
+        "- Do NOT reinterpret transparent or open areas as solid colored surfaces.\n"
+        "- If the jewelry has filigree or openwork, those openings MUST remain open."
+    )
+
+    if detection:
+        defenses = []
+        if detection.get("has_reflections"):
+            defenses.append(
+                "REFLECTION DETECTED\n"
+                "- Remove ALL reflections while preserving the original metal surface finish."
+            )
+        if detection.get("has_props"):
+            props = detection.get("props_list", [])
+            props_str = ", ".join(props) if props else "hands/stands/props"
+            defenses.append(
+                f"PROPS DETECTED\n"
+                f"- Remove ALL props ({props_str}). Show ONLY the jewelry on the background."
+            )
+        if detection.get("is_low_quality"):
+            defenses.append(
+                "LOW QUALITY INPUT\n"
+                "- Preserve all EXISTING fine details — do NOT hallucinate new ones."
+            )
+        for d in defenses:
+            sections.append(d)
+
+    sections.append(
+        "FRAMING\n"
+        "- Entire jewelry MUST be fully visible — nothing cropped.\n"
+        "- Even padding on all sides.\n"
+        "- Center composition."
+    )
+
+    sections.append(
+        f"OUTPUT\n"
+        f"- Generate {shape_hint}.\n"
+        f"- Professional studio product photo.\n"
+        f"- Ultra clean, commercial catalog ready."
+    )
+
+    if special_instructions and special_instructions.strip():
+        sections.append(
+            f"ADDITIONAL REQUEST\n"
+            f"- {special_instructions.strip()}"
+        )
+
+    return "\n\n".join(sections)
 
 
 JEWELRY_TRYON_PROMPTS = {

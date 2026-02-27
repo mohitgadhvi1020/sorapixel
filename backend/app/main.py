@@ -6,7 +6,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
-from app.routers import auth, users, studio, jewelry, catalogue, credits, payments, admin, projects, sessions, feed, media, blog, brands
+from app.routers import auth, users, studio, jewelry, catalogue, credits, payments, admin, projects, sessions, feed, media, blog, brands, themes
 
 logging.basicConfig(
     level=logging.INFO,
@@ -46,6 +46,7 @@ app.include_router(feed.router, prefix=prefix)
 app.include_router(media.router, prefix=prefix)
 app.include_router(blog.router, prefix=prefix)
 app.include_router(brands.router, prefix=prefix)
+app.include_router(themes.router, prefix=prefix)
 
 
 @app.get("/")

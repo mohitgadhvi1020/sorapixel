@@ -23,6 +23,41 @@ MAX_UPLOAD_SIZE = 10 * 1024 * 1024
 router = APIRouter(prefix="/blog", tags=["Blog"])
 
 
+def _slug_exists(sb, slug: str) -> bool:
+    """Check if a blog post with the given slug already exists, safely handling query errors."""
+    try:
+        result = sb.table("blog_posts").select("id").eq("slug", slug).maybe_single().execute()
+        return result is not None and result.data is not None
+    except Exception:
+        return False
+
+
+def _extract_json(text: str) -> dict | None:
+    """Extract a JSON object from AI output, tolerating markdown fences and preamble text."""
+    import json as _json
+    import re as _re
+
+    cleaned = text.strip()
+    cleaned = _re.sub(r"^```json?\s*\n?", "", cleaned)
+    cleaned = _re.sub(r"\n?\s*```\s*$", "", cleaned)
+    cleaned = cleaned.strip()
+
+    try:
+        return _json.loads(cleaned)
+    except _json.JSONDecodeError:
+        pass
+
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+    if start != -1 and end > start:
+        try:
+            return _json.loads(cleaned[start:end + 1])
+        except _json.JSONDecodeError:
+            pass
+
+    return None
+
+
 # ── Public Endpoints ──────────────────────────────────────────────────────────
 
 @router.get("/posts")
@@ -272,15 +307,13 @@ Guidelines:
 - The content MUST be in TipTap JSON format as shown above"""
 
     try:
-        result = generate_text(prompt)
-        raw_text = result["text"].strip()
-        raw_text = _re.sub(r"^```json?\s*", "", raw_text)
-        raw_text = _re.sub(r"\s*```$", "", raw_text)
-
-        try:
-            generated = _json.loads(raw_text)
-        except _json.JSONDecodeError:
-            return {"success": False, "error": "AI returned invalid JSON. Try again.", "raw": raw_text[:500]}
+        result = generate_text(prompt, json_mode=True)
+        generated = _extract_json(result["text"])
+        if generated is None:
+            result = generate_text(prompt, json_mode=True)
+            generated = _extract_json(result["text"])
+        if generated is None:
+            return {"success": False, "error": "AI returned invalid JSON after retry. Try again.", "raw": result["text"][:500]}
 
         slug = generated.get("slug", "")
         slug = _re.sub(r"[^a-z0-9-]", "", slug.lower().replace(" ", "-"))
@@ -288,8 +321,7 @@ Guidelines:
             slug = _re.sub(r"[^a-z0-9-]", "", generated.get("title", "untitled").lower().replace(" ", "-"))
 
         sb = get_supabase()
-        existing = sb.table("blog_posts").select("id").eq("slug", slug).maybe_single().execute()
-        if existing.data:
+        if _slug_exists(sb, slug):
             slug = f"{slug}-{uuid.uuid4().hex[:6]}"
 
         status = "published" if req.auto_publish else "draft"
@@ -517,11 +549,10 @@ Guidelines:
 - Strong opening paragraph with primary keyword in first sentence"""
 
         try:
-            result = generate_text(prompt)
-            raw_text = result["text"].strip()
-            raw_text = _re.sub(r"^```json?\s*", "", raw_text)
-            raw_text = _re.sub(r"\s*```$", "", raw_text)
-            generated = _json.loads(raw_text)
+            result = generate_text(prompt, json_mode=True)
+            generated = _extract_json(result["text"])
+            if generated is None:
+                raise ValueError("AI returned invalid JSON")
 
             slug = generated.get("slug", "")
             slug = _re.sub(r"[^a-z0-9-]", "", slug.lower().replace(" ", "-"))
@@ -529,8 +560,7 @@ Guidelines:
                 slug = _re.sub(r"[^a-z0-9-]", "", entry["topic"].lower().replace(" ", "-"))[:80]
 
             sb = get_supabase()
-            existing = sb.table("blog_posts").select("id").eq("slug", slug).maybe_single().execute()
-            if existing.data:
+            if _slug_exists(sb, slug):
                 slug = f"{slug}-{uuid.uuid4().hex[:6]}"
 
             now = datetime.now(timezone.utc).isoformat()
@@ -587,11 +617,10 @@ Return ONLY valid JSON (no markdown fences):
 }"""
 
     try:
-        result = generate_text(prompt)
-        raw_text = result["text"].strip()
-        raw_text = _re.sub(r"^```json?\s*", "", raw_text)
-        raw_text = _re.sub(r"\s*```$", "", raw_text)
-        data = _json.loads(raw_text)
+        result = generate_text(prompt, json_mode=True)
+        data = _extract_json(result["text"])
+        if data is None:
+            raise ValueError("AI returned invalid JSON")
         return {"topics": data.get("topics", [])}
     except Exception as e:
         logger.error(f"Topic generation error: {e}")
@@ -695,14 +724,9 @@ Guidelines:
 - Make unique — do not rehash generic content"""
 
     try:
-        result = generate_text(prompt)
-        raw_text = result["text"].strip()
-        raw_text = _re.sub(r"^```json?\s*", "", raw_text)
-        raw_text = _re.sub(r"\s*```$", "", raw_text)
-
-        try:
-            generated = _json.loads(raw_text)
-        except _json.JSONDecodeError:
+        result = generate_text(prompt, json_mode=True)
+        generated = _extract_json(result["text"])
+        if generated is None:
             raise HTTPException(status_code=500, detail="AI returned invalid JSON")
 
         slug = generated.get("slug", "")
@@ -711,8 +735,7 @@ Guidelines:
             slug = _re.sub(r"[^a-z0-9-]", "", generated.get("title", "untitled").lower().replace(" ", "-"))
 
         sb = get_supabase()
-        existing = sb.table("blog_posts").select("id").eq("slug", slug).maybe_single().execute()
-        if existing.data:
+        if _slug_exists(sb, slug):
             slug = f"{slug}-{uuid.uuid4().hex[:6]}"
 
         now = datetime.now(timezone.utc).isoformat()

@@ -179,8 +179,9 @@ def _generate_image_multi_with_model(model: str, prompt: str, images: list[dict]
     return {"base64": result_b64, "mime_type": result_mime, "usage": usage, "model": model}
 
 
-def generate_text(prompt: str, image_b64: str | None = None, mime_type: str = "image/png") -> dict:
+def generate_text(prompt: str, image_b64: str | None = None, mime_type: str = "image/png", *, json_mode: bool = False) -> dict:
     """Generate text using Gemini 2.5 Flash (non-image model).
+    When json_mode=True, instructs Gemini to return valid JSON.
     Returns {"text": str, "usage": dict}
     """
     client = get_client()
@@ -189,9 +190,14 @@ def generate_text(prompt: str, image_b64: str | None = None, mime_type: str = "i
         clean = re.sub(r"^data:image/\w+;base64,", "", image_b64)
         contents.append({"inline_data": {"mime_type": mime_type, "data": clean}})
 
+    config_kwargs: dict = {}
+    if json_mode:
+        config_kwargs["response_mime_type"] = "application/json"
+
     response = with_retry(lambda: client.models.generate_content(
         model="gemini-2.5-flash",
         contents=contents,
+        **({"config": GenerateContentConfig(**config_kwargs)} if config_kwargs else {}),
     ))
 
     parts = response.candidates[0].content.parts if response.candidates else []

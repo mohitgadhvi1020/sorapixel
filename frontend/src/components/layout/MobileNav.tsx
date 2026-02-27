@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Logo from "@/components/ui/Logo";
+import { useTheme } from "@/hooks/useTheme";
 
 interface MobileNavProps {
   open: boolean;
@@ -123,6 +124,8 @@ const MANAGE_ITEMS = [
 
 export default function MobileNav({ open, onClose, isAdmin = false }: MobileNavProps) {
   const pathname = usePathname();
+  const { theme } = useTheme();
+  const isLight = theme === "light";
 
   const manageItems = isAdmin
     ? [
@@ -147,10 +150,10 @@ export default function MobileNav({ open, onClose, isAdmin = false }: MobileNavP
 
     if (item.disabled) {
       return (
-        <div className="relative flex items-center gap-3 px-3 py-3 rounded-xl min-h-[44px] text-[rgba(255,255,255,0.25)] cursor-not-allowed">
+        <div className={`relative flex items-center gap-3 px-3 py-3 rounded-xl min-h-[44px] cursor-not-allowed ${isLight ? "text-[rgba(0,0,0,0.25)]" : "text-[rgba(255,255,255,0.25)]"}`}>
           <span>{item.icon}</span>
           <span className="text-sm">{item.label}</span>
-          <span className="ml-auto text-[9px] font-bold tracking-[0.1em] uppercase text-[rgba(255,255,255,0.2)] bg-[rgba(255,255,255,0.04)] px-1.5 py-0.5 rounded">
+          <span className={`ml-auto text-[9px] font-bold tracking-[0.1em] uppercase px-1.5 py-0.5 rounded ${isLight ? "text-[rgba(0,0,0,0.2)] bg-[rgba(0,0,0,0.04)]" : "text-[rgba(255,255,255,0.2)] bg-[rgba(255,255,255,0.04)]"}`}>
             soon
           </span>
         </div>
@@ -165,12 +168,16 @@ export default function MobileNav({ open, onClose, isAdmin = false }: MobileNavP
           isActive
             ? isPrimary
               ? "bg-[rgba(196,166,125,0.12)] text-[#c4a67d] font-medium"
-              : "bg-[rgba(255,255,255,0.08)] text-white font-medium"
-            : "text-[rgba(255,255,255,0.5)] hover:text-white hover:bg-[rgba(255,255,255,0.06)]"
+              : isLight
+                ? "bg-[rgba(0,0,0,0.06)] text-[#0a0a0a] font-medium"
+                : "bg-[rgba(255,255,255,0.08)] text-white font-medium"
+            : isLight
+              ? "text-[rgba(0,0,0,0.5)] hover:text-[#0a0a0a] hover:bg-[rgba(0,0,0,0.04)]"
+              : "text-[rgba(255,255,255,0.5)] hover:text-white hover:bg-[rgba(255,255,255,0.06)]"
         }`}
       >
         {isActive && (
-          <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full ${isPrimary ? "bg-[#c4a67d]" : "bg-white/50"}`} />
+          <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full ${isPrimary ? "bg-[#c4a67d]" : isLight ? "bg-black/30" : "bg-white/50"}`} />
         )}
         <span className={isActive && isPrimary ? "text-[#c4a67d]" : ""}>{item.icon}</span>
         <span className="text-sm">{item.label}</span>
@@ -185,16 +192,16 @@ export default function MobileNav({ open, onClose, isAdmin = false }: MobileNavP
 
   return (
     <div className="fixed inset-0 z-[60] lg:hidden">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={onClose} />
-      <div className="absolute left-0 top-0 bottom-0 w-72 bg-[#13141A] animate-slide-in-left flex flex-col shadow-2xl border-r border-[rgba(255,255,255,0.06)]">
+      <div className={`absolute inset-0 backdrop-blur-sm animate-fade-in ${isLight ? "bg-black/30" : "bg-black/60"}`} onClick={onClose} />
+      <div className={`absolute left-0 top-0 bottom-0 w-72 animate-slide-in-left flex flex-col shadow-2xl ${isLight ? "bg-white border-r border-[rgba(0,0,0,0.08)]" : "bg-[#13141A] border-r border-[rgba(255,255,255,0.06)]"}`}>
         {/* Logo */}
-        <div className="h-16 flex items-center justify-between px-5 border-b border-[rgba(255,255,255,0.06)]">
+        <div className={`h-16 flex items-center justify-between px-5 ${isLight ? "border-b border-[rgba(0,0,0,0.08)]" : "border-b border-[rgba(255,255,255,0.06)]"}`}>
           <div className="flex items-center">
-            <Logo className="text-xl" variant="light" />
+            <Logo className="text-xl" variant={isLight ? "dark" : "light"} />
           </div>
           <button
             onClick={onClose}
-            className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-[rgba(255,255,255,0.06)] transition-colors text-[rgba(255,255,255,0.5)]"
+            className={`w-9 h-9 flex items-center justify-center rounded-xl transition-colors ${isLight ? "hover:bg-[rgba(0,0,0,0.06)] text-[rgba(0,0,0,0.5)]" : "hover:bg-[rgba(255,255,255,0.06)] text-[rgba(255,255,255,0.5)]"}`}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <line x1="18" y1="6" x2="6" y2="18" />
@@ -210,19 +217,19 @@ export default function MobileNav({ open, onClose, isAdmin = false }: MobileNavP
             <NavItem key={item.href} item={item} />
           ))}
 
-          <p className="px-3 pt-5 pb-1.5 text-[10px] font-semibold text-[rgba(255,255,255,0.2)] uppercase tracking-[0.08em]">Other Categories</p>
+          <p className={`px-3 pt-5 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] ${isLight ? "text-[rgba(0,0,0,0.25)]" : "text-[rgba(255,255,255,0.2)]"}`}>Other Categories</p>
           {OTHER_ITEMS.map((item) => (
             <NavItem key={item.label} item={item} />
           ))}
 
-          <p className="px-3 pt-5 pb-1.5 text-[10px] font-semibold text-[rgba(255,255,255,0.2)] uppercase tracking-[0.08em]">Manage</p>
+          <p className={`px-3 pt-5 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] ${isLight ? "text-[rgba(0,0,0,0.25)]" : "text-[rgba(255,255,255,0.2)]"}`}>Manage</p>
           {manageItems.map((item) => (
             <NavItem key={item.href} item={item} />
           ))}
         </nav>
 
         {/* Footer */}
-        <div className="p-4 border-t border-[rgba(255,255,255,0.06)]">
+        <div className={`p-4 ${isLight ? "border-t border-[rgba(0,0,0,0.08)]" : "border-t border-[rgba(255,255,255,0.06)]"}`}>
           <div className="bg-[rgba(196,166,125,0.06)] border border-[rgba(196,166,125,0.1)] rounded-xl p-3.5">
             <p className="text-[11px] font-medium text-[#c4a67d]">Need help?</p>
             <a href="mailto:support@soraipixel.com" className="text-[11px] font-semibold text-[#c4a67d] hover:underline">
