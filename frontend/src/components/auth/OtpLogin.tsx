@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/providers/AppProvider";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import Button from "@/components/ui/Button";

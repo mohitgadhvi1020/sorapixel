@@ -3,8 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useCredits } from "@/hooks/useCredits";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth, useCredits } from "@/providers/AppProvider";
 import { useTheme } from "@/hooks/useTheme";
 
 const NUDGE_MESSAGES = [
@@ -126,6 +125,7 @@ export default function UpgradeBanner() {
         {/* CTA */}
         <Link
           href="/pricing"
+          prefetch={false}
           className={`flex-shrink-0 px-4 py-2 rounded-xl text-[12px] font-bold transition-all active:scale-[0.97] ${
             isCritical
               ? "bg-red-500 text-white hover:bg-red-400 shadow-lg shadow-red-500/25"

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useCredits } from "@/hooks/useCredits";
+import { useCredits } from "@/providers/AppProvider";
 import { useTheme } from "@/hooks/useTheme";
 import { DAILY_REWARD_TOKENS, JEWELRY_PRICING } from "@/lib/token-pricing";
 

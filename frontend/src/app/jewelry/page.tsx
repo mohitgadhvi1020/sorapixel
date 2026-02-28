@@ -4,8 +4,7 @@ import { useState, useCallback, useRef, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api-client";
-import { useAuth } from "@/hooks/useAuth";
-import { useCredits } from "@/hooks/useCredits";
+import { useAuth, useCredits } from "@/providers/AppProvider";
 import { JEWELRY_TYPES, JEWELRY_BACKGROUNDS } from "@/lib/jewelry-styles";
 import { JEWELRY_PRICING } from "@/lib/token-pricing";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
@@ -308,9 +307,9 @@ function JewelryPage() {
     }
   }
   
-  // Preload themes in background when page loads
+  // Preload themes in background when page loads (skip if already cached)
   useEffect(() => {
-    // Preload all themes in background (non-blocking)
+    if (themeCacheRef.current.has("__all__")) return;
     const preloadThemes = async () => {
       try {
         const data = await api.get<{ themes: Theme[]; categories: ThemeCategory[] }>("/themes");

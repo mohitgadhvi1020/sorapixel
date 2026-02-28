@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api-client";
-import { useAuth } from "@/hooks/useAuth";
-import { useCredits } from "@/hooks/useCredits";
+import { useAuth, useCredits } from "@/providers/AppProvider";
 import { useTheme } from "@/hooks/useTheme";
 import { TOKEN_COSTS_TABLE, DAILY_REWARD_TOKENS } from "@/lib/token-pricing";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";

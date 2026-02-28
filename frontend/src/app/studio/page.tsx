@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { api } from "@/lib/api-client";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/providers/AppProvider";
 import { useRouter } from "next/navigation";
 import { shareToWhatsApp, downloadImage } from "@/lib/share";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";

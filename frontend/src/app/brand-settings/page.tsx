@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api-client";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/providers/AppProvider";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 import Button from "@/components/ui/Button";
 

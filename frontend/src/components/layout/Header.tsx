@@ -1,7 +1,6 @@
 "use client";
 
-import { useAuth } from "@/hooks/useAuth";
-import { useCredits } from "@/hooks/useCredits";
+import { useAuth, useCredits } from "@/providers/AppProvider";
 import { useTheme } from "@/hooks/useTheme";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -65,6 +64,7 @@ export default function Header({ onMenuToggle, showMenu = false }: HeaderProps) 
               <Link
                 key={link.href}
                 href={link.href}
+                prefetch={isJewelry}
                 className={`px-3 py-2 text-[13px] font-medium rounded-lg transition-all duration-200 ${
                   isActive
                     ? isJewelry
@@ -84,6 +84,7 @@ export default function Header({ onMenuToggle, showMenu = false }: HeaderProps) 
           {isAdmin && (
             <Link
               href="/admin"
+              prefetch={false}
               className={`px-3 py-2 text-[13px] font-medium rounded-lg transition-all duration-200 ${
                 pathname.startsWith("/admin")
                   ? "text-[#c4a67d] bg-[rgba(196,166,125,0.15)]"
@@ -123,6 +124,7 @@ export default function Header({ onMenuToggle, showMenu = false }: HeaderProps) 
           {credits && (
             <Link
               href="/pricing"
+              prefetch={false}
               className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[rgba(196,166,125,0.1)] border border-[rgba(196,166,125,0.2)] hover:border-[rgba(196,166,125,0.35)] transition-all duration-200 group"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c4a67d" strokeWidth="2" strokeLinecap="round">
@@ -138,6 +140,7 @@ export default function Header({ onMenuToggle, showMenu = false }: HeaderProps) 
           {user && (
             <Link
               href="/profile"
+              prefetch={false}
               className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 ${isLight ? "bg-[#0a0a0a]/10 hover:bg-[#0a0a0a]/15" : "bg-white/10 hover:bg-white/15"}`}
             >
               <span className={`text-xs font-bold ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>

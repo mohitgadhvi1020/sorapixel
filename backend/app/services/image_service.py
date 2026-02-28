@@ -7,14 +7,20 @@ Ported from lib/crop-to-ratio.ts, lib/logo-overlay-server.ts
 import base64
 import io
 import logging
-from PIL import Image, ImageDraw, ImageFont
 
 logger = logging.getLogger(__name__)
 
 
-def b64_to_image(b64_str: str | bytes) -> Image.Image:
+def _pil():
+    """Lazy-load PIL to reduce startup memory on constrained environments."""
+    from PIL import Image, ImageDraw, ImageFont
+    return Image, ImageDraw, ImageFont
+
+
+def b64_to_image(b64_str: str | bytes):
     """Convert base64 string (or raw bytes) to PIL Image."""
     import re
+    Image, _, _ = _pil()
     if isinstance(b64_str, bytes):
         return Image.open(io.BytesIO(b64_str))
     clean = re.sub(r"^data:image/\w+;base64,", "", b64_str)
@@ -22,7 +28,7 @@ def b64_to_image(b64_str: str | bytes) -> Image.Image:
     return Image.open(io.BytesIO(data))
 
 
-def image_to_b64(img: Image.Image, fmt: str = "PNG") -> str:
+def image_to_b64(img, fmt: str = "PNG") -> str:
     """Convert PIL Image to base64 string."""
     buf = io.BytesIO()
     img.save(buf, format=fmt, quality=95)
@@ -60,6 +66,7 @@ def crop_to_ratio(image_b64: str, target_w: int, target_h: int) -> str:
             top = (src_h - new_h) // 2
             img = img.crop((0, top, src_w, top + new_h))
 
+    Image, _, _ = _pil()
     img = img.resize((target_w, target_h), Image.LANCZOS)
     return image_to_b64(img)
 
@@ -68,6 +75,7 @@ def crop_to_ratio_contain(image_b64: str, target_w: int, target_h: int, bg_color
     """Fit image within target ratio (contain mode -- never crops product).
     Adds padding with bg_color.
     """
+    Image, _, _ = _pil()
     img = b64_to_image(image_b64)
     img.thumbnail((target_w, target_h), Image.LANCZOS)
 
@@ -102,12 +110,14 @@ def crop_to_ratio_top(image_b64: str, target_w: int, target_h: int) -> str:
         new_h = int(src_w / target_ratio)
         img = img.crop((0, 0, src_w, new_h))
 
+    Image, _, _ = _pil()
     img = img.resize((target_w, target_h), Image.LANCZOS)
     return image_to_b64(img)
 
 
 def overlay_logo(image_b64: str, logo_b64: str, position: str = "bottom-right", max_size_pct: float = 0.15) -> str:
     """Overlay a logo on an image."""
+    Image, _, _ = _pil()
     img = b64_to_image(image_b64).convert("RGBA")
     logo = b64_to_image(logo_b64).convert("RGBA")
 
@@ -134,6 +144,7 @@ def overlay_logo(image_b64: str, logo_b64: str, position: str = "bottom-right", 
 
 def resize_image(image_b64: str, max_width: int = 1024, max_height: int = 1024) -> str:
     """Resize image to fit within bounds while maintaining aspect ratio."""
+    Image, _, _ = _pil()
     img = b64_to_image(image_b64)
     img.thumbnail((max_width, max_height), Image.LANCZOS)
     return image_to_b64(img)
@@ -141,6 +152,7 @@ def resize_image(image_b64: str, max_width: int = 1024, max_height: int = 1024) 
 
 def flatten_to_white(image_b64: str) -> str:
     """Flatten transparent image onto white background."""
+    Image, _, _ = _pil()
     img = b64_to_image(image_b64).convert("RGBA")
     bg = Image.new("RGB", img.size, (255, 255, 255))
     bg.paste(img, mask=img.split()[3])
@@ -156,6 +168,7 @@ def center_crop_closeup(image_b64: str, zoom: float = 0.5) -> str:
     left = (w - crop_w) // 2
     top = (h - crop_h) // 2
     img = img.crop((left, top, left + crop_w, top + crop_h))
+    Image, _, _ = _pil()
     img = img.resize((w, h), Image.LANCZOS)
     return image_to_b64(img)
 
@@ -186,7 +199,8 @@ _FONT_PATHS_DETAIL = [
 ]
 
 
-def _load_font(paths: list[str], size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+def _load_font(paths: list[str], size: int):
+    _, _, ImageFont = _pil()
     for p in paths:
         try:
             return ImageFont.truetype(p, size)
@@ -212,6 +226,7 @@ def add_branding_bar(
     sub_color = theme["sub"]
     is_light_bar = sum(bar_color) > 500
 
+    Image, ImageDraw, _ = _pil()
     img = b64_to_image(image_b64).convert("RGBA")
     w, h = img.size
     bar_h = max(90, int(h * 0.13))
@@ -240,9 +255,10 @@ def add_branding_bar(
             import httpx
             resp = httpx.get(logo_url, timeout=5)
             if resp.status_code == 200:
-                logo_img = Image.open(io.BytesIO(resp.content)).convert("RGBA")
+                Img, _, _ = _pil()
+                logo_img = Img.open(io.BytesIO(resp.content)).convert("RGBA")
                 logo_size = bar_h - 30
-                logo_img.thumbnail((logo_size, logo_size), Image.LANCZOS)
+                logo_img.thumbnail((logo_size, logo_size), Img.LANCZOS)
                 ly = (bar_h - logo_img.size[1]) // 2
                 bar.paste(logo_img, (pad_x, ly), logo_img)
                 logo_offset = logo_img.size[0] + 16
@@ -286,7 +302,8 @@ def add_branding_bar(
     bottom_line_y = bar_h - top_line_y
     draw.line([(line_left, bottom_line_y), (line_right, bottom_line_y)], fill=line_color, width=1)
 
-    canvas = Image.new("RGB", (w, h + bar_h), bar_color)
+    Img, _, _ = _pil()
+    canvas = Img.new("RGB", (w, h + bar_h), bar_color)
     canvas.paste(img.convert("RGB"), (0, 0))
     canvas.paste(bar.convert("RGB"), (0, h))
     return image_to_b64(canvas)

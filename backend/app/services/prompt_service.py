@@ -690,11 +690,20 @@ def build_jewelry_prompt(
     # SECTION 7: Cleanup — handle messy user uploads
     cleanup_lines = [
         "CLEANUP RULES",
-        "- Remove camera reflections, unwanted glare, dust, and fingerprints.",
-        "- Preserve original metal tone and gemstone color.",
+        "- Remove all hands, stands, boxes, tags, and props — show ONLY the jewelry.",
+        "- Remove dust, scratches, and fingerprints from surfaces.",
         "- Do NOT oversharpen.",
         "- Do NOT smooth fine details.",
-        "- Remove all hands, stands, boxes, tags, and props — show ONLY the jewelry.",
+        "",
+        "REFLECTION CLEANUP — CRITICAL",
+        "- Remove camera reflections, photographer reflections, and environmental glare.",
+        "- Eliminate mirror-like artifacts on metal surfaces.",
+        "- Preserve original metal color and finish.",
+        "- Do NOT blur surface details.",
+        "- Do NOT alter engraving or stone edges.",
+        "- Use soft diffused studio lighting.",
+        "- Avoid harsh specular hotspots.",
+        "- Maintain natural metal sheen without mirror reflections.",
     ]
     sections.append("\n".join(cleanup_lines))
 
@@ -717,10 +726,13 @@ def build_jewelry_prompt(
 
         if detection.get("has_reflections"):
             defenses.append(
-                "REFLECTION DETECTED\n"
-                "- The input contains camera/photographer reflections on the metal surface.\n"
-                "- Remove ALL reflections while preserving the original metal surface finish.\n"
-                "- Do NOT alter the underlying metal tone or texture."
+                "⚠️ REFLECTION DETECTED — HIGH PRIORITY\n"
+                "- The input contains visible camera or environment reflections on metal surfaces.\n"
+                "- Remove these reflections COMPLETELY while preserving surface geometry.\n"
+                "- Do NOT modify design or metal tone.\n"
+                "- Normalize metal reflections to clean studio finish.\n"
+                "- Maintain realistic metallic shine without mirror artifacts.\n"
+                "- If reflection overlaps a stone or engraving, carefully separate and preserve the detail underneath."
             )
 
         if detection.get("has_props"):
@@ -1056,9 +1068,18 @@ def build_jewelry_theme_prompt(
 
     cleanup_lines = [
         "CLEANUP RULES",
-        "- Remove camera reflections, unwanted glare, dust, and fingerprints.",
-        "- Preserve original metal tone and gemstone color.",
         "- Remove all hands, stands, boxes, tags, and props — show ONLY the jewelry.",
+        "- Remove dust, scratches, and fingerprints from surfaces.",
+        "",
+        "REFLECTION CLEANUP — CRITICAL",
+        "- Remove camera reflections, photographer reflections, and environmental glare.",
+        "- Eliminate mirror-like artifacts on metal surfaces.",
+        "- Preserve original metal color and finish.",
+        "- Do NOT blur surface details.",
+        "- Do NOT alter engraving or stone edges.",
+        "- Use soft diffused studio lighting.",
+        "- Avoid harsh specular hotspots.",
+        "- Maintain natural metal sheen without mirror reflections.",
     ]
     sections.append("\n".join(cleanup_lines))
 
@@ -1075,8 +1096,13 @@ def build_jewelry_theme_prompt(
         defenses = []
         if detection.get("has_reflections"):
             defenses.append(
-                "REFLECTION DETECTED\n"
-                "- Remove ALL reflections while preserving the original metal surface finish."
+                "⚠️ REFLECTION DETECTED — HIGH PRIORITY\n"
+                "- The input contains visible camera or environment reflections on metal surfaces.\n"
+                "- Remove these reflections COMPLETELY while preserving surface geometry.\n"
+                "- Do NOT modify design or metal tone.\n"
+                "- Normalize metal reflections to clean studio finish.\n"
+                "- Maintain realistic metallic shine without mirror artifacts.\n"
+                "- If reflection overlaps a stone or engraving, carefully separate and preserve the detail underneath."
             )
         if detection.get("has_props"):
             props = detection.get("props_list", [])
@@ -1089,6 +1115,13 @@ def build_jewelry_theme_prompt(
             defenses.append(
                 "LOW QUALITY INPUT\n"
                 "- Preserve all EXISTING fine details — do NOT hallucinate new ones."
+            )
+        if detection.get("is_cropped"):
+            defenses.append(
+                "CROPPED INPUT\n"
+                "- Parts of the jewelry may be cut off at the image edges.\n"
+                "- Do NOT crop further. Preserve full geometry as visible.\n"
+                "- If reconstructing cropped edges, match the existing design exactly."
             )
         for d in defenses:
             sections.append(d)

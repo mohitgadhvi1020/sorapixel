@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api-client";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/providers/AppProvider";
 import { useRouter } from "next/navigation";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 
@@ -45,7 +45,7 @@ export default function ProjectsPage() {
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
     (async () => {
       try {
         const data = await api.get<{ sessions: SessionCard[] }>("/sessions?limit=50");
@@ -56,7 +56,7 @@ export default function ProjectsPage() {
         setLoading(false);
       }
     })();
-  }, [user]);
+  }, [user?.id]);
 
   async function openPreview(id: string) {
     setPreviewLoading(true);

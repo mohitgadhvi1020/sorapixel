@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, Suspense } from "react";
 import { api } from "@/lib/api-client";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/providers/AppProvider";
 import { useRouter, useSearchParams } from "next/navigation";
 import { shareToWhatsApp, downloadImage } from "@/lib/share";
 import { JEWELRY_PRICING } from "@/lib/token-pricing";

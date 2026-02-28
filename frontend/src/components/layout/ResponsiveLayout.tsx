@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/providers/AppProvider";
 import { useTheme } from "@/hooks/useTheme";
 import Header from "./Header";
 import MobileNav from "./MobileNav";

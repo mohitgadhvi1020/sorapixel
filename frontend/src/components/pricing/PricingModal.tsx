@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api-client";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/providers/AppProvider";
 
 interface Plan {
   id: string;
@@ -159,6 +159,7 @@ export default function PricingModal() {
                       <p className="text-[11px] text-[#c4a67d]/70 mb-4">{plan.tokens} tokens included</p>
                       <Link
                         href="/pricing"
+                        prefetch={false}
                         onClick={handleClose}
                         className={`block w-full text-center py-2.5 rounded-xl text-[12px] font-bold transition-all active:scale-[0.97] ${
                           plan.recommended
@@ -182,6 +183,7 @@ export default function PricingModal() {
                       <Link
                         key={pack.id}
                         href="/pricing"
+                        prefetch={false}
                         onClick={handleClose}
                         className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-3 text-center hover:border-white/[0.15] transition-all group"
                       >
@@ -219,6 +221,7 @@ export default function PricingModal() {
                   </div>
                   <Link
                     href="/pricing"
+                    prefetch={false}
                     onClick={handleClose}
                     className="inline-flex px-6 py-2.5 rounded-xl text-[13px] font-bold text-white bg-gradient-to-r from-[#8b7355] to-[#c4a67d] hover:shadow-[0_4px_20px_rgba(196,166,125,0.3)] transition-all active:scale-[0.97]"
                   >

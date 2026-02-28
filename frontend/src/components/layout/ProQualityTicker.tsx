@@ -53,6 +53,7 @@ export default function ProQualityTicker() {
     >
       <Link
         href="/pricing"
+        prefetch={false}
         className="flex items-center justify-center gap-2 px-4 py-1.5 group"
       >
         <span className="flex items-center gap-1.5 shrink-0">

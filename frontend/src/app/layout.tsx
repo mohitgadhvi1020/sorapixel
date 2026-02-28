@@ -102,6 +102,8 @@ const softwareAppJsonLd = {
   },
 };
 
+import { ClientProviders } from "@/providers/ClientProviders";
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -125,7 +127,7 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${playfair.variable} ${jetBrainsMono.variable} antialiased`}
       >
-        {children}
+        <ClientProviders>{children}</ClientProviders>
       </body>
     </html>
   );

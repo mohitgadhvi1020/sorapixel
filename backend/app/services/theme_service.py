@@ -29,6 +29,9 @@ SHOT_TYPES = {
             "Clean commercial studio lighting. "
             "No dramatic shadows. "
             "No perspective distortion.\n\n"
+            "Use soft diffused studio lighting. "
+            "Avoid harsh specular hotspots. "
+            "Maintain natural metal sheen without mirror reflections.\n\n"
             "Maintain exact proportions, structural integrity, and item count. "
             "Do NOT modify design under any circumstance."
         ),
@@ -48,7 +51,9 @@ SHOT_TYPES = {
             "Controlled shallow depth of field is allowed, "
             "but the entire jewelry must remain readable and intact.\n\n"
             "Specular highlights may enhance metal surfaces, "
-            "but do not change stone color, size, or shape.\n\n"
+            "but do not change stone color, size, or shape.\n"
+            "No camera reflections or mirror-like artifacts on metal. "
+            "Maintain controlled cinematic highlights, not raw environmental reflections.\n\n"
             "Maintain exact proportions, structural integrity, and item count. "
             "Do NOT modify design under any circumstance."
         ),
@@ -69,6 +74,9 @@ SHOT_TYPES = {
             "but the full jewelry must remain clearly visible.\n\n"
             "Natural editorial lighting permitted, "
             "without altering material appearance or color accuracy.\n\n"
+            "Use soft diffused lighting. "
+            "Avoid harsh specular hotspots. "
+            "Maintain natural metal sheen without mirror reflections.\n\n"
             "Maintain exact proportions, structural integrity, and item count. "
             "Do NOT modify design under any circumstance."
         ),
@@ -90,6 +98,9 @@ SHOT_TYPES = {
             "No artificial enhancement of craftsmanship. "
             "No added details. "
             "Maintain true geometry.\n\n"
+            "Use soft diffused macro lighting. "
+            "Avoid harsh specular hotspots on metal surfaces. "
+            "Maintain natural metal sheen without mirror reflections.\n\n"
             "Maintain exact proportions, structural integrity, and item count. "
             "Do NOT modify design under any circumstance."
         ),

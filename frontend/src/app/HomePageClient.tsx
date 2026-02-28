@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/providers/AppProvider";
 import Logo from "@/components/ui/Logo";
 import CompareSlider from "@/components/ui/CompareSlider";
 import PricingModal from "@/components/pricing/PricingModal";
@@ -83,15 +83,15 @@ export default function HomePageClient() {
           </Link>
           <nav className="flex items-center gap-1 sm:gap-2">
             <Link href="/jewelry" className="px-2.5 sm:px-3 py-2 text-[12px] sm:text-[13px] font-medium text-[#0a0a0a] bg-[#f5f0e8] rounded-lg transition-all">Jewelry Studio</Link>
-            <Link href="/batch-listing" className="px-2.5 sm:px-3 py-2 text-[12px] sm:text-[13px] font-medium text-[#4a4a4a] rounded-lg hover:text-[#0a0a0a] hover:bg-black/[0.04] transition-all hidden sm:block">Bulk Listings</Link>
-            <Link href="/pricing" className="px-2.5 sm:px-3 py-2 text-[12px] sm:text-[13px] font-medium text-[#4a4a4a] rounded-lg hover:text-[#0a0a0a] hover:bg-black/[0.04] transition-all hidden sm:block">Pricing</Link>
+            <Link href="/batch-listing" prefetch={false} className="px-2.5 sm:px-3 py-2 text-[12px] sm:text-[13px] font-medium text-[#4a4a4a] rounded-lg hover:text-[#0a0a0a] hover:bg-black/[0.04] transition-all hidden sm:block">Bulk Listings</Link>
+            <Link href="/pricing" prefetch={false} className="px-2.5 sm:px-3 py-2 text-[12px] sm:text-[13px] font-medium text-[#4a4a4a] rounded-lg hover:text-[#0a0a0a] hover:bg-black/[0.04] transition-all hidden sm:block">Pricing</Link>
             {isAuthenticated ? (
-              <Link href="/profile" className="ml-1 sm:ml-2 flex items-center gap-2 px-4 sm:px-5 py-2 bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-white text-[12px] sm:text-[13px] font-semibold rounded-full hover:shadow-[0_4px_16px_rgba(196,166,125,0.3)] transition-all active:scale-[0.97]">
+              <Link href="/profile" prefetch={false} className="ml-1 sm:ml-2 flex items-center gap-2 px-4 sm:px-5 py-2 bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-white text-[12px] sm:text-[13px] font-semibold rounded-full hover:shadow-[0_4px_16px_rgba(196,166,125,0.3)] transition-all active:scale-[0.97]">
                 <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-bold">{(user?.contact_name || user?.company_name || "U").charAt(0).toUpperCase()}</span>
                 Dashboard
               </Link>
             ) : (
-              <Link href="/login" className="ml-1 sm:ml-2 px-4 sm:px-5 py-2 bg-[#0a0a0a] text-white text-[12px] sm:text-[13px] font-semibold rounded-full hover:bg-[#1a1a1a] transition-all active:scale-[0.97]">Sign In</Link>
+              <Link href="/login" prefetch={false} className="ml-1 sm:ml-2 px-4 sm:px-5 py-2 bg-[#0a0a0a] text-white text-[12px] sm:text-[13px] font-semibold rounded-full hover:bg-[#1a1a1a] transition-all active:scale-[0.97]">Sign In</Link>
             )}
           </nav>
         </div>
@@ -128,7 +128,7 @@ export default function HomePageClient() {
                 <Link href="/jewelry" className="px-7 py-3.5 bg-white text-[#0a0a0a] text-[14px] font-semibold rounded-full hover:bg-white/90 transition-all active:scale-[0.97] shadow-[0_4px_24px_rgba(255,255,255,0.1)]">
                   Try Free — No Signup
                 </Link>
-                <Link href="/pricing" className="px-6 py-3.5 text-white/40 text-[14px] font-medium hover:text-white/70 transition-colors">
+                <Link href="/pricing" prefetch={false} className="px-6 py-3.5 text-white/40 text-[14px] font-medium hover:text-white/70 transition-colors">
                   View Pricing
                 </Link>
               </div>
@@ -278,7 +278,7 @@ export default function HomePageClient() {
                   Try Jewelry Studio
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 19.5l15-15m0 0H8.25m11.25 0v11.25" /></svg>
                 </Link>
-                <Link href="/pricing" className="inline-flex items-center gap-2 px-6 py-3 border border-[#e8e5df] text-[#4a4a4a] text-[13px] font-semibold rounded-full hover:border-[#0a0a0a] hover:text-[#0a0a0a] transition-all">View Pricing</Link>
+                <Link href="/pricing" prefetch={false} className="inline-flex items-center gap-2 px-6 py-3 border border-[#e8e5df] text-[#4a4a4a] text-[13px] font-semibold rounded-full hover:border-[#0a0a0a] hover:text-[#0a0a0a] transition-all">View Pricing</Link>
               </div>
             </div>
 
@@ -360,7 +360,7 @@ export default function HomePageClient() {
                   </div>
                 ))}
               </div>
-              <Link href="/pricing" className="block w-full py-2.5 rounded-xl text-[13px] font-semibold text-white/60 border border-white/[0.1] hover:border-white/[0.2] hover:text-white transition-all">
+              <Link href="/pricing" prefetch={false} className="block w-full py-2.5 rounded-xl text-[13px] font-semibold text-white/60 border border-white/[0.1] hover:border-white/[0.2] hover:text-white transition-all">
                 Get Started
               </Link>
             </div>
@@ -386,7 +386,7 @@ export default function HomePageClient() {
                   </div>
                 ))}
               </div>
-              <Link href="/pricing" className="block w-full py-2.5 rounded-xl text-[13px] font-bold text-white bg-gradient-to-r from-[#8b7355] to-[#c4a67d] hover:shadow-[0_6px_24px_rgba(196,166,125,0.35)] transition-all active:scale-[0.97]">
+              <Link href="/pricing" prefetch={false} className="block w-full py-2.5 rounded-xl text-[13px] font-bold text-white bg-gradient-to-r from-[#8b7355] to-[#c4a67d] hover:shadow-[0_6px_24px_rgba(196,166,125,0.35)] transition-all active:scale-[0.97]">
                 Get Growth Plan
               </Link>
             </div>
@@ -409,7 +409,7 @@ export default function HomePageClient() {
                   </div>
                 ))}
               </div>
-              <Link href="/pricing" className="block w-full py-2.5 rounded-xl text-[13px] font-semibold text-white/60 border border-white/[0.1] hover:border-white/[0.2] hover:text-white transition-all">
+              <Link href="/pricing" prefetch={false} className="block w-full py-2.5 rounded-xl text-[13px] font-semibold text-white/60 border border-white/[0.1] hover:border-white/[0.2] hover:text-white transition-all">
                 Go Business
               </Link>
             </div>
@@ -428,7 +428,7 @@ export default function HomePageClient() {
           </div>
 
           <div className="text-center mt-6">
-            <Link href="/pricing" className="inline-flex items-center gap-1.5 text-[14px] font-semibold text-[#c4a67d]/70 hover:text-[#c4a67d] transition-colors">
+            <Link href="/pricing" prefetch={false} className="inline-flex items-center gap-1.5 text-[14px] font-semibold text-[#c4a67d]/70 hover:text-[#c4a67d] transition-colors">
               Compare all plans in detail
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
             </Link>
@@ -480,7 +480,7 @@ export default function HomePageClient() {
               <div key={col.title}>
                 <h4 className="text-[11px] font-bold text-white/50 tracking-[0.12em] uppercase mb-4">{col.title}</h4>
                 <div className="space-y-2.5">
-                  {col.links.map((lnk) => <Link key={lnk.l} href={lnk.h} className="block text-[13px] text-white/35 hover:text-white/70 transition-colors">{lnk.l}</Link>)}
+                  {col.links.map((lnk) => <Link key={lnk.l} href={lnk.h} prefetch={false} className="block text-[13px] text-white/35 hover:text-white/70 transition-colors">{lnk.l}</Link>)}
                 </div>
               </div>
             ))}

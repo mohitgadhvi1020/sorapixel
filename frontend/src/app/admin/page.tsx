@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api-client";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/providers/AppProvider";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
