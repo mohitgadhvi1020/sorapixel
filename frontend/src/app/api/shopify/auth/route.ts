@@ -33,7 +33,7 @@ export async function POST(req: Request) {
 
   const nonce = crypto.randomBytes(16).toString("hex");
 
-  const origin = req.headers.get("origin") || req.headers.get("referer")?.replace(/\/[^/]*$/, "") || "";
+  const origin = process.env.NEXT_PUBLIC_SITE_URL || req.headers.get("origin") || req.headers.get("referer")?.replace(/\/[^/]*$/, "") || "";
   const redirectUri = `${origin}/api/shopify/callback`;
 
   const cookieStore = await cookies();
