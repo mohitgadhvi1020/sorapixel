@@ -888,7 +888,7 @@ export default function BatchListingPage() {
                     />
                   </div>
                   <p className="text-[10px] text-[rgba(255,255,255,0.3)] leading-relaxed">
-                    Find these in your Shopify Dev Dashboard under your app&apos;s Settings &gt; Credentials. Make sure your app has <span className="text-[rgba(255,255,255,0.5)]">read_products</span> and <span className="text-[rgba(255,255,255,0.5)]">write_products</span> scopes, and add <span className="text-[rgba(255,255,255,0.5)] font-mono break-all">your-domain.com/api/shopify/callback</span> as a redirect URL.
+                    Find these in your Shopify Dev Dashboard under your app&apos;s Settings &gt; Credentials. Make sure your app has <span className="text-[rgba(255,255,255,0.5)]">read_products</span> and <span className="text-[rgba(255,255,255,0.5)]">write_products</span> scopes, and add <span className="text-[rgba(255,255,255,0.5)] font-mono break-all">{process.env.NEXT_PUBLIC_SITE_URL || "https://soraipixel.com"}/api/shopify/callback</span> as a redirect URL.
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
