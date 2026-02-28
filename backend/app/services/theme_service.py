@@ -16,33 +16,83 @@ SHOT_TYPES = {
         "id": "hero",
         "name": "Hero Product Shot",
         "short_name": "Hero",
-        "description": "Classic overhead/angled product-on-surface shot",
+        "description": "Classic catalog-style product shot",
         "type": "product",
-        "prompt_suffix": "Top-down or 30-degree angled hero shot of the jewelry placed elegantly on the surface. Product is the sole subject. Sharp focus, commercial catalog quality.",
+        "prompt_suffix": (
+            "Professional catalog-style hero shot of the jewelry.\n\n"
+            "Maintain the EXACT original camera angle and perspective from the input image. "
+            "Do NOT rotate, tilt, or reinterpret the viewpoint.\n\n"
+            "The jewelry is the sole subject. "
+            "Full item must be completely visible. "
+            "Centered with even spacing on all sides.\n\n"
+            "Sharp focus across the entire jewelry. "
+            "Clean commercial studio lighting. "
+            "No dramatic shadows. "
+            "No perspective distortion.\n\n"
+            "Maintain exact proportions, structural integrity, and item count. "
+            "Do NOT modify design under any circumstance."
+        ),
     },
     "dramatic": {
         "id": "dramatic",
         "name": "Dramatic Angle",
         "short_name": "Dramatic",
-        "description": "Low-angle dramatic close-up with depth of field",
+        "description": "Cinematic presentation with enhanced lighting",
         "type": "product",
-        "prompt_suffix": "Low-angle dramatic perspective, shallow depth of field with the jewelry in sharp focus. Cinematic lighting with specular highlights on metal surfaces. The background elements softly blurred.",
+        "prompt_suffix": (
+            "Dramatic studio presentation of the jewelry.\n\n"
+            "Preserve the original geometry and proportions exactly. "
+            "You may enhance lighting for cinematic effect, but DO NOT alter angle or structure.\n\n"
+            "Jewelry remains fully visible and unobstructed. "
+            "No cropping of structural components.\n\n"
+            "Controlled shallow depth of field is allowed, "
+            "but the entire jewelry must remain readable and intact.\n\n"
+            "Specular highlights may enhance metal surfaces, "
+            "but do not change stone color, size, or shape.\n\n"
+            "Maintain exact proportions, structural integrity, and item count. "
+            "Do NOT modify design under any circumstance."
+        ),
     },
     "lifestyle": {
         "id": "lifestyle",
         "name": "Lifestyle Context",
         "short_name": "Lifestyle",
-        "description": "Product placed naturally in the scene with surrounding props",
+        "description": "Product in natural scene with props",
         "type": "product",
-        "prompt_suffix": "Lifestyle product shot showing the jewelry placed naturally within the scene, with surrounding props visible to create context and mood. Slightly wider framing. Magazine editorial quality.",
+        "prompt_suffix": (
+            "Lifestyle presentation of the jewelry within a natural scene.\n\n"
+            "The jewelry remains the primary subject. "
+            "Props and background elements must NOT cover, crop, or hide any part of the jewelry.\n\n"
+            "Maintain exact geometry, proportions, and structure. "
+            "Do NOT reinterpret or redesign.\n\n"
+            "Slightly wider framing allowed, "
+            "but the full jewelry must remain clearly visible.\n\n"
+            "Natural editorial lighting permitted, "
+            "without altering material appearance or color accuracy.\n\n"
+            "Maintain exact proportions, structural integrity, and item count. "
+            "Do NOT modify design under any circumstance."
+        ),
     },
     "closeup": {
         "id": "closeup",
         "name": "Detail Close-Up",
         "short_name": "Close-Up",
-        "description": "Macro-style shot highlighting craftsmanship and detail",
+        "description": "High-detail macro shot preserving true scale",
         "type": "product",
-        "prompt_suffix": "Extreme close-up macro-style shot highlighting the intricate craftsmanship, stone settings, and fine details. Shallow depth of field, tack-sharp on the most detailed area. Studio-quality detail photography.",
+        "prompt_suffix": (
+            "High-detail close-up product shot.\n\n"
+            "Zoom into the jewelry while preserving its true proportions. "
+            "Do NOT exaggerate stone size or alter band thickness.\n\n"
+            "Do NOT crop out essential structural parts unless intentionally focusing on a detail area. "
+            "If focusing on a detail, preserve accurate scale.\n\n"
+            "Shallow depth of field allowed, "
+            "but the focused area must remain physically accurate.\n\n"
+            "No artificial enhancement of craftsmanship. "
+            "No added details. "
+            "Maintain true geometry.\n\n"
+            "Maintain exact proportions, structural integrity, and item count. "
+            "Do NOT modify design under any circumstance."
+        ),
     },
     "model_standing": {
         "id": "model_standing",
@@ -50,7 +100,13 @@ SHOT_TYPES = {
         "short_name": "Model Full",
         "description": "Full-body model shot wearing the jewelry",
         "type": "model",
-        "prompt_suffix": "Full-body model shot, standing confidently. The jewelry is the focal point. Professional fashion photography quality.",
+        "prompt_suffix": (
+            "Full-body model shot, standing confidently. "
+            "The jewelry is the focal point. "
+            "Professional fashion photography quality.\n\n"
+            "Maintain exact proportions, structural integrity, and item count. "
+            "Do NOT modify design under any circumstance."
+        ),
     },
     "model_closeup": {
         "id": "model_closeup",
@@ -58,7 +114,13 @@ SHOT_TYPES = {
         "short_name": "Model Close",
         "description": "Close-up portrait showing the jewelry on the model",
         "type": "model",
-        "prompt_suffix": "Close-up portrait from chest/shoulders up showing the jewelry prominently. Beauty shot with the jewelry as the hero element. Soft, flattering light on the model.",
+        "prompt_suffix": (
+            "Close-up portrait from chest/shoulders up showing the jewelry prominently. "
+            "Beauty shot with the jewelry as the hero element. "
+            "Soft, flattering light on the model.\n\n"
+            "Maintain exact proportions, structural integrity, and item count. "
+            "Do NOT modify design under any circumstance."
+        ),
     },
     "hand_closeup": {
         "id": "hand_closeup",
@@ -66,7 +128,13 @@ SHOT_TYPES = {
         "short_name": "Hand Shot",
         "description": "Elegant hand/wrist shot for rings, bracelets, bangles",
         "type": "model",
-        "prompt_suffix": "Close-up of an elegant hand and wrist, posed to showcase the jewelry. Shallow depth of field, hand and jewelry sharp, background softly blurred. Nail art or neutral manicure.",
+        "prompt_suffix": (
+            "Close-up of an elegant hand and wrist, posed to showcase the jewelry. "
+            "Shallow depth of field, hand and jewelry sharp, background softly blurred. "
+            "Nail art or neutral manicure.\n\n"
+            "Maintain exact proportions, structural integrity, and item count. "
+            "Do NOT modify design under any circumstance."
+        ),
     },
 }
 
@@ -98,7 +166,8 @@ THEMES: list[dict] = [
         "name": "Royal Burgundy Velvet",
         "description": "Deep wine-red velvet with warm golden lighting. Rich and regal.",
         "category": "luxury",
-        "preview_image": "https://images.unsplash.com/photo-1557682250-33bd709cbe85?w=400&h=400&fit=crop&q=80",
+        "preview_image": "https://images.unsplash.com/photo-1557682250-33bd709cbe85?w=300&h=300&fit=crop&q=60",
+        "preview_color": "#722F37",
         "default_color": "deep burgundy wine",
         "status": "available",
         "jewelry_types": ALL_JEWELRY_TYPES,
@@ -111,7 +180,8 @@ THEMES: list[dict] = [
         "name": "Emerald Green Velvet",
         "description": "Rich emerald green velvet with warm studio lighting. Opulent and striking.",
         "category": "luxury",
-        "preview_image": "https://images.unsplash.com/photo-1574169208507-84376144848b?w=400&h=400&fit=crop&q=80",
+        "preview_image": "https://images.unsplash.com/photo-1574169208507-84376144848b?w=300&h=300&fit=crop&q=60",
+        "preview_color": "#046307",
         "default_color": "rich emerald green",
         "status": "available",
         "jewelry_types": ["necklace", "earring", "pendant", "set", "bracelet", "bangle", "brooch", "chain"],
@@ -124,7 +194,8 @@ THEMES: list[dict] = [
         "name": "Midnight Navy Velvet",
         "description": "Deep navy blue velvet with cool-toned sophisticated lighting.",
         "category": "luxury",
-        "preview_image": "https://images.unsplash.com/photo-1507400492013-162706c8c05e?w=400&h=400&fit=crop&q=80",
+        "preview_image": "https://images.unsplash.com/photo-1507400492013-162706c8c05e?w=300&h=300&fit=crop&q=60",
+        "preview_color": "#1a2a4a",
         "default_color": "deep navy blue",
         "status": "available",
         "jewelry_types": ["necklace", "earring", "pendant", "set", "ring", "bracelet", "bangle", "chain"],
@@ -152,7 +223,8 @@ THEMES: list[dict] = [
         "name": "Charcoal Slate Stone",
         "description": "Dark textured slate stone surface with moody directional lighting.",
         "category": "stone",
-        "preview_image": "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=400&h=400&fit=crop&q=80",
+        "preview_image": "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=300&h=300&fit=crop&q=60",
+        "preview_color": "#3a3a3a",
         "default_color": "charcoal slate grey",
         "status": "available",
         "jewelry_types": ["ring", "earring", "bracelet", "bangle", "pendant", "necklace", "chain"],
@@ -165,7 +237,7 @@ THEMES: list[dict] = [
         "name": "Sunlit Sandstone",
         "description": "Warm golden sandstone surface with natural sunlight. Desert-inspired warmth.",
         "category": "stone",
-        "preview_image": "https://images.unsplash.com/photo-1518837695005-2083093ee35b?w=400&h=400&fit=crop&q=80",
+        "preview_image": "https://images.unsplash.com/photo-1518837695005-2083093ee35b?w=300&h=300&fit=crop&q=60",
         "default_color": "warm golden sandstone",
         "status": "available",
         "jewelry_types": ["ring", "bracelet", "bangle", "anklet", "pendant", "necklace"],
@@ -178,7 +250,7 @@ THEMES: list[dict] = [
         "name": "Terracotta Earth",
         "description": "Warm terracotta clay surface with earthy rustic appeal.",
         "category": "stone",
-        "preview_image": "https://images.unsplash.com/photo-1504198453319-5ce911bafcde?w=400&h=400&fit=crop&q=80",
+        "preview_image": "https://images.unsplash.com/photo-1504198453319-5ce911bafcde?w=300&h=300&fit=crop&q=60",
         "default_color": "warm terracotta clay",
         "status": "available",
         "jewelry_types": ["ring", "bracelet", "bangle", "anklet", "pendant", "earring"],
@@ -193,7 +265,7 @@ THEMES: list[dict] = [
         "name": "Zen Stone Spa Minimal",
         "description": "Smooth zen stones with a sprig of green. Spa-like serenity.",
         "category": "botanical",
-        "preview_image": "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=400&h=400&fit=crop&q=80",
+        "preview_image": "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=300&h=300&fit=crop&q=60",
         "default_color": "warm stone grey",
         "status": "available",
         "jewelry_types": ["bracelet", "bangle", "ring", "anklet", "pendant"],
@@ -206,7 +278,7 @@ THEMES: list[dict] = [
         "name": "Marigold Festive Table",
         "description": "Brass lantern with marigold flowers. Traditional Indian festive warmth.",
         "category": "botanical",
-        "preview_image": "https://images.unsplash.com/photo-1606293926075-69a00dbfde81?w=400&h=400&fit=crop&q=80",
+        "preview_image": "https://images.unsplash.com/photo-1606293926075-69a00dbfde81?w=300&h=300&fit=crop&q=60",
         "default_color": "burnt sienna warm",
         "status": "available",
         "jewelry_types": ["necklace", "set", "earring", "bangle", "pendant", "chain"],
@@ -232,7 +304,7 @@ THEMES: list[dict] = [
         "name": "Tropical Botanical",
         "description": "Lush monstera and palm leaves. Fresh, modern, tropical.",
         "category": "botanical",
-        "preview_image": "https://images.unsplash.com/photo-1459411552884-841db9b3cc2a?w=400&h=400&fit=crop&q=80",
+        "preview_image": "https://images.unsplash.com/photo-1459411552884-841db9b3cc2a?w=300&h=300&fit=crop&q=60",
         "default_color": "deep forest green",
         "status": "available",
         "jewelry_types": ["necklace", "earring", "bracelet", "bangle", "set", "anklet"],
@@ -245,7 +317,7 @@ THEMES: list[dict] = [
         "name": "Dried Flowers Boho",
         "description": "Dried pampas grass and wildflowers. Bohemian chic aesthetic.",
         "category": "botanical",
-        "preview_image": "https://images.unsplash.com/photo-1490750967868-88aa4f44baee?w=400&h=400&fit=crop&q=80",
+        "preview_image": "https://images.unsplash.com/photo-1490750967868-88aa4f44baee?w=300&h=300&fit=crop&q=60",
         "default_color": "warm sand beige",
         "status": "available",
         "jewelry_types": ["earring", "necklace", "bracelet", "anklet", "ring", "pendant"],
@@ -273,7 +345,7 @@ THEMES: list[dict] = [
         "name": "Natural Linen Minimal",
         "description": "Clean, textured natural linen. Understated minimalism.",
         "category": "fabric",
-        "preview_image": "https://images.unsplash.com/photo-1469334031218-e382a71b716b?w=400&h=400&fit=crop&q=80",
+        "preview_image": "https://images.unsplash.com/photo-1469334031218-e382a71b716b?w=300&h=300&fit=crop&q=60",
         "default_color": "natural linen beige",
         "status": "available",
         "jewelry_types": ["ring", "earring", "pendant", "bracelet", "anklet", "brooch"],
@@ -286,7 +358,7 @@ THEMES: list[dict] = [
         "name": "Teal Velvet Festive",
         "description": "Rich teal velvet with festive golden accents. Celebratory luxury.",
         "category": "fabric",
-        "preview_image": "https://images.unsplash.com/photo-1534119768988-c82529532abb?w=400&h=400&fit=crop&q=80",
+        "preview_image": "https://images.unsplash.com/photo-1534119768988-c82529532abb?w=300&h=300&fit=crop&q=60",
         "default_color": "deep teal jewel",
         "status": "available",
         "jewelry_types": ["necklace", "set", "earring", "pendant", "bangle", "brooch", "chain"],
@@ -314,7 +386,7 @@ THEMES: list[dict] = [
         "name": "Neutral Grey Studio",
         "description": "Professional grey studio backdrop. Clean and versatile.",
         "category": "minimal",
-        "preview_image": "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=400&h=400&fit=crop&q=80",
+        "preview_image": "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=300&h=300&fit=crop&q=60",
         "default_color": "neutral medium grey",
         "status": "available",
         "jewelry_types": ALL_JEWELRY_TYPES,
@@ -355,7 +427,7 @@ THEMES: list[dict] = [
         "name": "Coastal Driftwood",
         "description": "Weathered driftwood with sandy beach tones. Relaxed coastal vibe.",
         "category": "rustic",
-        "preview_image": "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&h=400&fit=crop&q=80",
+        "preview_image": "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=300&h=300&fit=crop&q=60",
         "default_color": "pale driftwood grey",
         "status": "available",
         "jewelry_types": ["bracelet", "anklet", "ring", "earring", "necklace", "pendant"],
@@ -383,7 +455,7 @@ THEMES: list[dict] = [
         "name": "Mughal Heritage",
         "description": "Ornate Mughal-inspired setting with rich fabrics and gold details.",
         "category": "traditional",
-        "preview_image": "https://images.unsplash.com/photo-1596464716127-f2a82984de30?w=400&h=400&fit=crop&q=80",
+        "preview_image": "https://images.unsplash.com/photo-1596464716127-f2a82984de30?w=300&h=300&fit=crop&q=60",
         "default_color": "rich jewel toned",
         "status": "available",
         "jewelry_types": ["necklace", "set", "earring", "bangle", "pendant", "chain", "brooch"],

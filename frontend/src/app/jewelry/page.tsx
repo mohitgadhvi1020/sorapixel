@@ -269,15 +269,35 @@ function JewelryPage() {
     return false;
   }
 
-  // Load themes from API — filtered by jewelry type
+  // Global theme cache to avoid re-fetching
+  const themeCacheRef = useRef<Map<string, { themes: Theme[]; categories: ThemeCategory[] }>>(new Map());
   const lastThemeTypeRef = useRef<string>("");
+
+  // Load themes from API — filtered by jewelry type (with caching)
   async function loadThemes(typeOverride?: string) {
     const jType = typeOverride || jewelryType;
+    const cacheKey = jType || "__all__";
+    
+    // Skip if already loaded for this type
     if (themes.length > 0 && lastThemeTypeRef.current === jType) return;
+    
+    // Check cache first
+    const cached = themeCacheRef.current.get(cacheKey);
+    if (cached) {
+      setThemes(cached.themes);
+      setThemeCategories(cached.categories);
+      lastThemeTypeRef.current = jType;
+      return;
+    }
+    
     setThemesLoading(true);
     try {
       const url = jType ? `/themes?jewelry_type=${jType}` : "/themes";
       const data = await api.get<{ themes: Theme[]; categories: ThemeCategory[] }>(url);
+      
+      // Store in cache
+      themeCacheRef.current.set(cacheKey, data);
+      
       setThemes(data.themes);
       setThemeCategories(data.categories);
       lastThemeTypeRef.current = jType;
@@ -287,6 +307,20 @@ function JewelryPage() {
       setThemesLoading(false);
     }
   }
+  
+  // Preload themes in background when page loads
+  useEffect(() => {
+    // Preload all themes in background (non-blocking)
+    const preloadThemes = async () => {
+      try {
+        const data = await api.get<{ themes: Theme[]; categories: ThemeCategory[] }>("/themes");
+        themeCacheRef.current.set("__all__", data);
+      } catch {
+        // Silent fail for preload
+      }
+    };
+    preloadThemes();
+  }, []);
 
   function handleSelectTheme(theme: Theme) {
     setSelectedTheme(theme);

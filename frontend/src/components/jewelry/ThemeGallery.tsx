@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 
 export interface ThemeShot {
   id: string;
@@ -60,6 +60,22 @@ export default function ThemeGallery({
 }: ThemeGalleryProps) {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Preload theme images in background for faster display
+  useEffect(() => {
+    if (themes.length === 0) return;
+    
+    // Preload first 8 visible theme images immediately
+    const preloadImages = themes.slice(0, 8).map((theme) => {
+      const src = jewelryType 
+        ? `/theme-previews/${jewelryType}/${theme.id}.jpg`
+        : theme.preview_image;
+      if (src) {
+        const img = new Image();
+        img.src = src;
+      }
+    });
+  }, [themes, jewelryType]);
 
   const filteredThemes = useMemo(() => {
     let filtered = themes;
@@ -223,6 +239,7 @@ function ThemeCard({
   jewelryType?: string;
 }) {
   const [imgError, setImgError] = useState(false);
+  const [imgLoaded, setImgLoaded] = useState(false);
 
   const previewSrc = useMemo(() => {
     if (jewelryType && !imgError) {
@@ -249,13 +266,24 @@ function ThemeCard({
       {/* Preview Image */}
       <div className="aspect-square relative bg-[rgba(255,255,255,0.03)] overflow-hidden">
         {previewSrc ? (
-          <img
-            src={previewSrc}
-            alt={theme.name}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-            loading="lazy"
-            onError={handleImgError}
-          />
+          <>
+            {!imgLoaded && (
+              <div 
+                className="absolute inset-0 animate-pulse"
+                style={{ backgroundColor: theme.preview_color || "#2a2a2a" }}
+              />
+            )}
+            <img
+              src={previewSrc}
+              alt={theme.name}
+              className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-500 ${
+                imgLoaded ? "opacity-100" : "opacity-0"
+              }`}
+              loading="lazy"
+              onLoad={() => setImgLoaded(true)}
+              onError={handleImgError}
+            />
+          </>
         ) : (
           <div
             className="w-full h-full"
