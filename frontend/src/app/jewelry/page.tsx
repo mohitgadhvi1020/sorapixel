@@ -3,8 +3,9 @@
 import { useState, useCallback, useRef, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { api } from "@/lib/api-client";
+import { api, API_BASE_URL } from "@/lib/api-client";
 import { useAuth, useCredits } from "@/providers/AppProvider";
+import { cacheGet, cacheSet } from "@/lib/cache";
 import { JEWELRY_TYPES, JEWELRY_BACKGROUNDS } from "@/lib/jewelry-styles";
 import { JEWELRY_PRICING } from "@/lib/token-pricing";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
@@ -268,57 +269,54 @@ function JewelryPage() {
     return false;
   }
 
-  // Global theme cache to avoid re-fetching
-  const themeCacheRef = useRef<Map<string, { themes: Theme[]; categories: ThemeCategory[] }>>(new Map());
   const lastThemeTypeRef = useRef<string>("");
 
-  // Load themes from API — filtered by jewelry type (with caching)
+  const THEME_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+
+  async function fetchThemesNoAuth(jewelryTypeParam?: string): Promise<{ themes: Theme[]; categories: ThemeCategory[] }> {
+    const url = jewelryTypeParam
+      ? `${API_BASE_URL}/themes?jewelry_type=${jewelryTypeParam}`
+      : `${API_BASE_URL}/themes`;
+    const resp = await fetch(url, { headers: { "Content-Type": "application/json" } });
+    if (!resp.ok) throw new Error(`themes fetch ${resp.status}`);
+    return resp.json();
+  }
+
   async function loadThemes(typeOverride?: string) {
     const jType = typeOverride || jewelryType;
-    const cacheKey = jType || "__all__";
-    
-    // Skip if already loaded for this type
+    const cacheKey = `themes_${jType || "__all__"}`;
+
     if (themes.length > 0 && lastThemeTypeRef.current === jType) return;
-    
-    // Check cache first
-    const cached = themeCacheRef.current.get(cacheKey);
+
+    const cached = cacheGet<{ themes: Theme[]; categories: ThemeCategory[] }>(cacheKey, THEME_CACHE_TTL);
     if (cached) {
       setThemes(cached.themes);
       setThemeCategories(cached.categories);
       lastThemeTypeRef.current = jType;
       return;
     }
-    
+
     setThemesLoading(true);
     try {
-      const url = jType ? `/themes?jewelry_type=${jType}` : "/themes";
-      const data = await api.get<{ themes: Theme[]; categories: ThemeCategory[] }>(url);
-      
-      // Store in cache
-      themeCacheRef.current.set(cacheKey, data);
-      
+      const data = await fetchThemesNoAuth(jType || undefined);
+      cacheSet(cacheKey, data);
       setThemes(data.themes);
       setThemeCategories(data.categories);
       lastThemeTypeRef.current = jType;
-    } catch (err) {
+    } catch {
       showToast("Failed to load themes");
     } finally {
       setThemesLoading(false);
     }
   }
-  
-  // Preload themes in background when page loads (skip if already cached)
+
+  // Preload all themes in background (skip if already cached)
   useEffect(() => {
-    if (themeCacheRef.current.has("__all__")) return;
-    const preloadThemes = async () => {
-      try {
-        const data = await api.get<{ themes: Theme[]; categories: ThemeCategory[] }>("/themes");
-        themeCacheRef.current.set("__all__", data);
-      } catch {
-        // Silent fail for preload
-      }
-    };
-    preloadThemes();
+    const allKey = "themes___all__";
+    if (cacheGet(allKey, THEME_CACHE_TTL)) return;
+    fetchThemesNoAuth()
+      .then((data) => cacheSet(allKey, data))
+      .catch(() => {});
   }, []);
 
   function handleSelectTheme(theme: Theme) {

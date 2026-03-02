@@ -24,7 +24,7 @@ async def list_themes(jewelry_type: Optional[str] = Query(None)):
     response = JSONResponse(
         content={"themes": themes, "categories": categories},
         headers={
-            "Cache-Control": "public, max-age=3600",  # Cache for 1 hour
+            "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
         }
     )
     return response
