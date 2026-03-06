@@ -72,11 +72,11 @@ export default function PricingPage() {
   const isLight = theme === "light";
 
   useEffect(() => {
-    if (!geoApplied && geo.currency) {
+    if (!geoApplied && geo.country && geo.currency) {
       setCurrency(geo.currency as Currency);
       setGeoApplied(true);
     }
-  }, [geo.currency, geoApplied]);
+  }, [geo.country, geo.currency, geoApplied]);
 
   useEffect(() => {
     if (isAdmin) setCurrency("INR");

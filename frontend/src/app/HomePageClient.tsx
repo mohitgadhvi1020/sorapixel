@@ -144,7 +144,7 @@ export default function HomePageClient() {
               </p>
               <div className="mt-7 md:mt-8 flex flex-wrap items-center gap-3 animate-slide-up" style={{ animationDelay: "240ms" }}>
                 <Link href="/jewelry" className="px-7 py-3.5 bg-white text-[#0a0a0a] text-[14px] font-semibold rounded-full hover:bg-white/90 transition-all active:scale-[0.97] shadow-[0_4px_24px_rgba(255,255,255,0.1)]">
-                  Try on YOUR Jewelry — Free
+                  Try with YOUR Jewelry — Free
                 </Link>
                 <Link href="/pricing" prefetch={false} className="px-6 py-3.5 text-white/40 text-[14px] font-medium hover:text-white/70 transition-colors">
                   View Pricing

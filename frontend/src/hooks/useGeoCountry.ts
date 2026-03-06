@@ -33,7 +33,7 @@ function setCookie(name: string, value: string, days = 7) {
   document.cookie = `${name}=${encodeURIComponent(value)};expires=${expires};path=/`;
 }
 
-const DEFAULT: GeoInfo = { country: "", currency: "INR", isIndia: true };
+const DEFAULT: GeoInfo = { country: "", currency: "" as Currency, isIndia: false };
 
 export function useGeoCountry(): GeoInfo {
   const [geo, setGeo] = useState<GeoInfo>(DEFAULT);

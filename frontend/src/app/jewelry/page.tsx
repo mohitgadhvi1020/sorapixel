@@ -1254,7 +1254,7 @@ function JewelryPage() {
                     Upgrade to Pro for crystal-clear, studio-grade images
                   </p>
                   <p className={`text-[11px] mt-0.5 ${isLight ? "text-[#8b7355]" : "text-[#c4a67d]/60"}`}>
-                    3x sharper details · True metal shine · Plans from ₹149
+                    3x sharper details · True metal shine · Plans from {isIndia ? "₹149" : "$4.99"}
                   </p>
                 </div>
               </div>

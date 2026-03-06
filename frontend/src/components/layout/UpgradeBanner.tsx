@@ -5,14 +5,19 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth, useCredits } from "@/providers/AppProvider";
 import { useTheme } from "@/hooks/useTheme";
+import { useGeoCountry } from "@/hooks/useGeoCountry";
 
-const NUDGE_MESSAGES = [
-  { text: "Upgrade for unlimited jewelry photos", sub: "Plans start at just ₹149 — only ₹15/image" },
-  { text: "Running low on tokens?", sub: "Get more and never miss a perfect shot" },
-  { text: "Pro quality = 3x more sales", sub: "Upgrade to unlock sharper AI renders" },
-  { text: "Your competitors use pro photos", sub: "Level up your listings today" },
-  { text: "Bulk shooting? Save with a plan", sub: "Unlimited generations, one flat price" },
-];
+function getNudgeMessages(isIndia: boolean) {
+  const price = isIndia ? "₹149" : "$4.99";
+  const perImage = isIndia ? "₹15" : "$0.50";
+  return [
+    { text: "Upgrade for unlimited jewelry photos", sub: `Plans start at just ${price} — only ${perImage}/image` },
+    { text: "Running low on tokens?", sub: "Get more and never miss a perfect shot" },
+    { text: "Pro quality = 3x more sales", sub: "Upgrade to unlock sharper AI renders" },
+    { text: "Your competitors use pro photos", sub: "Level up your listings today" },
+    { text: "Bulk shooting? Save with a plan", sub: "Unlimited generations, one flat price" },
+  ];
+}
 
 const LOW_TOKEN_THRESHOLD = 20;
 const DISMISS_KEY = "upgrade_banner_dismissed";
@@ -21,12 +26,14 @@ export default function UpgradeBanner() {
   const { user } = useAuth();
   const { credits, loading } = useCredits();
   const { theme } = useTheme();
+  const { isIndia } = useGeoCountry();
   const pathname = usePathname();
   const [dismissed, setDismissed] = useState(true);
   const [messageIdx, setMessageIdx] = useState(0);
 
   const isLight = theme === "light";
   const isPricingPage = pathname === "/pricing";
+  const NUDGE_MESSAGES = getNudgeMessages(isIndia);
 
   useEffect(() => {
     const stored = sessionStorage.getItem(DISMISS_KEY);
@@ -35,7 +42,7 @@ export default function UpgradeBanner() {
 
   useEffect(() => {
     setMessageIdx(Math.floor(Math.random() * NUDGE_MESSAGES.length));
-  }, [pathname]);
+  }, [pathname, NUDGE_MESSAGES.length]);
 
   if (loading || !user || isPricingPage || dismissed) return null;
 
