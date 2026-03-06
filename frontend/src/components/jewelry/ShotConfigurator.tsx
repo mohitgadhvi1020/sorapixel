@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Theme, ThemeShot } from "./ThemeGallery";
+import type { Theme } from "./ThemeGallery";
 
 export interface ShotConfig {
   shot_id: string;
@@ -32,6 +32,9 @@ const SHOT_ICONS: Record<string, string> = {
   dramatic: "M15 3h6v6M14 10l6.1-6.1M9 21H3v-6M10 14l-6.1 6.1",
   lifestyle: "M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10",
   closeup: "M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.35-4.35M11 8v6M8 11h6",
+  angle_3_4: "M4 6h16M4 6v12M20 6v4M8 18h12M12 10l6 3-6 3-6-3 6-3z",
+  angle_side: "M4 12h16M6 8h4M6 16h4M14 8h4M14 16h4",
+  top_down: "M7 3h10v4H7zM5 9h14v12H5zM9 13h6M9 17h6",
 };
 
 const ASPECT_RATIOS = [
@@ -59,6 +62,7 @@ export default function ShotConfigurator({
 }: ShotConfiguratorProps) {
   const [editingShot, setEditingShot] = useState<string | null>(null);
   const [showAspectRatio, setShowAspectRatio] = useState(false);
+  const [missingPreviews, setMissingPreviews] = useState<Record<string, boolean>>({});
 
   const selectedCount = shotConfigs.filter((s) => s.selected).length;
 
@@ -132,12 +136,26 @@ export default function ShotConfigurator({
                 >
                   <div className="aspect-[4/3] relative bg-[rgba(255,255,255,0.03)] overflow-hidden">
                     {jewelryType ? (
-                      <img
-                        src={`/shot-previews/${jewelryType}/${config.shot_id}.jpg`}
-                        alt={shotMeta.short_name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        loading="lazy"
-                      />
+                      missingPreviews[config.shot_id] ? (
+                        <div
+                          className="w-full h-full flex items-center justify-center"
+                          style={{ backgroundColor: theme.preview_color || "#1a1a1a" }}
+                        >
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d={SHOT_ICONS[config.shot_id] || SHOT_ICONS.hero} />
+                          </svg>
+                        </div>
+                      ) : (
+                        <img
+                          src={`/shot-previews/${jewelryType}/${config.shot_id}.jpg`}
+                          alt={shotMeta.short_name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          loading="lazy"
+                          onError={() =>
+                            setMissingPreviews((prev) => ({ ...prev, [config.shot_id]: true }))
+                          }
+                        />
+                      )
                     ) : (
                       <div className="w-full h-full flex items-center justify-center"
                         style={{ backgroundColor: theme.preview_color || "#1a1a1a" }}

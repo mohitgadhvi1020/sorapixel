@@ -29,8 +29,8 @@ JEWELRY_PRICING = {
 }
 
 STUDIO_PRICING = {
-    "standard": 1,
-    "pro": 4,
+    "standard": 5,
+    "pro": 20,
 }
 
 DAILY_REWARD_TOKENS = 8

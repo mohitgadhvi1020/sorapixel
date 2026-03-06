@@ -2,11 +2,38 @@ from __future__ import annotations
 
 """Projects router -- NEW feature for organizing generated content."""
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from app.middleware.auth import get_current_user
 from app.database import get_supabase
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/projects", tags=["Projects"])
+
+BUCKET = "sorapixel-images"
+
+
+def _signed_url(sb, path: str, expires: int = 3600) -> str:
+    try:
+        res = sb.storage.from_(BUCKET).create_signed_url(path, expires)
+        return res.get("signedURL", "") if isinstance(res, dict) else ""
+    except Exception:
+        return ""
+
+
+def _enrich_project(sb, project: dict) -> dict:
+    """Add signed URLs to every image stored in metadata.images."""
+    meta = project.get("metadata") or {}
+    images = meta.get("images") or []
+    for img in images:
+        sp = img.get("storage_path")
+        if sp:
+            img["url"] = _signed_url(sb, sp)
+    if images:
+        project["thumbnail_url"] = images[0].get("url", "")
+    else:
+        project["thumbnail_url"] = ""
+    return project
 
 
 @router.get("/")
@@ -28,7 +55,11 @@ async def list_projects(
     query = query.range(offset, offset + limit - 1)
     result = query.execute()
 
-    return {"projects": result.data or [], "page": page, "limit": limit}
+    projects = result.data or []
+    for p in projects:
+        _enrich_project(sb, p)
+
+    return {"projects": projects, "page": page, "limit": limit}
 
 
 @router.get("/{project_id}")
@@ -40,7 +71,8 @@ async def get_project(project_id: str, user: dict = Depends(get_current_user)):
 
     if not result or not result.data:
         raise HTTPException(status_code=404, detail="Project not found")
-    return result.data
+
+    return _enrich_project(sb, result.data)
 
 
 @router.delete("/{project_id}")

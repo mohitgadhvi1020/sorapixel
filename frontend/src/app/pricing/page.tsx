@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api-client";
 import { useAuth, useCredits } from "@/providers/AppProvider";
 import { useTheme } from "@/hooks/useTheme";
+import { useGeoCountry } from "@/hooks/useGeoCountry";
 import { TOKEN_COSTS_TABLE, DAILY_REWARD_TOKENS } from "@/lib/token-pricing";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 
@@ -43,19 +44,20 @@ interface Plan {
   type: string;
   price_inr: number;
   price_usd: number;
+  price_eur?: number;
   tokens: number;
   description: string;
   recommended?: boolean;
 }
 
-type Currency = "INR" | "USD";
+type Currency = "INR" | "USD" | "EUR";
 
 const TOKEN_COSTS = TOKEN_COSTS_TABLE;
 
 const RAZORPAY_KEY = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "";
 
 export default function PricingPage() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { credits, refreshCredits } = useCredits();
   const { theme } = useTheme();
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -63,9 +65,22 @@ export default function PricingPage() {
   const [payingPlanId, setPayingPlanId] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const geo = useGeoCountry();
   const [currency, setCurrency] = useState<Currency>("INR");
+  const [geoApplied, setGeoApplied] = useState(false);
 
   const isLight = theme === "light";
+
+  useEffect(() => {
+    if (!geoApplied && geo.currency) {
+      setCurrency(geo.currency as Currency);
+      setGeoApplied(true);
+    }
+  }, [geo.currency, geoApplied]);
+
+  useEffect(() => {
+    if (isAdmin) setCurrency("INR");
+  }, [isAdmin]);
 
   useEffect(() => {
     async function loadPlans() {
@@ -167,8 +182,32 @@ export default function PricingPage() {
     [user, refreshCredits, currency]
   );
 
+  function formatPrice(plan: Plan): React.ReactNode {
+    if (currency === "INR") return <><span className="text-xl">&#8377;</span>{plan.price_inr}</>;
+    if (currency === "EUR") return <><span className="text-xl">&euro;</span>{((plan.price_eur ?? plan.price_usd) / 100).toFixed(2)}</>;
+    return <><span className="text-xl">$</span>{(plan.price_usd / 100).toFixed(2)}</>;
+  }
+
+  function formatPriceCompact(plan: Plan): string {
+    if (currency === "INR") return `₹${plan.price_inr}`;
+    if (currency === "EUR") return `€${((plan.price_eur ?? plan.price_usd) / 100).toFixed(2)}`;
+    return `$${(plan.price_usd / 100).toFixed(2)}`;
+  }
+
   const subscriptions = plans.filter((p) => p.type === "subscription");
   const tokenPacks = plans.filter((p) => p.type === "token_pack");
+
+  function getSavingsVsStarter(plan: Plan): number | null {
+    const starter = tokenPacks.find((p) => p.id.startsWith("starter"));
+    if (!starter || starter.id === plan.id) return null;
+    const getPrice = (p: Plan) =>
+      currency === "INR" ? p.price_inr * 100 : currency === "EUR" ? (p.price_eur ?? p.price_usd) : p.price_usd;
+    const starterPerToken = getPrice(starter) / starter.tokens;
+    const planPerToken = getPrice(plan) / plan.tokens;
+    if (starterPerToken <= 0) return null;
+    const pct = Math.round((1 - planPerToken / starterPerToken) * 100);
+    return pct > 0 ? pct : null;
+  }
 
   return (
     <ResponsiveLayout title="Pricing">
@@ -193,45 +232,56 @@ export default function PricingPage() {
             Start free. Upgrade when you need more.
           </p>
 
-          {/* Currency toggle */}
-          <div className={`flex items-center justify-center gap-1 mt-5 rounded-full p-1 w-fit mx-auto border ${
-            isLight
-              ? "bg-[#f0ede8] border-[#e0dcd6]"
-              : "bg-[rgba(255,255,255,0.04)] border-[rgba(255,255,255,0.06)]"
-          }`}>
-            <button
-              onClick={() => setCurrency("INR")}
-              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
-                currency === "INR"
-                  ? isLight
-                    ? "bg-white text-[#8b7355] shadow-sm border border-[#e0d6c8]"
-                    : "bg-[rgba(196,166,125,0.15)] text-[#c4a67d] shadow-sm"
-                  : isLight
-                    ? "text-[#999] hover:text-[#666]"
-                    : "text-[rgba(255,255,255,0.4)] hover:text-[rgba(255,255,255,0.6)]"
-              }`}
-            >
-              &#8377; INR
-            </button>
-            <button
-              onClick={() => setCurrency("USD")}
-              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
-                currency === "USD"
-                  ? isLight
-                    ? "bg-white text-[#8b7355] shadow-sm border border-[#e0d6c8]"
-                    : "bg-[rgba(196,166,125,0.15)] text-[#c4a67d] shadow-sm"
-                  : isLight
-                    ? "text-[#999] hover:text-[#666]"
-                    : "text-[rgba(255,255,255,0.4)] hover:text-[rgba(255,255,255,0.6)]"
-              }`}
-            >
-              $ USD
-            </button>
-          </div>
-          {currency === "USD" && (
-            <p className={`text-[10px] mt-2 ${isLight ? "text-[#aaa]" : "text-[rgba(255,255,255,0.3)]"}`}>
-              International payments via PayPal
-            </p>
+          {isAdmin ? (
+            <>
+              {/* Admin: full currency toggle */}
+              <div className={`flex items-center justify-center gap-1 mt-5 rounded-full p-1 w-fit mx-auto border ${
+                isLight
+                  ? "bg-[#f0ede8] border-[#e0dcd6]"
+                  : "bg-[rgba(255,255,255,0.04)] border-[rgba(255,255,255,0.06)]"
+              }`}>
+                {(["INR", "USD", "EUR"] as Currency[]).map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => setCurrency(c)}
+                    className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                      currency === c
+                        ? isLight
+                          ? "bg-white text-[#8b7355] shadow-sm border border-[#e0d6c8]"
+                          : "bg-[rgba(196,166,125,0.15)] text-[#c4a67d] shadow-sm"
+                        : isLight
+                          ? "text-[#999] hover:text-[#666]"
+                          : "text-[rgba(255,255,255,0.4)] hover:text-[rgba(255,255,255,0.6)]"
+                    }`}
+                  >
+                    {c === "INR" ? "₹ INR" : c === "USD" ? "$ USD" : "€ EUR"}
+                  </button>
+                ))}
+              </div>
+              <p className={`text-[10px] mt-2 ${isLight ? "text-amber-600" : "text-amber-400"}`}>
+                Admin view — all currencies visible
+              </p>
+            </>
+          ) : (
+            <>
+              {/* Regular user: geo-detected badge only */}
+              <div className={`inline-flex items-center gap-1.5 mt-5 px-4 py-1.5 rounded-full text-xs font-semibold ${
+                isLight
+                  ? "bg-[#f0ebe3] text-[#8b7355] border border-[#e0d6c8]"
+                  : "bg-[rgba(196,166,125,0.1)] text-[#c4a67d] border border-[rgba(196,166,125,0.15)]"
+              }`}>
+                <span>{currency === "INR" ? "₹ INR" : currency === "EUR" ? "€ EUR" : "$ USD"}</span>
+                <span className={`${isLight ? "text-[#bbb]" : "text-[rgba(255,255,255,0.25)]"}`}>·</span>
+                <span className={`font-normal ${isLight ? "text-[#999]" : "text-[rgba(255,255,255,0.4)]"}`}>
+                  {currency === "INR" ? "India" : currency === "EUR" ? "Europe" : "International"}
+                </span>
+              </div>
+              {currency !== "INR" && (
+                <p className={`text-[10px] mt-2 ${isLight ? "text-[#aaa]" : "text-[rgba(255,255,255,0.3)]"}`}>
+                  Payments via Visa, Mastercard &amp; PayPal
+                </p>
+              )}
+            </>
           )}
         </div>
 
@@ -365,13 +415,18 @@ export default function PricingPage() {
                       </div>
                       <div className="mb-4">
                         <span className={`text-3xl font-extrabold ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>
-                          {currency === "INR"
-                            ? <><span className="text-xl">&#8377;</span>{plan.price_inr}</>
-                            : <><span className="text-xl">$</span>{(plan.price_usd / 100).toFixed(2)}</>
-                          }
+                          {formatPrice(plan)}
                         </span>
                         <span className={`text-sm ${isLight ? "text-[#999]" : "text-[rgba(255,255,255,0.4)]"}`}>/month</span>
                         <p className="text-xs text-[#c4a67d] font-semibold mt-0.5">{plan.tokens} tokens included</p>
+                        {(() => {
+                          const pct = getSavingsVsStarter(plan);
+                          return pct ? (
+                            <span className="inline-block mt-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500 text-[11px] font-bold">
+                              Save {pct}% vs Starter
+                            </span>
+                          ) : null;
+                        })()}
                       </div>
                       <button
                         onClick={() => handlePurchase(plan)}
@@ -391,9 +446,7 @@ export default function PricingPage() {
                             Processing…
                           </span>
                         ) : (
-                          currency === "INR"
-                            ? `Buy Now — ₹${plan.price_inr}`
-                            : `Buy Now — $${(plan.price_usd / 100).toFixed(2)}`
+                          `Buy Now — ${formatPriceCompact(plan)}`
                         )}
                       </button>
                     </div>
@@ -423,11 +476,16 @@ export default function PricingPage() {
                         isLight ? "text-[#8b7355]" : "text-[#c4a67d]/60"
                       }`}>tokens</p>
                       <p className={`text-xl font-extrabold mt-3 ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>
-                        {currency === "INR"
-                          ? <><span className="text-sm">&#8377;</span>{plan.price_inr}</>
-                          : <><span className="text-sm">$</span>{(plan.price_usd / 100).toFixed(2)}</>
-                        }
+                        {formatPrice(plan)}
                       </p>
+                      {(() => {
+                        const pct = getSavingsVsStarter(plan);
+                        return pct ? (
+                          <span className="inline-block mt-2 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500 text-[10px] font-bold">
+                            Save {pct}%
+                          </span>
+                        ) : null;
+                      })()}
                       <button
                         onClick={() => handlePurchase(plan)}
                         disabled={payingPlanId !== null}
@@ -518,7 +576,7 @@ export default function PricingPage() {
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
               <path d="M7 11V7a5 5 0 0110 0v4" />
             </svg>
-            <span>Secured by Razorpay — {currency === "INR" ? "UPI, Cards, Net Banking" : "PayPal"} accepted</span>
+            <span>Secure payments — {currency === "INR" ? "UPI, Cards, Net Banking" : "Visa, Mastercard, PayPal"} accepted</span>
           </div>
         </div>
       </div>

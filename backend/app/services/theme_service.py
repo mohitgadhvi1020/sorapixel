@@ -19,43 +19,29 @@ SHOT_TYPES = {
         "description": "Classic catalog-style product shot",
         "type": "product",
         "prompt_suffix": (
-            "Professional catalog-style hero shot of the jewelry.\n\n"
-            "Maintain the EXACT original camera angle and perspective from the input image. "
-            "Do NOT rotate, tilt, or reinterpret the viewpoint.\n\n"
-            "The jewelry is the sole subject. "
-            "Full item must be completely visible. "
-            "Centered with even spacing on all sides.\n\n"
-            "Sharp focus across the entire jewelry. "
-            "Clean commercial studio lighting. "
-            "No dramatic shadows. "
-            "No perspective distortion.\n\n"
-            "Use soft diffused studio lighting. "
-            "Avoid harsh specular hotspots. "
-            "Maintain natural metal sheen without mirror reflections.\n\n"
-            "Maintain exact proportions, structural integrity, and item count. "
-            "Do NOT modify design under any circumstance."
+            "SHOT BRIEF: Clean e-commerce hero.\n\n"
+            "VIEWPOINT (LOCKED): Match the input image camera angle and perspective exactly. "
+            "Do NOT rotate, tilt, or invent a new viewpoint.\n\n"
+            "FRAMING: Jewelry is the ONLY subject. Keep the FULL item completely visible. "
+            "Center the item with even padding on all sides.\n\n"
+            "FOCUS: High depth of field — sharp focus across the entire jewelry.\n\n"
+            "LIGHTING: Clean commercial studio lighting. Soft diffused light, minimal shadow. "
+            "Avoid harsh specular hotspots; keep a natural metal sheen (not mirror-like chrome)."
         ),
     },
     "dramatic": {
         "id": "dramatic",
-        "name": "Dramatic Angle",
+        "name": "Dramatic Lighting",
         "short_name": "Dramatic",
-        "description": "Cinematic presentation with enhanced lighting",
+        "description": "Cinematic lighting while keeping the same viewpoint",
         "type": "product",
         "prompt_suffix": (
-            "Dramatic studio presentation of the jewelry.\n\n"
-            "Preserve the original geometry and proportions exactly. "
-            "You may enhance lighting for cinematic effect, but DO NOT alter angle or structure.\n\n"
-            "Jewelry remains fully visible and unobstructed. "
-            "No cropping of structural components.\n\n"
-            "Controlled shallow depth of field is allowed, "
-            "but the entire jewelry must remain readable and intact.\n\n"
-            "Specular highlights may enhance metal surfaces, "
-            "but do not change stone color, size, or shape.\n"
-            "No camera reflections or mirror-like artifacts on metal. "
-            "Maintain controlled cinematic highlights, not raw environmental reflections.\n\n"
-            "Maintain exact proportions, structural integrity, and item count. "
-            "Do NOT modify design under any circumstance."
+            "SHOT BRIEF: Cinematic studio presentation.\n\n"
+            "VIEWPOINT (LOCKED): Keep the same camera angle as the input. Do NOT change viewpoint.\n\n"
+            "FRAMING: Full jewelry visible, unobstructed. No cropping of any structural parts.\n\n"
+            "FOCUS: You may use controlled shallow depth of field, but the jewelry must remain readable and intact.\n\n"
+            "LIGHTING: Increase contrast and shape with a key + soft fill; controlled specular highlights are allowed. "
+            "Do NOT create mirror-like reflections or camera/environment reflections on metal."
         ),
     },
     "lifestyle": {
@@ -65,20 +51,12 @@ SHOT_TYPES = {
         "description": "Product in natural scene with props",
         "type": "product",
         "prompt_suffix": (
-            "Lifestyle presentation of the jewelry within a natural scene.\n\n"
-            "The jewelry remains the primary subject. "
-            "Props and background elements must NOT cover, crop, or hide any part of the jewelry.\n\n"
-            "Maintain exact geometry, proportions, and structure. "
-            "Do NOT reinterpret or redesign.\n\n"
-            "Slightly wider framing allowed, "
-            "but the full jewelry must remain clearly visible.\n\n"
-            "Natural editorial lighting permitted, "
-            "without altering material appearance or color accuracy.\n\n"
-            "Use soft diffused lighting. "
-            "Avoid harsh specular hotspots. "
-            "Maintain natural metal sheen without mirror reflections.\n\n"
-            "Maintain exact proportions, structural integrity, and item count. "
-            "Do NOT modify design under any circumstance."
+            "SHOT BRIEF: Editorial lifestyle scene.\n\n"
+            "VIEWPOINT (LOCKED): Keep the input camera angle and perspective.\n\n"
+            "FRAMING: Jewelry remains the primary subject and must be fully visible. "
+            "Props/background must NOT cover, crop, or hide any part of the jewelry.\n\n"
+            "LIGHTING: Natural editorial light is allowed, but keep material appearance and color accuracy true. "
+            "Soft diffused light; avoid harsh specular hotspots and mirror-like metal."
         ),
     },
     "closeup": {
@@ -88,63 +66,62 @@ SHOT_TYPES = {
         "description": "High-detail macro shot preserving true scale",
         "type": "product",
         "prompt_suffix": (
-            "High-detail close-up product shot.\n\n"
-            "Zoom into the jewelry while preserving its true proportions. "
-            "Do NOT exaggerate stone size or alter band thickness.\n\n"
-            "Do NOT crop out essential structural parts unless intentionally focusing on a detail area. "
-            "If focusing on a detail, preserve accurate scale.\n\n"
-            "Shallow depth of field allowed, "
-            "but the focused area must remain physically accurate.\n\n"
-            "No artificial enhancement of craftsmanship. "
-            "No added details. "
-            "Maintain true geometry.\n\n"
-            "Use soft diffused macro lighting. "
-            "Avoid harsh specular hotspots on metal surfaces. "
-            "Maintain natural metal sheen without mirror reflections.\n\n"
-            "Maintain exact proportions, structural integrity, and item count. "
-            "Do NOT modify design under any circumstance."
+            "SHOT BRIEF: High-detail macro / close-up.\n\n"
+            "VIEWPOINT (LOCKED): Keep the same perspective as the input.\n\n"
+            "FRAMING: Zoom in to emphasize craftsmanship details while preserving true proportions. "
+            "Do NOT exaggerate stone size or alter band thickness. "
+            "If cropping, crop intentionally for detail while keeping enough structure to understand what part is shown.\n\n"
+            "FOCUS: Shallow depth of field is allowed, but the in-focus area must remain physically accurate.\n\n"
+            "LIGHTING: Soft diffused macro lighting. Avoid harsh hotspots; keep natural metal sheen (no mirror artifacts)."
         ),
     },
-    "model_standing": {
-        "id": "model_standing",
-        "name": "Model — Standing",
-        "short_name": "Model Full",
-        "description": "Full-body model shot wearing the jewelry",
-        "type": "model",
+    # Angle-variety shots (use carefully; more likely to hallucinate if input is a single photo).
+    "angle_3_4": {
+        "id": "angle_3_4",
+        "name": "Angle Study — 3/4 View",
+        "short_name": "3/4 Angle",
+        "description": "Slight 3/4 camera rotation for more viewpoint variety",
+        "type": "product",
+        "allowed_jewelry_types": [
+            "ring", "bracelet", "bangle", "earring", "pendant", "brooch", "anklet", "chain", "necklace", "set",
+        ],
         "prompt_suffix": (
-            "Full-body model shot, standing confidently. "
-            "The jewelry is the focal point. "
-            "Professional fashion photography quality.\n\n"
-            "Maintain exact proportions, structural integrity, and item count. "
-            "Do NOT modify design under any circumstance."
+            "SHOT BRIEF: 3/4 angle product view.\n\n"
+            "VIEWPOINT (VARIANT): Rotate the camera slightly to a 3/4 view (approx. 20–35°) while preserving the true design. "
+            "Do NOT warp, stretch, or change proportions.\n\n"
+            "FRAMING: Full jewelry visible, no cropping of any structural parts. Center with even padding.\n\n"
+            "LIGHTING: Soft studio light with gentle gradients; controlled highlights only."
         ),
     },
-    "model_closeup": {
-        "id": "model_closeup",
-        "name": "Model — Close-Up",
-        "short_name": "Model Close",
-        "description": "Close-up portrait showing the jewelry on the model",
-        "type": "model",
+    "angle_side": {
+        "id": "angle_side",
+        "name": "Angle Study — Side Profile",
+        "short_name": "Side View",
+        "description": "Side profile angle to show depth/thickness",
+        "type": "product",
+        "allowed_jewelry_types": ["ring", "bracelet", "bangle", "earring", "pendant", "brooch"],
         "prompt_suffix": (
-            "Close-up portrait from chest/shoulders up showing the jewelry prominently. "
-            "Beauty shot with the jewelry as the hero element. "
-            "Soft, flattering light on the model.\n\n"
-            "Maintain exact proportions, structural integrity, and item count. "
-            "Do NOT modify design under any circumstance."
+            "SHOT BRIEF: Side profile angle study.\n\n"
+            "VIEWPOINT (VARIANT): Render a side-profile view that reveals depth/thickness without changing the design. "
+            "Do NOT invent new design elements; preserve the exact structure.\n\n"
+            "FRAMING: Keep the full jewelry visible and unobstructed.\n\n"
+            "LIGHTING: Soft diffused studio lighting with controlled rim separation; avoid harsh specular hotspots."
         ),
     },
-    "hand_closeup": {
-        "id": "hand_closeup",
-        "name": "Hand Close-Up",
-        "short_name": "Hand Shot",
-        "description": "Elegant hand/wrist shot for rings, bracelets, bangles",
-        "type": "model",
+    "top_down": {
+        "id": "top_down",
+        "name": "Flat Lay — Top Down",
+        "short_name": "Top Down",
+        "description": "Top-down flat lay, clean and symmetric",
+        "type": "product",
+        "allowed_jewelry_types": [
+            "ring", "bracelet", "bangle", "earring", "pendant", "brooch", "anklet", "chain", "necklace", "set",
+        ],
         "prompt_suffix": (
-            "Close-up of an elegant hand and wrist, posed to showcase the jewelry. "
-            "Shallow depth of field, hand and jewelry sharp, background softly blurred. "
-            "Nail art or neutral manicure.\n\n"
-            "Maintain exact proportions, structural integrity, and item count. "
-            "Do NOT modify design under any circumstance."
+            "SHOT BRIEF: Top-down flat lay.\n\n"
+            "VIEWPOINT (VARIANT): True top-down camera (90°) flat lay. Keep proportions accurate and symmetric.\n\n"
+            "FRAMING: Full item visible, centered, even padding.\n\n"
+            "LIGHTING: Bright soft overhead diffusion; minimal shadow; clean commercial look."
         ),
     },
 }
@@ -169,7 +146,7 @@ THEMES: list[dict] = [
         "status": "available",
         "jewelry_types": ALL_JEWELRY_TYPES,
         "scene_prompt": "on a rich, deep black velvet surface with subtle fabric texture visible. Dramatic studio lighting from above-left creating elegant shadows. Single focused spotlight highlighting the jewelry with a soft secondary fill light. Premium luxury jewelry photography aesthetic.",
-        "shots": ["hero", "dramatic", "closeup", "lifestyle"],
+        "shots": ["hero", "dramatic", "closeup", "lifestyle", "angle_3_4"],
         "default_shots": ["hero"],
     },
     {
@@ -183,7 +160,7 @@ THEMES: list[dict] = [
         "status": "available",
         "jewelry_types": ALL_JEWELRY_TYPES,
         "scene_prompt": "on a deep burgundy wine velvet surface with rich texture, warm golden lighting casting soft highlights. Royal aesthetic with dramatic shadow play. Classic fine jewelry photography.",
-        "shots": ["hero", "dramatic", "closeup", "lifestyle"],
+        "shots": ["hero", "dramatic", "closeup", "lifestyle", "angle_3_4"],
         "default_shots": ["hero"],
     },
     {
@@ -226,7 +203,7 @@ THEMES: list[dict] = [
         "status": "available",
         "jewelry_types": ["ring", "earring", "pendant", "bracelet", "bangle", "necklace", "set", "brooch"],
         "scene_prompt": "on a polished white Carrara marble surface with subtle grey veining. Bright, even studio lighting with soft shadows. Clean and luxurious lifestyle feel. The marble texture adds sophistication without distraction.",
-        "shots": ["hero", "dramatic", "lifestyle", "closeup"],
+        "shots": ["hero", "dramatic", "lifestyle", "closeup", "top_down", "angle_3_4"],
         "default_shots": ["hero"],
     },
     {
@@ -389,7 +366,7 @@ THEMES: list[dict] = [
         "status": "available",
         "jewelry_types": ALL_JEWELRY_TYPES,
         "scene_prompt": "on a pure white seamless background with bright, even studio lighting. No shadows or minimal soft shadow underneath. E-commerce marketplace ready — Amazon, Flipkart, Etsy style. Clean, distraction-free product photography.",
-        "shots": ["hero", "closeup"],
+        "shots": ["hero", "closeup", "top_down", "angle_3_4"],
         "default_shots": ["hero"],
     },
     {
@@ -402,7 +379,7 @@ THEMES: list[dict] = [
         "status": "available",
         "jewelry_types": ALL_JEWELRY_TYPES,
         "scene_prompt": "on a smooth neutral grey seamless studio background with balanced, professional studio lighting. Soft gradient from slightly lighter at center to darker at edges. Classic jewelry catalog photography aesthetic.",
-        "shots": ["hero", "closeup", "dramatic"],
+        "shots": ["hero", "closeup", "dramatic", "top_down", "angle_3_4", "angle_side"],
         "default_shots": ["hero"],
     },
     {
@@ -605,6 +582,9 @@ def get_all_themes(jewelry_type: Optional[str] = None) -> list[dict]:
         for shot_id in theme["shots"]:
             shot = SHOT_TYPES.get(shot_id)
             if shot:
+                allowed_types = shot.get("allowed_jewelry_types")
+                if jewelry_type and allowed_types and jewelry_type not in allowed_types:
+                    continue
                 shots_detail.append({
                     "id": shot["id"],
                     "name": shot["name"],

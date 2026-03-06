@@ -10,10 +10,12 @@ import { JEWELRY_TYPES, JEWELRY_BACKGROUNDS } from "@/lib/jewelry-styles";
 import { JEWELRY_PRICING } from "@/lib/token-pricing";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 import { useTheme } from "@/hooks/useTheme";
+import { useGeoCountry } from "@/hooks/useGeoCountry";
 import ThemeGallery, { type Theme, type ThemeCategory } from "@/components/jewelry/ThemeGallery";
 import ShotConfigurator, { type ShotConfig } from "@/components/jewelry/ShotConfigurator";
 import InsufficientCreditsModal from "@/components/jewelry/InsufficientCreditsModal";
 import FeedbackWidget from "@/components/jewelry/FeedbackWidget";
+import EmailGateModal from "@/components/ui/EmailGateModal";
 type Step = "upload" | "select_type" | "theme_browse" | "shot_config" | "generating" | "done";
 
 interface ResultImage {
@@ -28,6 +30,7 @@ interface GenerateResponse {
   locked?: boolean;
   token_balance?: number;
   generation_ids?: string[];
+  anonymous?: boolean;
 }
 
 interface Toast {
@@ -132,6 +135,7 @@ function JewelryPage() {
   const { user } = useAuth();
   const { credits, refreshCredits } = useCredits();
   const { theme } = useTheme();
+  const { country, isIndia } = useGeoCountry();
   const isLight = theme === "light";
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -153,6 +157,12 @@ function JewelryPage() {
   const cssAspectRatio = `${selectedRatio.w}/${selectedRatio.h}`;
   const [specialInstructions, setSpecialInstructions] = useState<string>("");
   const [quality, setQuality] = useState<"standard" | "pro">("standard");
+  const geoQualityApplied = useRef(false);
+  useEffect(() => {
+    if (geoQualityApplied.current || !country) return;
+    geoQualityApplied.current = true;
+    if (!isIndia) setQuality("pro");
+  }, [country, isIndia]);
 
   // Theme state
   const [themes, setThemes] = useState<Theme[]>([]);
@@ -174,6 +184,10 @@ function JewelryPage() {
   const [justUpdatedIndex, setJustUpdatedIndex] = useState<number | null>(null);
   const resultRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [isLocked, setIsLocked] = useState(false);
+  const [anonGeneration, setAnonGeneration] = useState(false);
+  const [showSignupPrompt, setShowSignupPrompt] = useState(false);
+  const [emailGateOpen, setEmailGateOpen] = useState(false);
+  const [pendingDownload, setPendingDownload] = useState<ResultImage | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
 
@@ -191,6 +205,8 @@ function JewelryPage() {
   const [ugcSkinTone, setUgcSkinTone] = useState("medium");
   const [ugcPoses, setUgcPoses] = useState<string[]>([]);
   const [ugcBackground, setUgcBackground] = useState("best_match");
+  const [ugcOutfitStyle, setUgcOutfitStyle] = useState("modern");
+  const [ugcOutfitCustom, setUgcOutfitCustom] = useState("");
   const [ugcQuality, setUgcQuality] = useState("standard");
   const [ugcSourceIndex, setUgcSourceIndex] = useState(0);
   const [catalogueLoading, setCatalogueLoading] = useState(false);
@@ -269,6 +285,31 @@ function JewelryPage() {
     return false;
   }
 
+  function getAnonId(): string {
+    const match = document.cookie.match(/(?:^|;\s*)anon_id=([^;]+)/);
+    return match?.[1] ?? "";
+  }
+
+  function hasUsedFreeGen(): boolean {
+    try { return localStorage.getItem("sp_anon_free_used") === "1"; } catch { return false; }
+  }
+
+  function markFreeGenUsed(): void {
+    try { localStorage.setItem("sp_anon_free_used", "1"); } catch { /* noop */ }
+  }
+
+  async function callGenerateFree(body: Record<string, unknown>): Promise<GenerateResponse> {
+    if (hasUsedFreeGen()) {
+      throw Object.assign(new Error("Free generation already used. Sign up to continue."), { status: 403 });
+    }
+    const anonId = getAnonId();
+    const result = await api.postNoAuth<GenerateResponse>("/jewelry/generate-free", body, {
+      "X-Anonymous-Id": anonId,
+    });
+    markFreeGenUsed();
+    return result;
+  }
+
   const lastThemeTypeRef = useRef<string>("");
 
   const THEME_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
@@ -340,7 +381,6 @@ function JewelryPage() {
 
   async function generateWithTheme() {
     if (!mainImage || !selectedTheme) return;
-    if (!requireAuth()) return;
 
     const selectedShots = shotConfigs.filter((s) => s.selected);
     if (selectedShots.length === 0) {
@@ -348,23 +388,28 @@ function JewelryPage() {
       return;
     }
 
-    const cost = getThemeTokenCost();
-    const balance = credits?.token_balance || 0;
-    const isFree = credits?.is_free_tier ?? false;
+    const isAnon = !user;
 
-    if (!isFree && balance < cost) {
-      setRequiredCreditsForModal(cost);
-      setShowCreditsModal(true);
-      return;
+    if (!isAnon) {
+      const cost = getThemeTokenCost();
+      const balance = credits?.token_balance || 0;
+      const isFree = credits?.is_free_tier ?? false;
+
+      if (!isFree && balance < cost) {
+        setRequiredCreditsForModal(cost);
+        setShowCreditsModal(true);
+        return;
+      }
     }
 
     setStep("generating");
-    const totalCount = selectedShots.length + altImages.length;
+    const totalCount = isAnon ? 1 : selectedShots.length + altImages.length;
     setGenStatus(`Generating ${totalCount} shot${totalCount > 1 ? "s" : ""} with ${selectedTheme.name}...`);
     setResultImages([]);
+    setAnonGeneration(false);
 
     let activeSessionId = sessionId;
-    if (!activeSessionId) {
+    if (!isAnon && !activeSessionId) {
       try {
         const sessB64 = await resolveBase64(mainImage);
         const sess = await api.post<{ id: string }>("/sessions", {
@@ -384,30 +429,39 @@ function JewelryPage() {
 
     try {
       const mainB64 = await resolveBase64(mainImage);
-      const data = await api.post<GenerateResponse>("/jewelry/generate", {
+      const body = {
         image_base64: mainB64,
         jewelry_type: jewelryType,
         theme_id: selectedTheme.id,
         aspect_ratio_id: aspectRatioId,
-        quality,
+        quality: isAnon ? "standard" : quality,
         step: "all",
         session_id: activeSessionId,
-        shots: selectedShots.map((s) => ({
+        shots: selectedShots.slice(0, isAnon ? 1 : selectedShots.length).map((s) => ({
           shot_id: s.shot_id,
           label: s.label,
           additional_details: s.additional_details || undefined,
           theme_color: s.theme_color !== selectedTheme.default_color ? s.theme_color : undefined,
         })),
-        alt_images_base64: altImages.length > 0 ? altImages.map((a) => a.base64) : undefined,
+        alt_images_base64: (!isAnon && altImages.length > 0) ? altImages.map((a) => a.base64) : undefined,
         special_instructions: specialInstructions.trim() || undefined,
-      });
+      };
+
+      const data = isAnon
+        ? await callGenerateFree(body)
+        : await api.post<GenerateResponse>("/jewelry/generate", body);
+
       if (data.success && data.images.length > 0) {
         setResultImages(data.images);
         setGenerationIds(data.generation_ids || []);
         setStep("done");
         setGenStatus(null);
         setIsLocked(!!data.locked);
-        refreshCredits();
+        if (data.anonymous) {
+          setAnonGeneration(true);
+        } else {
+          refreshCredits();
+        }
         scrollToResults();
         showToast(`${data.images.length} photo${data.images.length > 1 ? "s" : ""} generated!`, "success");
       } else {
@@ -418,8 +472,12 @@ function JewelryPage() {
       setGenStatus(null);
       const apiErr = err as { status?: number; message?: string };
       if (apiErr.status === 403) {
-        setRequiredCreditsForModal(getThemeTokenCost());
-        setShowCreditsModal(true);
+        if (isAnon) {
+          setShowSignupPrompt(true);
+        } else {
+          setRequiredCreditsForModal(getThemeTokenCost());
+          setShowCreditsModal(true);
+        }
       } else {
         showToast(err instanceof Error ? err.message : "Generation failed. No tokens were deducted.");
       }
@@ -437,7 +495,14 @@ function JewelryPage() {
 
   useEffect(() => {
     const sid = searchParams.get("session");
-    if (!sid || sessionLoaded) return;
+    if (!sid || sessionLoaded) {
+      if (!sid) setSessionRestoring(false);
+      return;
+    }
+    if (!user) {
+      setSessionRestoring(false);
+      return;
+    }
     setSessionLoaded(true);
     setSessionRestoring(true);
 
@@ -514,7 +579,7 @@ function JewelryPage() {
         setSessionRestoring(false);
       }
     })();
-  }, [searchParams, sessionLoaded]);
+  }, [searchParams, sessionLoaded, user]);
 
   function readFile(file: File): Promise<UploadedImage> {
     return new Promise((resolve, reject) => {
@@ -583,24 +648,28 @@ function JewelryPage() {
 
   async function generateAll() {
     if (!mainImage) return;
-    if (!requireAuth()) return;
 
-    const cost = (1 + altImages.length) * JEWELRY_PRICING[quality].imageGen;
-    const balance = credits?.token_balance || 0;
-    const isFree = credits?.is_free_tier ?? false;
-    if (!isFree && balance < cost) {
-      setRequiredCreditsForModal(cost);
-      setShowCreditsModal(true);
-      return;
+    const isAnon = !user;
+
+    if (!isAnon) {
+      const cost = (1 + altImages.length) * JEWELRY_PRICING[quality].imageGen;
+      const balance = credits?.token_balance || 0;
+      const isFree = credits?.is_free_tier ?? false;
+      if (!isFree && balance < cost) {
+        setRequiredCreditsForModal(cost);
+        setShowCreditsModal(true);
+        return;
+      }
     }
 
     setStep("generating");
-    const totalCount = 1 + altImages.length;
+    const totalCount = isAnon ? 1 : 1 + altImages.length;
     setGenStatus(`Generating ${totalCount} photo${totalCount > 1 ? "s" : ""}...`);
     setResultImages([]);
+    setAnonGeneration(false);
 
     let activeSessionId = sessionId;
-    if (!activeSessionId) {
+    if (!isAnon && !activeSessionId) {
       try {
         const sessB64 = await resolveBase64(mainImage);
         const sess = await api.post<{ id: string }>("/sessions", {
@@ -619,19 +688,29 @@ function JewelryPage() {
     }
 
     try {
-      const data = await api.post<GenerateResponse>("/jewelry/generate", {
+      const payload = {
         ...(await basePayload()),
+        quality: isAnon ? "standard" : quality,
         step: "all",
         session_id: activeSessionId,
-        alt_images_base64: altImages.length > 0 ? altImages.map((a) => a.base64) : undefined,
-      });
+        alt_images_base64: (!isAnon && altImages.length > 0) ? altImages.map((a) => a.base64) : undefined,
+      };
+
+      const data = isAnon
+        ? await callGenerateFree(payload)
+        : await api.post<GenerateResponse>("/jewelry/generate", payload);
+
       if (data.success && data.images.length > 0) {
         setResultImages(data.images);
         setGenerationIds(data.generation_ids || []);
         setStep("done");
         setGenStatus(null);
         setIsLocked(!!data.locked);
-        refreshCredits();
+        if (data.anonymous) {
+          setAnonGeneration(true);
+        } else {
+          refreshCredits();
+        }
         scrollToResults();
         showToast(`${data.images.length} photo${data.images.length > 1 ? "s" : ""} generated!`, "success");
       } else {
@@ -642,9 +721,13 @@ function JewelryPage() {
       setGenStatus(null);
       const apiErr = err as { status?: number; message?: string };
       if (apiErr.status === 403) {
-        const cost = (1 + altImages.length) * JEWELRY_PRICING[quality].imageGen;
-        setRequiredCreditsForModal(cost);
-        setShowCreditsModal(true);
+        if (isAnon) {
+          setShowSignupPrompt(true);
+        } else {
+          const cost = (1 + altImages.length) * JEWELRY_PRICING[quality].imageGen;
+          setRequiredCreditsForModal(cost);
+          setShowCreditsModal(true);
+        }
       } else {
         showToast(err instanceof Error ? err.message : "Generation failed. No tokens were deducted.");
       }
@@ -723,6 +806,8 @@ function JewelryPage() {
         poses: ugcPoses,
         quality: ugcQuality,
         background: ugcBackground,
+        outfit_style: ugcOutfitCustom.trim() ? undefined : ugcOutfitStyle,
+        outfit_custom: ugcOutfitCustom.trim() || undefined,
         session_id: sessionId,
         special_instructions: `This is ${jewelryType} jewelry. Show the model wearing/displaying it elegantly.`,
       });
@@ -864,11 +949,11 @@ function JewelryPage() {
   }, [user]);
 
   useEffect(() => {
-    if (hasBrandConfig !== null) return;
+    if (!user || hasBrandConfig !== null) return;
     api.get<{ brand?: { id: string } }>("/brands/me")
       .then((d) => setHasBrandConfig(!!d.brand))
       .catch(() => setHasBrandConfig(false));
-  }, [hasBrandConfig]);
+  }, [user, hasBrandConfig]);
 
   function getAllBrandableImages(): ResultImage[] {
     return [...resultImages, ...recolorResults];
@@ -921,11 +1006,7 @@ function JewelryPage() {
     }
   }
 
-  async function downloadImage(img: ResultImage) {
-    if (isLocked) {
-      router.push("/pricing");
-      return;
-    }
+  async function doDownload(img: ResultImage) {
     const src = imgSrc(img);
     const filename = `soraipixel-${img.label.toLowerCase().replace(/\s+/g, "-")}.png`;
     try {
@@ -946,12 +1027,52 @@ function JewelryPage() {
     }
   }
 
+  async function downloadImage(img: ResultImage) {
+    if (isLocked) {
+      router.push("/pricing");
+      return;
+    }
+    if (!user) {
+      setPendingDownload(img);
+      setEmailGateOpen(true);
+      return;
+    }
+    doDownload(img);
+  }
+
   function downloadAll() {
     if (isLocked) {
       router.push("/pricing");
       return;
     }
-    resultImages.forEach((img) => downloadImage(img));
+    if (!user) {
+      setPendingDownload(resultImages[0] || null);
+      setEmailGateOpen(true);
+      return;
+    }
+    resultImages.forEach((img) => doDownload(img));
+  }
+
+  async function handleEmailGateSubmit(email: string) {
+    try {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      if (supabaseUrl && supabaseKey) {
+        await fetch(`${supabaseUrl}/auth/v1/magiclink`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", apikey: supabaseKey },
+          body: JSON.stringify({ email }),
+        });
+      }
+    } catch {
+      // Silently continue — we still allow the download
+    }
+    setEmailGateOpen(false);
+    if (pendingDownload) {
+      doDownload(pendingDownload);
+      setPendingDownload(null);
+    }
+    showToast("Check your email for login link + 3 free tokens!", "success");
   }
 
   function startOver() {
@@ -1493,10 +1614,17 @@ function JewelryPage() {
               <div className="flex gap-2">
                 {!isLocked && (
                   <button
-                    onClick={downloadAll}
+                    onClick={() => {
+                      if (anonGeneration) {
+                        setPendingDownload(resultImages[0] || null);
+                        setEmailGateOpen(true);
+                      } else {
+                        downloadAll();
+                      }
+                    }}
                     className="px-4 py-2 bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-white text-xs font-semibold rounded-full hover:shadow-[0_4px_16px_rgba(196,166,125,0.3)] transition-all"
                   >
-                    Download All
+                    {anonGeneration ? "Download HD" : "Download All"}
                   </button>
                 )}
                 <button
@@ -1574,7 +1702,7 @@ function JewelryPage() {
                       {!isLocked && (
                         <>
                           <button
-                            onClick={() => regenerateShot(i)}
+                            onClick={() => anonGeneration ? setShowSignupPrompt(true) : regenerateShot(i)}
                             disabled={regenIndex === i}
                             className="text-[11px] text-[rgba(255,255,255,0.45)] hover:text-[#c4a67d] transition-colors uppercase tracking-wider font-semibold disabled:opacity-50 flex items-center gap-1"
                           >
@@ -1596,7 +1724,14 @@ function JewelryPage() {
                             Compare
                           </button>
                           <button
-                            onClick={() => downloadImage(img)}
+                            onClick={() => {
+                              if (anonGeneration) {
+                                setPendingDownload(img);
+                                setEmailGateOpen(true);
+                              } else {
+                                downloadImage(img);
+                              }
+                            }}
                             className="text-[11px] text-[rgba(255,255,255,0.45)] hover:text-[#c4a67d] transition-colors uppercase tracking-wider font-semibold"
                           >
                             Save
@@ -1657,8 +1792,39 @@ function JewelryPage() {
               </div>
             )}
 
+            {/* Anonymous signup nudge banner */}
+            {anonGeneration && (
+              <div className="rounded-2xl border border-[rgba(196,166,125,0.25)] bg-gradient-to-r from-[rgba(196,166,125,0.08)] to-[rgba(139,115,85,0.05)] p-5">
+                <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+                  <div className="flex-1">
+                    <h3 className="text-base font-bold text-white mb-1">Love the result?</h3>
+                    <p className="text-sm text-[rgba(255,255,255,0.55)]">
+                      Sign up to download in <span className="text-[#c4a67d] font-medium">full HD without watermark</span>, get <span className="text-[#c4a67d] font-medium">8 free tokens</span>, and keep creating.
+                    </p>
+                  </div>
+                  <div className="flex gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => router.push("/login?redirect=/jewelry")}
+                      className="px-5 py-2.5 bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-white text-sm font-semibold rounded-xl hover:shadow-[0_4px_20px_rgba(196,166,125,0.35)] transition-all"
+                    >
+                      Sign Up Free
+                    </button>
+                    <button
+                      onClick={() => {
+                        setPendingDownload(resultImages[0] || null);
+                        setEmailGateOpen(true);
+                      }}
+                      className="px-5 py-2.5 text-sm text-[rgba(255,255,255,0.5)] hover:text-white border border-[rgba(255,255,255,0.1)] rounded-xl transition-colors"
+                    >
+                      Download Preview
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Tweak + regenerate bar */}
-            {!isLocked && (
+            {!isLocked && !anonGeneration && (
               <div className="flex items-center gap-2">
                 <div className="inline-flex rounded-lg bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] p-0.5 flex-shrink-0">
                   <button
@@ -1748,6 +1914,53 @@ function JewelryPage() {
 
                 {ugcImages.length > 0 ? (
                   <div className="space-y-4">
+                    {/* Loading skeleton cards while generating more */}
+                    {ugcLoading && ugcPoses.length > 0 && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[rgba(234,179,8,0.1)]">
+                            <div className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse" />
+                            <span className={`text-[10px] font-semibold ${isLight ? "text-yellow-600" : "text-yellow-500"}`}>Generating</span>
+                          </div>
+                          <span className={`text-[11px] ${isLight ? "text-[#999]" : "text-white/30"}`}>
+                            {ugcPoses.length} photo{ugcPoses.length !== 1 ? "s" : ""} · ~20-40s
+                          </span>
+                          <div className={`flex-1 h-px ${isLight ? "bg-[#e5e2dc]" : "bg-white/5"}`} />
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                          {ugcPoses.map((pose, i) => (
+                            <div
+                              key={`ugc-loading-${pose}-${i}`}
+                              className={`rounded-xl overflow-hidden border ${
+                                isLight ? "border-[#e5e2dc] bg-[#f8f6f3]" : "border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.02)]"
+                              }`}
+                            >
+                              <div className="relative flex items-center justify-center aspect-[3/4]">
+                                <div className={`absolute inset-0 ${isLight ? "bg-gradient-to-br from-[#f5f0e8] to-[#ebe5db]" : "bg-gradient-to-br from-[rgba(255,255,255,0.03)] to-[rgba(255,255,255,0.01)]"}`}>
+                                  <div className={`absolute inset-0 animate-pulse ${isLight ? "bg-[#ede8e0]/60" : "bg-white/[0.02]"}`} />
+                                </div>
+                                <div className="relative w-12 h-12">
+                                  <svg className="absolute inset-0 w-full h-full animate-spin" viewBox="0 0 48 48" fill="none" style={{ animationDuration: `${1.8 + i * 0.4}s` }}>
+                                    <circle cx="24" cy="24" r="20" stroke={isLight ? "rgba(139,115,85,0.1)" : "rgba(196,166,125,0.1)"} strokeWidth="2" />
+                                    <path d="M24 4a20 20 0 0 1 20 20" stroke={isLight ? "#8b7355" : "#c4a67d"} strokeWidth="2" strokeLinecap="round" />
+                                  </svg>
+                                  <div className="absolute inset-0 flex items-center justify-center">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={isLight ? "rgba(139,115,85,0.35)" : "rgba(196,166,125,0.4)"} strokeWidth="1.5">
+                                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+                                    </svg>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className={`px-2.5 py-2 border-t ${isLight ? "border-[#e5e2dc]" : "border-[rgba(255,255,255,0.04)]"}`}>
+                                <span className={`text-[10px] font-semibold ${isLight ? "text-[#999]" : "text-white/30"}`}>
+                                  {pose.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     {(() => {
                       const batches: { title: string; images: { img: ResultImage; globalIdx: number }[] }[] = [];
                       let currentBatch: typeof batches[0] | null = null;
@@ -1764,16 +1977,20 @@ function JewelryPage() {
                         <div key={batch.title}>
                           {batches.length > 1 && (
                             <div className="flex items-center gap-2 mb-2">
-                              <span className="text-[11px] font-semibold text-white/40 uppercase tracking-wider">{batch.title}</span>
-                              {bIdx === 0 && <span className="text-[10px] font-medium text-[#c4a67d]/60 bg-[rgba(196,166,125,0.08)] px-1.5 py-0.5 rounded">Latest</span>}
-                              <div className="flex-1 h-px bg-white/5" />
+                              <span className={`text-[11px] font-semibold uppercase tracking-wider ${isLight ? "text-[#999]" : "text-white/40"}`}>{batch.title}</span>
+                              {bIdx === 0 && !ugcLoading && <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${isLight ? "text-[#8b7355]/60 bg-[#8b7355]/[0.08]" : "text-[#c4a67d]/60 bg-[rgba(196,166,125,0.08)]"}`}>Latest</span>}
+                              <div className={`flex-1 h-px ${isLight ? "bg-[#e5e2dc]" : "bg-white/5"}`} />
                             </div>
                           )}
                           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                             {batch.images.map(({ img, globalIdx }) => (
                               <div
                                 key={globalIdx}
-                                className="rounded-xl overflow-hidden border border-[rgba(255,255,255,0.08)] hover:border-[rgba(196,166,125,0.3)] relative group/ugc cursor-pointer transition-all duration-200"
+                                className={`rounded-xl overflow-hidden border relative group/ugc cursor-pointer transition-all duration-200 ${
+                                  isLight
+                                    ? "border-[#e5e2dc] hover:border-[#8b7355]/40"
+                                    : "border-[rgba(255,255,255,0.08)] hover:border-[rgba(196,166,125,0.3)]"
+                                }`}
                                 onClick={() => setUgcLightbox(globalIdx)}
                               >
                                 <img
@@ -1788,9 +2005,11 @@ function JewelryPage() {
                                 </div>
                                 <button
                                   onClick={(e) => { e.stopPropagation(); downloadImage(img); }}
-                                  className="absolute top-2 right-2 px-2 py-1 rounded-lg bg-black/60 backdrop-blur-sm text-[10px] text-white/70 hover:text-white font-semibold uppercase tracking-wider opacity-0 group-hover/ugc:opacity-100 transition-opacity"
+                                  className="absolute top-1.5 right-1.5 w-7 h-7 flex items-center justify-center rounded-full bg-black/50 backdrop-blur-sm text-white/70 hover:text-white hover:bg-black/70 opacity-0 group-hover/ugc:opacity-100 transition-all"
                                 >
-                                  Save
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                                  </svg>
                                 </button>
                               </div>
                             ))}
@@ -2480,6 +2699,53 @@ function JewelryPage() {
                 </div>
               </div>
 
+              {/* Outfit Style */}
+              <div>
+                <label className="block text-[10px] font-semibold text-[rgba(255,255,255,0.45)] uppercase tracking-[0.1em] mb-2.5">Outfit</label>
+                <div className="grid grid-cols-3 gap-2 mb-2.5">
+                  {([
+                    { id: "modern", label: "Modern", desc: "Western formal / casual", icon: "👔" },
+                    { id: "traditional", label: "Traditional", desc: "Saree, lehenga, ethnic", icon: "🪷" },
+                    { id: "minimal", label: "Minimal", desc: "Plain top, no distraction", icon: "◻️" },
+                  ] as const).map((style) => (
+                    <button
+                      key={style.id}
+                      onClick={() => { setUgcOutfitStyle(style.id); setUgcOutfitCustom(""); }}
+                      className={`py-2.5 px-2 rounded-xl text-center transition-all duration-200 ${
+                        ugcOutfitStyle === style.id && !ugcOutfitCustom
+                          ? "bg-[rgba(196,166,125,0.12)] border border-[rgba(196,166,125,0.3)] shadow-[0_0_12px_rgba(196,166,125,0.1)]"
+                          : "bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)]"
+                      }`}
+                    >
+                      <span className="text-base">{style.icon}</span>
+                      <p className={`text-[11px] font-semibold mt-1 ${
+                        ugcOutfitStyle === style.id && !ugcOutfitCustom ? "text-[#c4a67d]" : "text-[rgba(255,255,255,0.6)]"
+                      }`}>{style.label}</p>
+                      <p className="text-[9px] text-[rgba(255,255,255,0.3)] mt-0.5 leading-tight">{style.desc}</p>
+                    </button>
+                  ))}
+                </div>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={ugcOutfitCustom}
+                    onChange={(e) => setUgcOutfitCustom(e.target.value)}
+                    placeholder="Or describe a custom outfit, e.g. 'red silk saree with gold border'"
+                    className="w-full px-3 py-2.5 rounded-xl text-xs bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-white placeholder:text-[rgba(255,255,255,0.25)] outline-none focus:border-[rgba(196,166,125,0.4)] transition-colors"
+                  />
+                  {ugcOutfitCustom && (
+                    <button
+                      onClick={() => setUgcOutfitCustom("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[rgba(255,255,255,0.3)] hover:text-white transition-colors"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                        <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              </div>
+
               {/* Poses */}
               <div>
                 <label className="block text-[10px] font-semibold text-[rgba(255,255,255,0.45)] uppercase tracking-[0.1em] mb-1">
@@ -3008,6 +3274,50 @@ function JewelryPage() {
         requiredCredits={requiredCreditsForModal}
         currentBalance={credits?.token_balance || 0}
       />
+
+      {/* Email Gate Modal for Downloads */}
+      <EmailGateModal
+        open={emailGateOpen}
+        onClose={() => { setEmailGateOpen(false); setPendingDownload(null); }}
+        onSubmit={handleEmailGateSubmit}
+      />
+
+      {/* Signup Prompt Modal — shown when anon user hits their limit or tries premium actions */}
+      {showSignupPrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setShowSignupPrompt(false)}>
+          <div className="relative w-full max-w-md mx-4 bg-[#1a1a1a] border border-[rgba(196,166,125,0.25)] rounded-2xl p-8 text-center" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setShowSignupPrompt(false)}
+              className="absolute top-4 right-4 text-[rgba(255,255,255,0.4)] hover:text-white transition-colors"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+            </button>
+            <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-gradient-to-r from-[#8b7355] to-[#c4a67d] flex items-center justify-center">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-white mb-2">Love the result?</h3>
+            <p className="text-sm text-[rgba(255,255,255,0.55)] mb-6">
+              Sign up to download HD images, get <span className="text-[#c4a67d] font-semibold">8 free tokens</span>, and keep creating studio-quality jewelry photos.
+            </p>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => router.push("/login?redirect=/jewelry")}
+                className="w-full py-3 bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-white font-semibold rounded-xl hover:shadow-[0_4px_20px_rgba(196,166,125,0.35)] transition-all"
+              >
+                Sign Up Free
+              </button>
+              <button
+                onClick={() => setShowSignupPrompt(false)}
+                className="w-full py-3 text-sm text-[rgba(255,255,255,0.4)] hover:text-white transition-colors"
+              >
+                Maybe later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </ResponsiveLayout>
   );
 }

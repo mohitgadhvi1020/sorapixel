@@ -19,7 +19,8 @@ PLANS = [
         "name": "Starter Pack",
         "type": "token_pack",
         "price_inr": 149,
-        "price_usd": 199,
+        "price_usd": 499,
+        "price_eur": 499,
         "tokens": 80,
         "description": "80 tokens — 10 Standard images or 4 Pro images",
         "recommended": False,
@@ -29,7 +30,8 @@ PLANS = [
         "name": "Creator Pack",
         "type": "token_pack",
         "price_inr": 399,
-        "price_usd": 499,
+        "price_usd": 1299,
+        "price_eur": 1199,
         "tokens": 250,
         "description": "250 tokens — 31 Standard images or 12 Pro images",
         "recommended": False,
@@ -39,7 +41,8 @@ PLANS = [
         "name": "Pro Pack",
         "type": "token_pack",
         "price_inr": 799,
-        "price_usd": 999,
+        "price_usd": 2499,
+        "price_eur": 2299,
         "tokens": 600,
         "description": "600 tokens — 75 Standard images or 30 Pro images",
         "recommended": False,
@@ -49,7 +52,8 @@ PLANS = [
         "name": "Growth Monthly",
         "type": "subscription",
         "price_inr": 549,
-        "price_usd": 699,
+        "price_usd": 1999,
+        "price_eur": 1799,
         "tokens": 400,
         "description": "400 tokens/month — 50 Standard or 20 Pro images monthly",
         "recommended": True,
@@ -59,7 +63,8 @@ PLANS = [
         "name": "Business Monthly",
         "type": "subscription",
         "price_inr": 1499,
-        "price_usd": 1799,
+        "price_usd": 4999,
+        "price_eur": 4499,
         "tokens": 1200,
         "description": "1200 tokens/month — 150 Standard or 60 Pro images monthly",
         "recommended": False,
@@ -73,11 +78,33 @@ def _get_razorpay_client() -> razorpay.Client:
 
 
 def get_all_plans() -> list[dict]:
+    """Return plans from DB if available, otherwise use hardcoded defaults."""
+    try:
+        sb = get_supabase()
+        result = sb.table("pricing_plans").select("*").eq("is_active", True).order("sort_order").execute()
+        if result.data:
+            return [
+                {
+                    "id": p["plan_id"],
+                    "name": p["name"],
+                    "type": p["plan_type"],
+                    "price_inr": p["price_inr"],
+                    "price_usd": p["price_usd"],
+                    "price_eur": p.get("price_eur") or p["price_usd"],
+                    "tokens": p["tokens"],
+                    "description": p["description"],
+                    "recommended": p.get("recommended", False),
+                }
+                for p in result.data
+            ]
+    except Exception as e:
+        logger.debug("pricing_plans table not available, using hardcoded plans: %s", e)
     return PLANS
 
 
 def get_plan_by_id(plan_id: str) -> dict | None:
-    return next((p for p in PLANS if p["id"] == plan_id), None)
+    all_plans = get_all_plans()
+    return next((p for p in all_plans if p["id"] == plan_id), None)
 
 
 def create_razorpay_order(client_id: str, plan_id: str, currency: str = "INR") -> dict:
@@ -91,11 +118,13 @@ def create_razorpay_order(client_id: str, plan_id: str, currency: str = "INR") -
         return {"success": False, "error": "Unknown plan"}
 
     currency = currency.upper()
-    if currency not in ("INR", "USD"):
-        return {"success": False, "error": "Unsupported currency. Use INR or USD."}
+    if currency not in ("INR", "USD", "EUR"):
+        return {"success": False, "error": "Unsupported currency. Use INR, USD, or EUR."}
 
     if currency == "USD":
         amount_minor = plan["price_usd"]  # already in cents
+    elif currency == "EUR":
+        amount_minor = plan.get("price_eur", plan["price_usd"])  # cents, fallback to USD
     else:
         amount_minor = plan["price_inr"] * 100  # convert rupees to paise
 

@@ -18,23 +18,26 @@ PRODUCT_ISOLATION_PROMPT = (
 # Some categories get extra category-specific backgrounds.
 
 SCENE_BACKGROUNDS = [
+    {"id": "studio", "label": "Studio", "thumb": "https://images.unsplash.com/photo-1497366216548-37526070297c?w=200&h=200&fit=crop&q=80", "prompt": "a clean professional photography studio with soft even lighting, seamless backdrop"},
+    {"id": "marble", "label": "Marble", "thumb": "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=200&h=200&fit=crop&q=80", "prompt": "a polished white marble surface, clean and luxurious, soft diffused lighting"},
+    {"id": "wooden", "label": "Wooden", "thumb": "https://images.unsplash.com/photo-1541123603104-512919d6a96c?w=200&h=200&fit=crop&q=80", "prompt": "a warm wooden surface/interior, rustic yet elegant, natural textures"},
     {"id": "indoor", "label": "Indoor", "thumb": "https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?w=200&h=200&fit=crop&q=80", "prompt": "a well-decorated modern indoor room, warm ambient lighting"},
     {"id": "livingroom", "label": "Livingroom", "thumb": "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=200&h=200&fit=crop&q=80", "prompt": "a stylish modern living room with soft natural light"},
-    {"id": "brickwall", "label": "Brickwall", "thumb": "https://images.unsplash.com/photo-1517329782449-810562a4ec2f?w=200&h=200&fit=crop&q=80", "prompt": "exposed brick wall background, warm industrial aesthetic, soft spotlight"},
-    {"id": "studio", "label": "Studio", "thumb": "https://images.unsplash.com/photo-1497366216548-37526070297c?w=200&h=200&fit=crop&q=80", "prompt": "a clean professional photography studio with soft even lighting, seamless backdrop"},
-    {"id": "wooden", "label": "Wooden", "thumb": "https://images.unsplash.com/photo-1541123603104-512919d6a96c?w=200&h=200&fit=crop&q=80", "prompt": "a warm wooden surface/interior, rustic yet elegant, natural textures"},
     {"id": "flora", "label": "Flora", "thumb": "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=200&h=200&fit=crop&q=80", "prompt": "a lush green garden or floral setting with natural sunlight filtering through"},
-    {"id": "marble", "label": "Marble", "thumb": "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=200&h=200&fit=crop&q=80", "prompt": "a polished white marble surface, clean and luxurious, soft diffused lighting"},
+    {"id": "brickwall", "label": "Brickwall", "thumb": "https://images.unsplash.com/photo-1517329782449-810562a4ec2f?w=200&h=200&fit=crop&q=80", "prompt": "exposed brick wall background, warm industrial aesthetic, soft spotlight"},
 ]
 
 COLOR_BACKGROUNDS = [
+    {"id": "white", "label": "White", "color": "#FFFFFF", "prompt": "pure white seamless background, soft even lighting, e-commerce ready"},
+    {"id": "cream", "label": "Cream", "color": "#F5F0E8", "prompt": "warm cream off-white background, soft natural lighting, elegant minimalist feel"},
+    {"id": "beige", "label": "Beige", "color": "#E8DCC8", "prompt": "warm beige background, gentle diffused lighting, organic neutral tone"},
+    {"id": "light_grey", "label": "Light Grey", "color": "#E0E0E0", "prompt": "soft light grey background, clean even studio lighting, modern minimal"},
     {"id": "grey", "label": "Grey", "color": "#808080", "prompt": "solid neutral grey background, even studio lighting"},
-    {"id": "green", "label": "Green", "color": "#1B5E20", "prompt": "solid rich green background, even studio lighting"},
+    {"id": "black", "label": "Black", "color": "#1A1A1A", "prompt": "solid deep black background, dramatic spotlight, premium feel"},
     {"id": "pink", "label": "Pink", "color": "#F8BBD0", "prompt": "solid soft pink background, even studio lighting"},
+    {"id": "green", "label": "Green", "color": "#1B5E20", "prompt": "solid rich green background, even studio lighting"},
     {"id": "purple", "label": "Purple", "color": "#7B1FA2", "prompt": "solid deep purple background, even studio lighting"},
     {"id": "yellow", "label": "Yellow", "color": "#FDD835", "prompt": "solid warm golden yellow background, even studio lighting"},
-    {"id": "white", "label": "White", "color": "#FFFFFF", "prompt": "pure white seamless background, soft even lighting, e-commerce ready"},
-    {"id": "black", "label": "Black", "color": "#1A1A1A", "prompt": "solid deep black background, dramatic spotlight, premium feel"},
 ]
 
 CATEGORY_EXTRA_BACKGROUNDS = {
@@ -119,7 +122,10 @@ def build_studio_prompt(background_id: str, category_slug: str | None = None, sp
     prompt = (
         f"{context}\n"
         f"Background: {bg_prompt}\n"
-        f"Commercial quality, high resolution, perfectly lit.\n\n"
+        f"Commercial quality, high resolution, perfectly lit.\n"
+        f"The product must cast a natural, soft shadow on the surface beneath it — "
+        f"a realistic contact shadow and a subtle diffused drop shadow to give the product a grounded, three-dimensional appearance. "
+        f"The shadow should look physically accurate as if the product is sitting on the surface under studio lighting.\n\n"
         f"{PRODUCT_ISOLATION_PROMPT}"
     )
 
@@ -300,12 +306,12 @@ POSE_DESCRIPTIONS = {
 }
 
 CATALOGUE_BACKGROUNDS = [
-    {"id": "best_match", "label": "Best Match", "thumb": "https://images.unsplash.com/photo-1557682250-33bd709cbe85?w=200&h=200&fit=crop&q=80", "prompt": "a professional studio or lifestyle setting that complements the product"},
-    {"id": "studio", "label": "Studio", "thumb": "https://images.unsplash.com/photo-1497366216548-37526070297c?w=200&h=200&fit=crop&q=80", "prompt": "a clean professional photography studio with soft even lighting"},
-    {"id": "flora", "label": "Flora", "thumb": "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=200&h=200&fit=crop&q=80", "prompt": "a lush green garden or floral setting with natural light"},
-    {"id": "wooden", "label": "Wooden", "thumb": "https://images.unsplash.com/photo-1541123603104-512919d6a96c?w=200&h=200&fit=crop&q=80", "prompt": "a warm wooden interior with natural textures"},
-    {"id": "indoor", "label": "Indoor", "thumb": "https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?w=200&h=200&fit=crop&q=80", "prompt": "a well-decorated modern indoor setting with warm lighting"},
-    {"id": "livingroom", "label": "Living Room", "thumb": "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=200&h=200&fit=crop&q=80", "prompt": "a stylish modern living room"},
+    {"id": "best_match", "label": "Best Match", "thumb": "https://images.unsplash.com/photo-1557682250-33bd709cbe85?w=200&h=200&fit=crop&q=80", "prompt": "a plain solid light-grey (#E0E0E0) seamless studio backdrop with soft diffused lighting from above — no patterns, no gradients, no props, no windows, no outdoor elements"},
+    {"id": "studio", "label": "Studio", "thumb": "https://images.unsplash.com/photo-1497366216548-37526070297c?w=200&h=200&fit=crop&q=80", "prompt": "a plain solid white seamless paper studio backdrop with soft even lighting from two softboxes — no shadows on the background, no props, no furniture, pure white (#FFFFFF) behind the model"},
+    {"id": "flora", "label": "Flora", "thumb": "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=200&h=200&fit=crop&q=80", "prompt": "a lush green garden with soft-focus pink and white flowers in the background, warm natural sunlight filtering through leaves — the greenery is blurred (bokeh) behind the model"},
+    {"id": "wooden", "label": "Wooden", "thumb": "https://images.unsplash.com/photo-1541123603104-512919d6a96c?w=200&h=200&fit=crop&q=80", "prompt": "a warm honey-toned wooden panel wall backdrop with soft warm studio lighting — no furniture, no props, just the flat wooden wall texture behind the model"},
+    {"id": "indoor", "label": "Indoor", "thumb": "https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?w=200&h=200&fit=crop&q=80", "prompt": "a soft beige/cream solid wall with warm ambient lighting — minimal, clean, no furniture or decor visible, just the neutral wall as backdrop"},
+    {"id": "livingroom", "label": "Living Room", "thumb": "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=200&h=200&fit=crop&q=80", "prompt": "a modern living room with a light grey sofa and white walls, soft natural window light from the left — the room is slightly blurred behind the model"},
 ]
 
 CATALOGUE_BG_DESCRIPTIONS = {b["id"]: b["prompt"] for b in CATALOGUE_BACKGROUNDS}
@@ -376,6 +382,9 @@ def build_catalogue_prompt(
         f"Subject: {model_desc} {interaction}.\n"
         f"Pose: {pose_desc}\n"
         f"Background: {bg_desc}\n"
+        "⚠️ BACKGROUND CONSISTENCY — The background MUST match EXACTLY the description above. "
+        "Do NOT improvise, add outdoor elements, change the color, or use a different setting. "
+        "The background must look identical across all shots in this series.\n"
         f"{outfit_line}\n"
         f"{PRODUCT_ISOLATION_PROMPT}\n\n"
         "⚠️ SIZE & PROPORTION RULE — CRITICAL:\n"
@@ -666,6 +675,13 @@ def build_jewelry_prompt(
         f"- If it is a pair (like earrings), both pieces MUST be visible."
     )
 
+    # SECTION 3b: Reference description — helps reduce hallucinations
+    if detection and detection.get("primary_description"):
+        sections.append(
+            "REFERENCE DESCRIPTION (from input analysis)\n"
+            f"- {str(detection.get('primary_description')).strip()}"
+        )
+
     # SECTION 4: Category-specific geometry rules
     sections.append(
         f"CATEGORY RULES — {jewelry_type.upper()}\n"
@@ -683,8 +699,9 @@ def build_jewelry_prompt(
     sections.append(
         f"BACKGROUND\n"
         f"- Replace the background with: {bg_prompt}.\n"
-        f"- Keep realistic natural shadows under the jewelry.\n"
-        f"- Do NOT alter jewelry lighting direction."
+        f"- Keep realistic natural contact shadows under the jewelry.\n"
+        f"- Lighting must look like a real studio photograph (soft diffusion, controlled highlights).\n"
+        f"- Do NOT introduce harsh directional shadows, blown highlights, or mirror-like chrome reflections."
     )
 
     # SECTION 7: Cleanup — handle messy user uploads
@@ -694,6 +711,7 @@ def build_jewelry_prompt(
         "- Remove dust, scratches, and fingerprints from surfaces.",
         "- Do NOT oversharpen.",
         "- Do NOT smooth fine details.",
+        "- No text, logos, watermarks, frames, or borders.",
         "",
         "REFLECTION CLEANUP — CRITICAL",
         "- Remove camera reflections, photographer reflections, and environmental glare.",
@@ -704,6 +722,10 @@ def build_jewelry_prompt(
         "- Use soft diffused studio lighting.",
         "- Avoid harsh specular hotspots.",
         "- Maintain natural metal sheen without mirror reflections.",
+        "",
+        "MATERIAL REALISM — CRITICAL",
+        "- Metal must look like real jewelry metal (gold/silver/platinum) — not plastic, not painted, not chrome.",
+        "- Gemstones must keep their true cut and color; no neon glow, no color shifts, no shape changes.",
     ]
     sections.append("\n".join(cleanup_lines))
 
@@ -1056,6 +1078,12 @@ def build_jewelry_theme_prompt(
         f"- If it is a pair (like earrings), both pieces MUST be visible."
     )
 
+    if detection and detection.get("primary_description"):
+        sections.append(
+            "REFERENCE DESCRIPTION (from input analysis)\n"
+            f"- {str(detection.get('primary_description')).strip()}"
+        )
+
     sections.append(
         f"CATEGORY RULES — {jewelry_type.upper()}\n"
         f"{type_rules}"
@@ -1065,6 +1093,14 @@ def build_jewelry_theme_prompt(
         f"SCENE & COMPOSITION\n"
         f"- {scene_prompt}"
     )
+
+    if shot_id in {"angle_3_4", "angle_side", "top_down"}:
+        sections.append(
+            "ANGLE VARIANT SAFETY RULES\n"
+            "- Preserve exact design, proportions, and item count.\n"
+            "- Do NOT warp, stretch, melt, or change thickness.\n"
+            "- If the requested angle would require guessing hidden geometry, keep the variation subtle rather than inventing details."
+        )
 
     cleanup_lines = [
         "CLEANUP RULES",
@@ -1080,6 +1116,11 @@ def build_jewelry_theme_prompt(
         "- Use soft diffused studio lighting.",
         "- Avoid harsh specular hotspots.",
         "- Maintain natural metal sheen without mirror reflections.",
+        "- No text, logos, watermarks, frames, or borders.",
+        "",
+        "MATERIAL REALISM — CRITICAL",
+        "- Metal must look like real jewelry metal — not plastic, not painted, not chrome.",
+        "- Gemstones must keep their true cut and color; no glow effects or hue shifts.",
     ]
     sections.append("\n".join(cleanup_lines))
 

@@ -6,6 +6,9 @@ import { useAuth } from "@/providers/AppProvider";
 import Logo from "@/components/ui/Logo";
 import CompareSlider from "@/components/ui/CompareSlider";
 import PricingModal from "@/components/pricing/PricingModal";
+import ContactFloat from "@/components/ui/ContactFloat";
+import ExitIntentPopup from "@/components/ui/ExitIntentPopup";
+import { useGeoCountry } from "@/hooks/useGeoCountry";
 
 const IMG = {
   before: "/images/ring-before-phone.png",
@@ -69,7 +72,21 @@ function ImgCard({ src, alt, children, className = "" }: { src: string; alt: str
 
 export default function HomePageClient() {
   const { user, isAuthenticated } = useAuth();
+  const { currency, isIndia } = useGeoCountry();
   const [activeTransformation, setActiveTransformation] = useState(0);
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
+
+  const sym = currency === "INR" ? "₹" : currency === "EUR" ? "€" : "$";
+  const starterPrice = isIndia ? "₹149" : currency === "EUR" ? "€4.99" : "$4.99";
+  const growthPrice = isIndia ? "₹549" : currency === "EUR" ? "€17.99" : "$19.99";
+  const businessPrice = isIndia ? "₹1499" : currency === "EUR" ? "€44.99" : "$49.99";
+  const perImageCost = isIndia ? "₹15" : currency === "EUR" ? "€0.50" : "$0.50";
+  const starterPerImage = isIndia ? "~₹15/image" : currency === "EUR" ? "~€0.50/image" : "~$0.50/image";
+  const growthPerImage = isIndia ? "~₹11/image" : currency === "EUR" ? "~€0.36/image" : "~$0.40/image";
+  const businessPerImage = isIndia ? "~₹10/image" : currency === "EUR" ? "~€0.30/image" : "~$0.33/image";
+  const growthSavings = isIndia ? "26" : currency === "EUR" ? "28" : "20";
+  const businessSavings = isIndia ? "33" : currency === "EUR" ? "40" : "33";
+  const traditionalCost = isIndia ? "₹2,000–₹5,000" : currency === "EUR" ? "€200–€500" : "$200–$500";
 
   return (
     <div className="min-h-screen bg-[#f7f7f5]">
@@ -83,6 +100,7 @@ export default function HomePageClient() {
           </Link>
           <nav className="flex items-center gap-1 sm:gap-2">
             <Link href="/jewelry" className="px-2.5 sm:px-3 py-2 text-[12px] sm:text-[13px] font-medium text-[#0a0a0a] bg-[#f5f0e8] rounded-lg transition-all">Jewelry Studio</Link>
+            <Link href="/studio" prefetch={false} className="px-2.5 sm:px-3 py-2 text-[12px] sm:text-[13px] font-medium text-[#4a4a4a] rounded-lg hover:text-[#0a0a0a] hover:bg-black/[0.04] transition-all hidden sm:block">Product Studio</Link>
             <Link href="/batch-listing" prefetch={false} className="px-2.5 sm:px-3 py-2 text-[12px] sm:text-[13px] font-medium text-[#4a4a4a] rounded-lg hover:text-[#0a0a0a] hover:bg-black/[0.04] transition-all hidden sm:block">Bulk Listings</Link>
             <Link href="/pricing" prefetch={false} className="px-2.5 sm:px-3 py-2 text-[12px] sm:text-[13px] font-medium text-[#4a4a4a] rounded-lg hover:text-[#0a0a0a] hover:bg-black/[0.04] transition-all hidden sm:block">Pricing</Link>
             {isAuthenticated ? (
@@ -126,7 +144,7 @@ export default function HomePageClient() {
               </p>
               <div className="mt-7 md:mt-8 flex flex-wrap items-center gap-3 animate-slide-up" style={{ animationDelay: "240ms" }}>
                 <Link href="/jewelry" className="px-7 py-3.5 bg-white text-[#0a0a0a] text-[14px] font-semibold rounded-full hover:bg-white/90 transition-all active:scale-[0.97] shadow-[0_4px_24px_rgba(255,255,255,0.1)]">
-                  Try Free — No Signup
+                  Try on YOUR Jewelry — Free
                 </Link>
                 <Link href="/pricing" prefetch={false} className="px-6 py-3.5 text-white/40 text-[14px] font-medium hover:text-white/70 transition-colors">
                   View Pricing
@@ -161,14 +179,94 @@ export default function HomePageClient() {
           <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2 text-[12px] sm:text-[13px] text-[#8c8c8c]">
             <span className="flex items-center gap-2 font-semibold text-[#0a0a0a]">
               <svg className="w-4 h-4 text-[#c4a67d]" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
-              Trusted by 500+ jewelers
+              Loved by jewelers from Jaipur to New York
             </span>
             <span className="hidden sm:inline text-[#e8e5df]">|</span>
-            <span>98% detail accuracy</span>
+            <span>Preserves every stone, prong &amp; engraving</span>
             <span className="hidden sm:inline text-[#e8e5df]">|</span>
             <span>Under 30 seconds per image</span>
             <span className="hidden sm:inline text-[#e8e5df]">|</span>
             <span>Zero design changes guaranteed</span>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ TWO STUDIOS — Jewelry + Product ═══ */}
+      <section className="bg-[#f7f7f5] border-b border-[#e8e5df]">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-8 lg:px-12 py-16 md:py-24">
+          <div className="text-center mb-10 md:mb-14">
+            <span className="text-[11px] sm:text-xs font-semibold text-[#8b7355] tracking-[0.12em] uppercase mb-3 block">Two Powerful Studios</span>
+            <h2 className="font-display font-bold text-[#0a0a0a] uppercase tracking-[-0.02em] text-[1.75rem] sm:text-[2.25rem] md:text-[3rem] leading-[1.0]">
+              Choose Your <span className="text-[#8b7355]">Studio</span>
+            </h2>
+            <p className="mt-4 text-[#8c8c8c] text-[15px] max-w-lg mx-auto leading-relaxed">
+              Whether you sell jewelry or any other product — we have the right AI studio for you.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+            {/* Jewelry Studio Card */}
+            <div className="relative bg-white rounded-2xl border-2 border-[#c4a67d]/30 overflow-hidden hover:border-[#c4a67d]/60 transition-all duration-300 group shadow-sm hover:shadow-lg">
+              <div className="absolute top-4 right-4">
+                <span className="px-2.5 py-1 bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-white text-[10px] font-bold uppercase tracking-[0.08em] rounded-full">Popular</span>
+              </div>
+              <div className="h-48 overflow-hidden bg-gradient-to-br from-[#1a1610] to-[#0a0a0a]">
+                <img src={IMG.darkElegance} alt="Jewelry Studio" className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-700" loading="lazy" />
+              </div>
+              <div className="p-6 md:p-8">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-8 h-8 rounded-lg bg-[#f5f0e8] flex items-center justify-center">
+                    <svg className="w-4 h-4 text-[#8b7355]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" /></svg>
+                  </div>
+                  <h3 className="font-display font-bold text-[#0a0a0a] text-[18px] tracking-tight">Jewelry Studio</h3>
+                </div>
+                <p className="text-[#8c8c8c] text-[14px] leading-relaxed mb-5">
+                  Purpose-built for rings, necklaces, earrings &amp; bracelets. Themed backgrounds, model shots, close-ups, and marketplace-ready listings.
+                </p>
+                <div className="space-y-2 mb-6">
+                  {["Velvet, marble & lifestyle themes", "On-model catalog shots", "Bulk listing generation", "Zero design changes"].map((f) => (
+                    <div key={f} className="flex items-center gap-2">
+                      <svg className="w-3.5 h-3.5 text-[#8b7355] flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                      <span className="text-[13px] text-[#4a4a4a]">{f}</span>
+                    </div>
+                  ))}
+                </div>
+                <Link href="/jewelry" className="inline-flex items-center gap-2 w-full justify-center px-6 py-3 bg-[#0a0a0a] text-white text-[13px] font-semibold rounded-full hover:bg-[#1a1a1a] transition-all active:scale-[0.97]">
+                  Open Jewelry Studio
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 19.5l15-15m0 0H8.25m11.25 0v11.25" /></svg>
+                </Link>
+              </div>
+            </div>
+
+            {/* Product Studio Card */}
+            <div className="relative bg-white rounded-2xl border border-[#e8e5df] overflow-hidden hover:border-[#8c8c8c]/40 transition-all duration-300 group shadow-sm hover:shadow-lg">
+              <div className="h-48 overflow-hidden bg-gradient-to-br from-[#f0ebe3] to-[#e8e5df]">
+                <img src={IMG.studioShot} alt="Product Studio" className="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-700" loading="lazy" />
+              </div>
+              <div className="p-6 md:p-8">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-8 h-8 rounded-lg bg-[#f0f0ee] flex items-center justify-center">
+                    <svg className="w-4 h-4 text-[#4a4a4a]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><path d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" /><path d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" /></svg>
+                  </div>
+                  <h3 className="font-display font-bold text-[#0a0a0a] text-[18px] tracking-tight">Product Studio</h3>
+                </div>
+                <p className="text-[#8c8c8c] text-[14px] leading-relaxed mb-5">
+                  For any product — cosmetics, electronics, food, fashion, home goods &amp; more. Upload your product and pick a professional background.
+                </p>
+                <div className="space-y-2 mb-6">
+                  {["Works with any product category", "Scene & solid color backgrounds", "Custom instructions support", "Studio-quality in seconds"].map((f) => (
+                    <div key={f} className="flex items-center gap-2">
+                      <svg className="w-3.5 h-3.5 text-[#4a4a4a] flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                      <span className="text-[13px] text-[#4a4a4a]">{f}</span>
+                    </div>
+                  ))}
+                </div>
+                <Link href="/studio" className="inline-flex items-center gap-2 w-full justify-center px-6 py-3 border-2 border-[#0a0a0a] text-[#0a0a0a] text-[13px] font-semibold rounded-full hover:bg-[#0a0a0a] hover:text-white transition-all active:scale-[0.97]">
+                  Open Product Studio
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 19.5l15-15m0 0H8.25m11.25 0v11.25" /></svg>
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -253,6 +351,43 @@ export default function HomePageClient() {
         </div>
       </section>
 
+      {/* ═══ TESTIMONIALS ═══ */}
+      <section className="bg-[#f7f7f5] border-b border-[#e8e5df]">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-8 lg:px-12 py-16 md:py-24">
+          <div className="text-center mb-10 md:mb-14">
+            <span className="text-[11px] sm:text-xs font-semibold text-[#8b7355] tracking-[0.12em] uppercase mb-3 block">What Jewelers Say</span>
+            <h2 className="font-display font-bold text-[#0a0a0a] uppercase tracking-[-0.02em] text-[1.75rem] sm:text-[2.25rem] md:text-[3rem] leading-[1.0]">
+              Real Results From<br /><span className="text-[#8b7355]">Real Jewelers</span>
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              { quote: "SoraiPixel turned my phone photos into images I'd expect from a professional studio. My Etsy listing views jumped in the first week.", name: "Priya Sharma", business: "Lumina Jewels", location: "Jaipur, India", initials: "PS" },
+              { quote: "I used to spend hours editing product photos. Now I upload, pick a style, and I'm done in 30 seconds. The quality is incredible for the price.", name: "Rachel Kim", business: "Moonstone Designs", location: "Los Angeles, USA", initials: "RK" },
+              { quote: "As a manufacturer, I can now create marketing photos directly from CAD renders — before we even produce the piece. A game-changer for trade shows.", name: "Vikram Patel", business: "Shree Gold Exports", location: "Surat, India", initials: "VP" },
+            ].map((t) => (
+              <div key={t.name} className="bg-white rounded-2xl p-7 md:p-8 border border-[#e8e5df] hover:border-[#c4a67d]/30 transition-all duration-300">
+                <div className="flex gap-1 mb-4">
+                  {[...Array(5)].map((_, i) => (
+                    <svg key={i} className="w-4 h-4 text-[#c4a67d]" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                  ))}
+                </div>
+                <p className="text-[#4a4a4a] text-[14px] leading-relaxed mb-6">&ldquo;{t.quote}&rdquo;</p>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-[#f5f0e8] flex items-center justify-center">
+                    <span className="text-[12px] font-bold text-[#8b7355]">{t.initials}</span>
+                  </div>
+                  <div>
+                    <p className="text-[13px] font-semibold text-[#0a0a0a]">{t.name}</p>
+                    <p className="text-[12px] text-[#8c8c8c]">{t.business} · {t.location}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ═══ FEATURES — Sticky text + 2×2 image grid ═══ */}
       <section className="bg-[#f7f7f5] border-y border-[#e8e5df]">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-8 lg:px-12 py-16 md:py-24">
@@ -317,6 +452,45 @@ export default function HomePageClient() {
         </div>
       </section>
 
+      {/* ═══ WHY NOT CHATGPT / CANVA ═══ */}
+      <section className="bg-white border-b border-[#e8e5df]">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-8 lg:px-12 py-16 md:py-24">
+          <div className="text-center mb-12 md:mb-16">
+            <span className="text-[11px] sm:text-xs font-semibold text-[#8b7355] tracking-[0.12em] uppercase mb-3 block">Built for Jewelry</span>
+            <h2 className="font-display font-bold text-[#0a0a0a] uppercase tracking-[-0.02em] text-[1.75rem] sm:text-[2.25rem] md:text-[3rem] leading-[1.0]">
+              Why Generic AI<br /><span className="text-[#8b7355]">Fails on Jewelry</span>
+            </h2>
+            <p className="mt-4 text-[#8c8c8c] text-[15px] max-w-lg mx-auto leading-relaxed">
+              ChatGPT, Midjourney, and Canva weren&apos;t built for jewelry. Here&apos;s why that matters.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+            {[
+              { title: "Metal Reflections", desc: "Generic AI doesn't understand how gold, silver, and platinum reflect light differently. Results look flat or artificial. SoraiPixel renders accurate metallic reflections.", icon: "M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" },
+              { title: "Gemstone Detail", desc: "Diamond facets, emerald inclusions, sapphire depth — these require specialized rendering. General tools blur or distort the very details that sell your jewelry.", icon: "M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" },
+              { title: "Zero Design Changes", desc: "ChatGPT and Midjourney will alter your jewelry design — adding stones, changing prongs, modifying settings. SoraiPixel never touches your design. Guaranteed.", icon: "M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" },
+              { title: "Marketplace-Ready Output", desc: "Correct dimensions for Etsy, Amazon, and Shopify. White background variants included. No manual resizing or reformatting needed.", icon: "M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016A3.001 3.001 0 0021 9.349m-18 0a2.999 2.999 0 00.739-1.052l1.174-2.64A1.876 1.876 0 016.621 4.5h10.758a1.876 1.876 0 011.708 1.157l1.174 2.64A3.001 3.001 0 0021 9.35" },
+            ].map((item) => (
+              <div key={item.title} className="flex gap-4 p-6 bg-[#fafaf8] rounded-2xl border border-[#e8e5df] hover:border-[#c4a67d]/30 transition-all duration-300">
+                <div className="w-10 h-10 rounded-xl bg-[#f5f0e8] flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5 text-[#8b7355]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><path d={item.icon} /></svg>
+                </div>
+                <div>
+                  <h3 className="font-display font-bold text-[#0a0a0a] text-[15px] tracking-tight mb-2">{item.title}</h3>
+                  <p className="text-[#8c8c8c] text-[13px] leading-relaxed">{item.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="text-center mt-10">
+            <Link href="/jewelry" className="inline-flex items-center gap-2 px-7 py-3.5 bg-[#0a0a0a] text-white text-[14px] font-semibold rounded-full hover:bg-[#1a1a1a] transition-all active:scale-[0.97]">
+              See the Difference Yourself
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 19.5l15-15m0 0H8.25m11.25 0v11.25" /></svg>
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* ═══ PRICING BANNER ═══ */}
       <section className="relative overflow-hidden">
         {/* Dark background with gold accents */}
@@ -336,22 +510,25 @@ export default function HomePageClient() {
               <span className="bg-gradient-to-r from-[#c4a67d] via-[#e8d5b5] to-[#8b7355] bg-clip-text text-transparent">At a Fraction of the Cost</span>
             </h2>
             <p className="mt-5 text-white/40 text-[15px] md:text-[17px] max-w-lg mx-auto leading-relaxed">
-              Traditional jewelry photography costs ₹2,000–₹5,000 per product. AI photos starting at just ₹15/image.
+              Traditional jewelry photography costs {traditionalCost} per product. AI photos starting at just {perImageCost}/image.
             </p>
           </div>
 
           {/* Plan cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-5 max-w-3xl mx-auto">
-            {/* Free */}
-            <div className="bg-white/[0.04] rounded-2xl p-6 md:p-7 border border-white/[0.08] text-center hover:border-white/[0.15] transition-all duration-300 group">
+            {/* Starter */}
+            <div className="relative bg-white/[0.04] rounded-2xl p-6 md:p-7 border border-white/[0.08] text-center hover:border-white/[0.15] transition-all duration-300 group">
+              <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-emerald-500/90 text-white text-[9px] font-bold uppercase tracking-[0.1em] rounded-full whitespace-nowrap">
+                Limited Time
+              </span>
               <div className="w-10 h-10 rounded-xl bg-white/[0.06] flex items-center justify-center mx-auto mb-4 group-hover:bg-white/[0.1] transition-colors">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="opacity-50">
                   <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
                 </svg>
               </div>
               <div className="text-[11px] font-bold text-white/40 uppercase tracking-[0.1em] mb-3">Starter Pack</div>
-              <div className="font-display font-extrabold text-[2.5rem] text-white leading-none">₹149</div>
-              <div className="text-[12px] text-white/30 mt-1 mb-5">80 tokens · ~₹15/image</div>
+              <div className="font-display font-extrabold text-[2.5rem] text-white leading-none">{starterPrice}</div>
+              <div className="text-[12px] text-white/30 mt-1 mb-5">80 tokens · {starterPerImage}</div>
               <div className="space-y-2 text-left mb-6">
                 {["10 Standard images", "4 Pro quality images", "No expiry on tokens"].map((f) => (
                   <div key={f} className="flex items-center gap-2">
@@ -376,8 +553,9 @@ export default function HomePageClient() {
                 </svg>
               </div>
               <div className="text-[11px] font-bold text-[#c4a67d] uppercase tracking-[0.1em] mb-3">Growth Monthly</div>
-              <div className="font-display font-extrabold text-[2.5rem] text-white leading-none">₹549</div>
-              <div className="text-[12px] text-[#c4a67d]/60 mt-1 mb-5">400 tokens/mo · ~₹11/image</div>
+              <div className="font-display font-extrabold text-[2.5rem] text-white leading-none">{growthPrice}</div>
+              <div className="text-[12px] text-[#c4a67d]/60 mt-1">400 tokens/mo · {growthPerImage}</div>
+              <div className="inline-block mt-2 mb-3 px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 text-[11px] font-bold">Save {growthSavings}% vs Starter</div>
               <div className="space-y-2 text-left mb-6">
                 {["50 Standard images/mo", "Pro quality renders", "Model catalogue access", "Priority processing"].map((f) => (
                   <div key={f} className="flex items-center gap-2">
@@ -399,8 +577,9 @@ export default function HomePageClient() {
                 </svg>
               </div>
               <div className="text-[11px] font-bold text-white/40 uppercase tracking-[0.1em] mb-3">Business Monthly</div>
-              <div className="font-display font-extrabold text-[2.5rem] text-white leading-none">₹1499</div>
-              <div className="text-[12px] text-white/30 mt-1 mb-5">1200 tokens/mo · ~₹10/image</div>
+              <div className="font-display font-extrabold text-[2.5rem] text-white leading-none">{businessPrice}</div>
+              <div className="text-[12px] text-white/30 mt-1">1200 tokens/mo · {businessPerImage}</div>
+              <div className="inline-block mt-2 mb-3 px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 text-[11px] font-bold">Save {businessSavings}% vs Starter</div>
               <div className="space-y-2 text-left mb-6">
                 {["150 Standard images/mo", "Everything in Growth", "Bulk listing tools", "API access"].map((f) => (
                   <div key={f} className="flex items-center gap-2">
@@ -419,12 +598,12 @@ export default function HomePageClient() {
           <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mt-10 text-[12px] text-white/25">
             <span className="flex items-center gap-1.5">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
-              Secure payments via Razorpay
+              Secure payments
             </span>
             <span className="hidden sm:inline text-white/10">|</span>
             <span>Cancel anytime, no lock-in</span>
             <span className="hidden sm:inline text-white/10">|</span>
-            <span>UPI, Cards, Net Banking accepted</span>
+            <span>{isIndia ? "UPI, Cards, Net Banking accepted" : "Visa, Mastercard, PayPal accepted"}</span>
           </div>
 
           <div className="text-center mt-6">
@@ -434,6 +613,60 @@ export default function HomePageClient() {
             </Link>
           </div>
         </div>
+      </section>
+
+      {/* ═══ FAQ ═══ */}
+      <section className="bg-[#f7f7f5] border-b border-[#e8e5df]">
+        <div className="max-w-[800px] mx-auto px-4 sm:px-8 lg:px-12 py-16 md:py-24">
+          <div className="text-center mb-10 md:mb-14">
+            <span className="text-[11px] sm:text-xs font-semibold text-[#8b7355] tracking-[0.12em] uppercase mb-3 block">FAQ</span>
+            <h2 className="font-display font-bold text-[#0a0a0a] uppercase tracking-[-0.02em] text-[1.75rem] sm:text-[2.25rem] md:text-[3rem] leading-[1.0]">
+              Common <span className="text-[#8b7355]">Questions</span>
+            </h2>
+          </div>
+          <div className="space-y-3">
+            {[
+              { q: "Will AI change my jewelry design?", a: "Absolutely not. SoraiPixel guarantees zero design changes. Every stone, prong, engraving, and setting stays exactly as you crafted it. Only the background, lighting, and presentation change. If you ever feel the AI altered your design, we'll re-generate for free or refund you." },
+              { q: "What image quality do I need to upload?", a: "Any photo works — even a phone snap taken on your desk. Our AI is trained to work with low-light, uneven backgrounds, and even CAD renders. Of course, better input gives better output, but you don't need professional equipment." },
+              { q: "Can I use these images on Amazon, Etsy, and Shopify?", a: "Yes. Generated images are marketplace-optimized with correct dimensions and white background variants included. They're ready to upload directly to any e-commerce platform without manual resizing." },
+              { q: "How is SoraiPixel different from ChatGPT or Midjourney?", a: "Generic AI tools don't understand jewelry. They'll blur diamond facets, flatten gold reflections, and often alter your design entirely. SoraiPixel is purpose-built for jewelry — it understands metal reflections, gemstone light behavior, and guarantees design integrity." },
+              { q: "Do you offer refunds?", a: "Yes. We offer a 100% satisfaction guarantee on all paid plans. If you're not happy with the quality, contact us within 7 days of purchase for a full refund." },
+              { q: "How does the token system work?", a: "Each image generation costs tokens (8 for standard quality, 20 for pro). You get free daily tokens plus a free first generation. Token packs start at just ₹149 / $4.99 and never expire. Monthly plans include a set number of tokens that refresh each month." },
+            ].map((faq, i) => (
+              <div key={i} className="bg-white rounded-xl border border-[#e8e5df] overflow-hidden">
+                <button
+                  onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                  className="w-full flex items-center justify-between px-6 py-4 text-left"
+                >
+                  <span className="font-semibold text-[#0a0a0a] text-[14px] pr-4">{faq.q}</span>
+                  <svg className={`w-5 h-5 text-[#8c8c8c] flex-shrink-0 transition-transform duration-200 ${openFaq === i ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+                </button>
+                {openFaq === i && (
+                  <div className="px-6 pb-4">
+                    <p className="text-[#8c8c8c] text-[14px] leading-relaxed">{faq.a}</p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "FAQPage",
+              mainEntity: [
+                { "@type": "Question", name: "Will AI change my jewelry design?", acceptedAnswer: { "@type": "Answer", text: "Absolutely not. SoraiPixel guarantees zero design changes. Every stone, prong, engraving, and setting stays exactly as you crafted it." } },
+                { "@type": "Question", name: "What image quality do I need to upload?", acceptedAnswer: { "@type": "Answer", text: "Any photo works — even a phone snap. Our AI works with low-light, uneven backgrounds, and even CAD renders." } },
+                { "@type": "Question", name: "Can I use these images on Amazon, Etsy, and Shopify?", acceptedAnswer: { "@type": "Answer", text: "Yes. Generated images are marketplace-optimized with correct dimensions and white background variants included." } },
+                { "@type": "Question", name: "How is SoraiPixel different from ChatGPT or Midjourney?", acceptedAnswer: { "@type": "Answer", text: "Generic AI tools blur diamond facets, flatten gold reflections, and alter designs. SoraiPixel is purpose-built for jewelry with guaranteed design integrity." } },
+                { "@type": "Question", name: "Do you offer refunds?", acceptedAnswer: { "@type": "Answer", text: "Yes. 100% satisfaction guarantee on all paid plans. Contact us within 7 days for a full refund." } },
+                { "@type": "Question", name: "How does the token system work?", acceptedAnswer: { "@type": "Answer", text: "Each image generation costs tokens. You get free daily tokens. Token packs start at ₹149 / $4.99 and never expire." } },
+              ],
+            }),
+          }}
+        />
       </section>
 
       {/* ═══ FINAL CTA ═══ */}
@@ -473,9 +706,9 @@ export default function HomePageClient() {
               <p className="text-[13px] text-white/30 leading-relaxed">AI-powered jewelry photography. Studio-quality images from any photo, in seconds.</p>
             </div>
             {[
-              { title: "Products", links: [{ l: "Jewelry Studio", h: "/jewelry" }, { l: "Bulk Listings", h: "/batch-listing" }, { l: "General Studio", h: "/studio" }] },
+              { title: "Products", links: [{ l: "Jewelry Studio", h: "/jewelry" }, { l: "Bulk Listings", h: "/batch-listing" }, { l: "Product Studio", h: "/studio" }] },
               { title: "Resources", links: [{ l: "Pricing", h: "/pricing" }, { l: "Blog", h: "/blog" }, { l: "Gallery", h: "/gallery" }, { l: "AI Photography", h: "/ai-photography" }] },
-              { title: "Company", links: [{ l: "AI Jewelry Photography", h: "/ai-jewelry-photography" }, { l: "About", h: "#" }, { l: "Privacy Policy", h: "#" }, { l: "Terms of Service", h: "#" }] },
+              { title: "Company", links: [{ l: "AI Jewelry Photography", h: "/ai-jewelry-photography" }, { l: "About", h: "/about" }, { l: "Privacy Policy", h: "/privacy" }, { l: "Terms of Service", h: "/terms" }] },
             ].map((col) => (
               <div key={col.title}>
                 <h4 className="text-[11px] font-bold text-white/50 tracking-[0.12em] uppercase mb-4">{col.title}</h4>
@@ -491,6 +724,9 @@ export default function HomePageClient() {
           </div>
         </div>
       </footer>
+
+      <ContactFloat />
+      <ExitIntentPopup />
     </div>
   );
 }

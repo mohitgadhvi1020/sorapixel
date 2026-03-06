@@ -17,6 +17,8 @@ class GenerateCatalogueRequest(BaseModel):
     aspect_ratio_id: str | None = None
     special_instructions: str | None = None
     key_highlights: str | None = None
+    outfit_style: str | None = None
+    outfit_custom: str | None = None
     additional_images: list[str] = []
     add_logo: bool = False
     include_studio_views: list[str] = []

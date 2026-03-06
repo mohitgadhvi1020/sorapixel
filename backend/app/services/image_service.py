@@ -150,6 +150,53 @@ def resize_image(image_b64: str, max_width: int = 1024, max_height: int = 1024) 
     return image_to_b64(img)
 
 
+def add_watermark(image_b64: str, text: str = "SoraiPixel.com", opacity: int = 45) -> str:
+    """Tile a diagonal watermark across the entire image for preview protection."""
+    import math
+    Image, ImageDraw, _ = _pil()
+    img = b64_to_image(image_b64).convert("RGBA")
+    w, h = img.size
+
+    font_size = max(20, int(min(w, h) * 0.06))
+    font = _load_font(_FONT_PATHS_DETAIL, font_size)
+
+    # Build a single rotated text stamp large enough to tile
+    tmp = Image.new("RGBA", (w * 2, h * 2), (0, 0, 0, 0))
+    tmp_draw = ImageDraw.Draw(tmp)
+
+    bbox = tmp_draw.textbbox((0, 0), text, font=font)
+    tw = bbox[2] - bbox[0]
+    th = bbox[3] - bbox[1]
+
+    spacing_x = tw + int(tw * 0.8)
+    spacing_y = th + int(th * 3.5)
+
+    for y_pos in range(-h, h * 2, spacing_y):
+        for x_pos in range(-w, w * 2, spacing_x):
+            tmp_draw.text(
+                (x_pos, y_pos), text,
+                fill=(255, 255, 255, opacity), font=font,
+            )
+
+    rotated = tmp.rotate(30, resample=Image.BICUBIC, expand=False, center=(w, h))
+    # Crop back to original size
+    left = (rotated.width - w) // 2
+    top = (rotated.height - h) // 2
+    watermark_layer = rotated.crop((left, top, left + w, top + h))
+
+    result = Image.alpha_composite(img, watermark_layer)
+    return image_to_b64(result.convert("RGB"))
+
+
+def generate_low_res_preview(image_b64: str, max_size: int = 800) -> str:
+    """Generate a low-resolution, watermarked preview of the image."""
+    Image, _, _ = _pil()
+    img = b64_to_image(image_b64)
+    img.thumbnail((max_size, max_size), Image.LANCZOS)
+    preview_b64 = image_to_b64(img)
+    return add_watermark(preview_b64)
+
+
 def flatten_to_white(image_b64: str) -> str:
     """Flatten transparent image onto white background."""
     Image, _, _ = _pil()
@@ -171,6 +218,44 @@ def center_crop_closeup(image_b64: str, zoom: float = 0.5) -> str:
     Image, _, _ = _pil()
     img = img.resize((w, h), Image.LANCZOS)
     return image_to_b64(img)
+
+
+# Crop regions per jewelry type + pose: (x_center%, y_center%, zoom)
+# x/y are fractions of image dimensions where the jewelry is expected.
+_JEWELRY_CROP_ZONES: dict[str, dict[str, tuple[float, float, float]]] = {
+    "ring":     {"hand_closeup": (0.50, 0.45, 0.55), "standing": (0.45, 0.55, 0.40), "side_view": (0.50, 0.50, 0.45), "_default": (0.50, 0.55, 0.40)},
+    "necklace": {"standing": (0.50, 0.30, 0.45), "close_up": (0.50, 0.45, 0.50), "side_view": (0.45, 0.30, 0.45), "sitting": (0.50, 0.30, 0.45), "_default": (0.50, 0.30, 0.45)},
+    "earring":  {"close_up": (0.50, 0.35, 0.50), "side_view": (0.55, 0.30, 0.45), "standing": (0.50, 0.25, 0.40), "_default": (0.50, 0.30, 0.45)},
+    "bracelet": {"hand_closeup": (0.50, 0.45, 0.55), "standing": (0.45, 0.50, 0.40), "sitting": (0.45, 0.50, 0.40), "_default": (0.50, 0.50, 0.45)},
+    "bangle":   {"hand_closeup": (0.50, 0.45, 0.55), "standing": (0.45, 0.50, 0.40), "side_view": (0.45, 0.45, 0.45), "_default": (0.50, 0.50, 0.45)},
+    "pendant":  {"close_up": (0.50, 0.45, 0.50), "standing": (0.50, 0.30, 0.40), "sitting": (0.50, 0.35, 0.45), "_default": (0.50, 0.35, 0.45)},
+    "brooch":   {"close_up": (0.50, 0.40, 0.50), "standing": (0.50, 0.35, 0.40), "side_view": (0.50, 0.35, 0.45), "_default": (0.50, 0.35, 0.45)},
+    "anklet":   {"feet_closeup": (0.50, 0.50, 0.60), "sitting": (0.50, 0.75, 0.40), "standing": (0.50, 0.85, 0.35), "_default": (0.50, 0.80, 0.40)},
+    "chain":    {"standing": (0.50, 0.30, 0.45), "close_up": (0.50, 0.40, 0.50), "side_view": (0.45, 0.30, 0.45), "_default": (0.50, 0.30, 0.45)},
+    "set":      {"standing": (0.50, 0.40, 0.50), "close_up": (0.50, 0.40, 0.55), "side_view": (0.50, 0.40, 0.50), "sitting": (0.50, 0.40, 0.50), "_default": (0.50, 0.40, 0.50)},
+}
+
+
+def jewelry_zoom_crop(image_b64: str, jewelry_type: str, pose: str) -> str:
+    """Crop a model photo to zoom into the jewelry area based on type and pose."""
+    Image, _, _ = _pil()
+    img = b64_to_image(image_b64)
+    w, h = img.size
+
+    zones = _JEWELRY_CROP_ZONES.get(jewelry_type, {})
+    cx_pct, cy_pct, zoom = zones.get(pose, zones.get("_default", (0.50, 0.45, 0.45)))
+
+    crop_w = int(w * zoom)
+    crop_h = int(h * zoom)
+
+    cx = int(w * cx_pct)
+    cy = int(h * cy_pct)
+    left = max(0, min(cx - crop_w // 2, w - crop_w))
+    top = max(0, min(cy - crop_h // 2, h - crop_h))
+
+    cropped = img.crop((left, top, left + crop_w, top + crop_h))
+    cropped = cropped.resize((w, h), Image.LANCZOS)
+    return image_to_b64(cropped)
 
 
 _BRANDING_THEMES: dict[str, dict] = {

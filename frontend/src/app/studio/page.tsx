@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { api } from "@/lib/api-client";
 import { useAuth } from "@/providers/AppProvider";
+import { useTheme } from "@/hooks/useTheme";
 import { useRouter } from "next/navigation";
 import { shareToWhatsApp, downloadImage } from "@/lib/share";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
@@ -25,6 +26,19 @@ interface Toast {
   type: "error" | "success" | "info";
 }
 
+type Quality = "standard" | "pro";
+type AspectRatioId = "square" | "portrait" | "story" | "landscape" | "widescreen";
+
+const ASPECT_RATIOS: { id: AspectRatioId; label: string; ratio: string; w: number; h: number }[] = [
+  { id: "square",    label: "Square",    ratio: "1:1",  w: 1, h: 1 },
+  { id: "portrait",  label: "Portrait",  ratio: "3:4",  w: 3, h: 4 },
+  { id: "story",     label: "Tall",      ratio: "9:16", w: 9, h: 16 },
+  { id: "landscape", label: "Landscape", ratio: "4:3",  w: 4, h: 3 },
+  { id: "widescreen",label: "Wide",      ratio: "16:9", w: 16, h: 9 },
+];
+
+const TOKEN_COST: Record<Quality, number> = { standard: 5, pro: 20 };
+
 const PROGRESS_STEPS = [
   { label: "Enhancing lighting…", duration: 4000 },
   { label: "Setting up the background…", duration: 6000 },
@@ -35,11 +49,16 @@ const PROGRESS_STEPS = [
 
 export default function StudioPage() {
   const { user, loading: authLoading } = useAuth();
+  const { theme } = useTheme();
   const router = useRouter();
+  const lt = theme === "light";
 
   const [backgrounds, setBackgrounds] = useState<Background[]>([]);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [selectedBg, setSelectedBg] = useState("studio");
+  const [selectedBg, setSelectedBg] = useState("white");
+  const [quality, setQuality] = useState<Quality>("pro");
+  const [aspectRatioId, setAspectRatioId] = useState<AspectRatioId>("square");
+  const [showRatioPanel, setShowRatioPanel] = useState(false);
   const [specialInstructions, setSpecialInstructions] = useState("");
   const [showInstructions, setShowInstructions] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -118,7 +137,7 @@ export default function StudioPage() {
     try {
       const data = await api.post<{ success: boolean; images: { base64: string; label: string }[]; error?: string }>(
         "/studio/generate",
-        { image_base64: imagePreview, background_id: selectedBg, special_instructions: specialInstructions || undefined }
+        { image_base64: imagePreview, background_id: selectedBg, quality, aspect_ratio_id: aspectRatioId, special_instructions: specialInstructions || undefined }
       );
       stopProgress(data.success);
       if (data.success) {
@@ -246,68 +265,229 @@ export default function StudioPage() {
             {imagePreview && (
               <button
                 onClick={() => setShowInstructions(true)}
-                className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.14)] hover:bg-[rgba(255,255,255,0.04)] transition-all duration-250"
+                className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl transition-all duration-200 group"
+                style={{
+                  border: `1px solid ${lt ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.08)"}`,
+                  background: lt ? "rgba(0,0,0,0.02)" : "rgba(255,255,255,0.02)",
+                }}
               >
-                <div className="flex items-center gap-2">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                  </svg>
-                  <span className="text-sm text-[rgba(255,255,255,0.5)]">
-                    {specialInstructions ? specialInstructions : "Add special instructions"}
+                <div className="flex items-center gap-2.5">
+                  <div
+                    className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
+                    style={{ background: lt ? "rgba(0,0,0,0.04)" : "rgba(255,255,255,0.06)" }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={lt ? "rgba(0,0,0,0.35)" : "rgba(255,255,255,0.4)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    </svg>
+                  </div>
+                  <span style={{ color: specialInstructions ? (lt ? "rgba(0,0,0,0.7)" : "rgba(255,255,255,0.7)") : (lt ? "rgba(0,0,0,0.35)" : "rgba(255,255,255,0.35)"), fontSize: "14px" }}>
+                    {specialInstructions || "Add special instructions"}
                   </span>
                 </div>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={lt ? "rgba(0,0,0,0.2)" : "rgba(255,255,255,0.2)"} strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
               </button>
             )}
 
             {/* Background Selection */}
-            <div className="space-y-4">
-              <h3 className="text-xs font-semibold text-[rgba(255,255,255,0.4)] uppercase tracking-wider">
-                Choose Background
-              </h3>
+            <div
+              className="rounded-2xl overflow-hidden"
+              style={{
+                border: `1px solid ${lt ? "rgba(0,0,0,0.1)" : "rgba(255,255,255,0.08)"}`,
+                background: lt ? "#fff" : "rgba(255,255,255,0.02)",
+                boxShadow: lt ? "0 1px 3px rgba(0,0,0,0.04)" : "none",
+              }}
+            >
+              <div className="px-5 pt-4 pb-5 space-y-4">
+                <span className="text-[11px] font-bold uppercase tracking-[0.08em]" style={{ color: lt ? "#5a5a5a" : "rgba(255,255,255,0.5)" }}>Background</span>
 
-              {scenes.length > 0 && (
-                <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
-                  {scenes.map(bg => (
-                    <button key={bg.id} onClick={() => setSelectedBg(bg.id)} className="flex-shrink-0 text-center group">
-                      <div className={`w-20 h-20 rounded-xl overflow-hidden border-2 transition-all duration-250 ${selectedBg === bg.id ? "border-[#c4a67d] shadow-[0_0_16px_rgba(196,166,125,0.25)] ring-2 ring-[rgba(196,166,125,0.15)]" : "border-[rgba(255,255,255,0.08)] group-hover:border-[rgba(255,255,255,0.14)]"
-                        }`}>
-                        {bg.thumb ? (
-                          <img src={bg.thumb} alt={bg.label} className="w-full h-full object-cover" loading="lazy" />
-                        ) : (
-                          <div className="w-full h-full bg-[rgba(255,255,255,0.04)] flex items-center justify-center text-xs text-[rgba(255,255,255,0.4)]">
-                            {bg.label.slice(0, 3)}
+                {scenes.length > 0 && (
+                  <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+                    {scenes.map(bg => {
+                      const sel = selectedBg === bg.id;
+                      return (
+                        <button key={bg.id} onClick={() => setSelectedBg(bg.id)} className="flex-shrink-0 text-center group">
+                          <div
+                            className="w-[72px] h-[72px] rounded-xl overflow-hidden transition-all duration-250 group-hover:-translate-y-0.5"
+                            style={{
+                              border: sel ? "2.5px solid #b8985f" : `1.5px solid ${lt ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.1)"}`,
+                              boxShadow: sel
+                                ? `0 0 0 3px rgba(196,166,125,0.15), 0 6px 16px rgba(196,166,125,0.25), 0 2px 4px rgba(0,0,0,0.08)`
+                                : lt
+                                  ? "0 2px 6px rgba(0,0,0,0.08), 0 6px 14px rgba(0,0,0,0.06)"
+                                  : "0 2px 8px rgba(0,0,0,0.3), 0 6px 16px rgba(0,0,0,0.2)",
+                            }}
+                          >
+                            {bg.thumb ? (
+                              <img src={bg.thumb} alt={bg.label} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" loading="lazy" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center" style={{ background: lt ? "rgba(0,0,0,0.03)" : "rgba(255,255,255,0.04)", color: lt ? "rgba(0,0,0,0.35)" : "rgba(255,255,255,0.3)", fontSize: "10px" }}>
+                                {bg.label.slice(0, 3)}
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                      <p className={`text-xs mt-1.5 truncate w-20 ${selectedBg === bg.id ? "text-[#c4a67d] font-medium" : "text-[rgba(255,255,255,0.4)]"
-                        }`}>{bg.label}</p>
-                    </button>
-                  ))}
-                </div>
-              )}
+                          <p className="mt-1.5 truncate w-[72px]" style={{ color: sel ? "#9a7d4e" : (lt ? "#6b6b6b" : "rgba(255,255,255,0.45)"), fontWeight: sel ? 600 : 500, fontSize: "11px" }}>{bg.label}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
 
-              {colors.length > 0 && (
-                <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
-                  {colors.map(bg => (
-                    <button key={bg.id} onClick={() => setSelectedBg(bg.id)} className="flex-shrink-0 text-center group">
-                      <div
-                        className={`w-20 h-20 rounded-xl border-2 transition-all duration-250 ${selectedBg === bg.id ? "border-[#c4a67d] shadow-[0_0_16px_rgba(196,166,125,0.25)] ring-2 ring-[rgba(196,166,125,0.15)]" : "border-[rgba(255,255,255,0.08)] group-hover:border-[rgba(255,255,255,0.14)]"
-                          }`}
-                        style={{ backgroundColor: bg.color || "#ccc" }}
-                      />
-                      <p className={`text-xs mt-1.5 truncate w-20 ${selectedBg === bg.id ? "text-[#c4a67d] font-medium" : "text-[rgba(255,255,255,0.4)]"
-                        }`}>{bg.label}</p>
-                    </button>
-                  ))}
+                {colors.length > 0 && (
+                  <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+                    {colors.map(bg => {
+                      const sel = selectedBg === bg.id;
+                      const isLight = ["#FFFFFF", "#F5F0E8", "#E8DCC8", "#E0E0E0", "#F8BBD0", "#FDD835"].includes(bg.color || "");
+                      return (
+                        <button key={bg.id} onClick={() => setSelectedBg(bg.id)} className="flex-shrink-0 text-center group">
+                          <div
+                            className="w-[72px] h-[72px] rounded-xl transition-all duration-250 group-hover:-translate-y-0.5"
+                            style={{
+                              backgroundColor: bg.color || "#ccc",
+                              border: sel ? "2.5px solid #b8985f" : `1.5px solid ${isLight && lt ? "rgba(0,0,0,0.1)" : "transparent"}`,
+                              boxShadow: sel
+                                ? `0 0 0 3px rgba(196,166,125,0.15), 0 6px 16px rgba(196,166,125,0.25), 0 2px 4px rgba(0,0,0,0.08)`
+                                : lt
+                                  ? "0 2px 6px rgba(0,0,0,0.1), 0 6px 14px rgba(0,0,0,0.07)"
+                                  : "0 2px 8px rgba(0,0,0,0.3), 0 6px 16px rgba(0,0,0,0.2)",
+                            }}
+                          />
+                          <p className="mt-1.5 truncate w-[72px]" style={{ color: sel ? "#9a7d4e" : (lt ? "#6b6b6b" : "rgba(255,255,255,0.45)"), fontWeight: sel ? 600 : 500, fontSize: "11px" }}>{bg.label}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ── Quality & Aspect Ratio ── */}
+            <div
+              className="rounded-2xl overflow-hidden"
+              style={{
+                border: `1px solid ${lt ? "rgba(0,0,0,0.1)" : "rgba(255,255,255,0.08)"}`,
+                background: lt ? "#fff" : "rgba(255,255,255,0.02)",
+                boxShadow: lt ? "0 1px 3px rgba(0,0,0,0.04)" : "none",
+              }}
+            >
+
+              {/* Quality */}
+              <div className="px-5 py-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-[0.08em]" style={{ color: lt ? "#5a5a5a" : "rgba(255,255,255,0.5)" }}>Quality</span>
+                  <span className="text-[11px] font-medium" style={{ color: lt ? "#999" : "rgba(255,255,255,0.3)" }}>{TOKEN_COST[quality]} {TOKEN_COST[quality] === 1 ? "token" : "tokens"}/image</span>
                 </div>
-              )}
+                <div
+                  className="inline-flex w-full rounded-xl p-1"
+                  style={{
+                    background: lt ? "#f3f3f1" : "rgba(255,255,255,0.04)",
+                    border: `1px solid ${lt ? "rgba(0,0,0,0.06)" : "rgba(255,255,255,0.06)"}`,
+                  }}
+                >
+                  <button
+                    onClick={() => setQuality("standard")}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-[10px] text-[13px] font-semibold transition-all duration-200"
+                    style={{
+                      background: quality === "standard" ? (lt ? "#fff" : "rgba(255,255,255,0.1)") : "transparent",
+                      color: quality === "standard" ? (lt ? "#2a2a2a" : "#fff") : (lt ? "#999" : "rgba(255,255,255,0.4)"),
+                      boxShadow: quality === "standard" ? (lt ? "0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)" : "0 1px 4px rgba(0,0,0,0.3)") : "none",
+                    }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: quality === "standard" ? 0.8 : 0.5 }}>
+                      <path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" />
+                    </svg>
+                    Standard
+                  </button>
+                  <button
+                    onClick={() => setQuality("pro")}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-[10px] text-[13px] font-semibold transition-all duration-200"
+                    style={{
+                      background: quality === "pro" ? (lt ? "linear-gradient(135deg, rgba(184,152,95,0.18), rgba(184,152,95,0.08))" : "linear-gradient(135deg, rgba(196,166,125,0.2), rgba(196,166,125,0.1))") : "transparent",
+                      color: quality === "pro" ? "#9a7d4e" : (lt ? "#999" : "rgba(255,255,255,0.4)"),
+                      boxShadow: quality === "pro" ? (lt ? "0 1px 3px rgba(184,152,95,0.15), 0 1px 2px rgba(184,152,95,0.08)" : "0 1px 8px rgba(196,166,125,0.15)") : "none",
+                      border: quality === "pro" ? `1px solid ${lt ? "rgba(184,152,95,0.3)" : "rgba(196,166,125,0.25)"}` : "1px solid transparent",
+                    }}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                    </svg>
+                    Pro
+                    {quality === "pro" && (
+                      <span className="ml-0.5 px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider rounded-full" style={{ background: lt ? "rgba(154,125,78,0.12)" : "rgba(196,166,125,0.2)", color: lt ? "#8b7355" : "#c4a67d" }}>Best</span>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div style={{ height: 1, background: lt ? "rgba(0,0,0,0.06)" : "rgba(255,255,255,0.06)" }} />
+
+              {/* Aspect Ratio */}
+              <div className="px-5 py-4 space-y-3">
+                <button
+                  onClick={() => setShowRatioPanel(!showRatioPanel)}
+                  className="w-full flex items-center justify-between group"
+                >
+                  <span className="text-[11px] font-bold uppercase tracking-[0.08em]" style={{ color: lt ? "#5a5a5a" : "rgba(255,255,255,0.5)" }}>
+                    Aspect Ratio
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12px] font-semibold" style={{ color: "#9a7d4e" }}>
+                      {ASPECT_RATIOS.find(r => r.id === aspectRatioId)?.ratio}
+                    </span>
+                    <svg
+                      width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={lt ? "rgba(0,0,0,0.3)" : "rgba(255,255,255,0.3)"} strokeWidth="2" strokeLinecap="round"
+                      className={`transition-transform duration-200 ${showRatioPanel ? "rotate-180" : ""}`}
+                    >
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </div>
+                </button>
+
+                {showRatioPanel && (
+                  <div className="flex gap-2">
+                    {ASPECT_RATIOS.map((ar) => (
+                      <button
+                        key={ar.id}
+                        onClick={() => setAspectRatioId(ar.id)}
+                        className="flex-1 flex flex-col items-center gap-2 py-3.5 rounded-xl transition-all duration-200"
+                        style={{
+                          background: aspectRatioId === ar.id ? (lt ? "rgba(184,152,95,0.1)" : "rgba(196,166,125,0.1)") : (lt ? "#f9f9f7" : "rgba(255,255,255,0.02)"),
+                          border: aspectRatioId === ar.id ? `1.5px solid ${lt ? "rgba(184,152,95,0.4)" : "rgba(196,166,125,0.3)"}` : `1.5px solid ${lt ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.08)"}`,
+                          boxShadow: aspectRatioId === ar.id ? (lt ? "0 2px 8px rgba(184,152,95,0.12)" : "0 0 12px rgba(196,166,125,0.08)") : "none",
+                        }}
+                      >
+                        <div
+                          className="rounded-[3px]"
+                          style={{
+                            width: `${Math.round(24 * (ar.w / Math.max(ar.w, ar.h)))}px`,
+                            height: `${Math.round(24 * (ar.h / Math.max(ar.w, ar.h)))}px`,
+                            border: aspectRatioId === ar.id ? "2px solid #b8985f" : `2px solid ${lt ? "rgba(0,0,0,0.22)" : "rgba(255,255,255,0.22)"}`,
+                            background: aspectRatioId === ar.id ? "rgba(184,152,95,0.15)" : "transparent",
+                          }}
+                        />
+                        <p style={{ fontSize: "11px", fontWeight: 600, lineHeight: 1, color: aspectRatioId === ar.id ? "#9a7d4e" : (lt ? "#777" : "rgba(255,255,255,0.4)") }}>{ar.ratio}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Generate button */}
-            <Button onClick={handleGenerate} disabled={!imagePreview} fullWidth size="lg">
-              Generate Image
-            </Button>
+            <button
+              onClick={handleGenerate}
+              disabled={!imagePreview}
+              className="w-full py-4 bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-[14px] font-bold rounded-2xl shadow-[0_4px_24px_rgba(196,166,125,0.3)] hover:shadow-[0_6px_32px_rgba(196,166,125,0.45)] hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0 flex items-center justify-center gap-2.5"
+              style={{ color: "#fff", letterSpacing: "0.01em" }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" />
+              </svg>
+              Generate {quality === "pro" ? "Pro" : ""} Image
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[12px] font-bold" style={{ background: "rgba(255,255,255,0.2)", color: "#fff" }}>
+                {TOKEN_COST[quality]} {TOKEN_COST[quality] === 1 ? "token" : "tokens"}
+              </span>
+            </button>
           </>
         )}
 

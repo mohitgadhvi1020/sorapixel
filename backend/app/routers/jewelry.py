@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from app.middleware.auth import get_current_user
 from app.schemas.jewelry import (
     GenerateJewelryRequest, RecolorJewelryRequest, RewriteListingRequest, BrandingRequest,
@@ -12,7 +12,7 @@ from app.schemas.jewelry import (
 from app.schemas.studio import GenerateResponse, ImageResult
 from app.services.gemini_service import generate_image, generate_image_pro, generate_text
 from app.services.image_service import (
-    crop_to_ratio, add_branding_bar,
+    crop_to_ratio, add_branding_bar, generate_low_res_preview,
 )
 from app.services.credit_service import (
     get_jewelry_credits, deduct_jewelry_tokens, check_and_deduct_jewelry,
@@ -29,6 +29,7 @@ from app.services.prompt_service import (
 from app.services.project_service import save_project
 from app.services.session_service import add_session_action
 from app.services.detection_service import detect_jewelry_input
+from app.database import get_supabase
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/jewelry", tags=["Jewelry"])
@@ -39,6 +40,101 @@ def _gen_image(quality: str, prompt: str, image_b64: str, aspect_ratio_id: str |
     if quality == "pro":
         return generate_image_pro(prompt, image_b64, aspect_ratio_id=aspect_ratio_id)
     return generate_image(prompt, image_b64, aspect_ratio_id=aspect_ratio_id)
+
+
+@router.post("/generate-free")
+async def generate_free(
+    req: GenerateJewelryRequest,
+    x_anonymous_id: str | None = Header(None),
+):
+    """One free generation for anonymous (unauthenticated) visitors.
+
+    Tracked by anonymous_id (from cookie). Returns watermarked low-res preview.
+    """
+    anon_id = (x_anonymous_id or "").strip()
+    if not anon_id or len(anon_id) < 10:
+        raise HTTPException(status_code=400, detail="Missing or invalid anonymous ID")
+
+    sb = get_supabase()
+
+    # Check if this anonymous_id already used their free generation
+    try:
+        existing = (
+            sb.table("anonymous_generations")
+            .select("id")
+            .eq("anonymous_id", anon_id)
+            .limit(1)
+            .execute()
+        )
+        if existing.data:
+            raise HTTPException(
+                status_code=403,
+                detail="Free generation already used. Sign up to continue — you'll get 8 free tokens.",
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"anonymous_generations lookup failed (table may not exist): {e}")
+        # If table doesn't exist yet, allow the generation but log warning
+
+    ratio = get_ratio(req.aspect_ratio_id)
+
+    # Force standard quality and single hero shot for anonymous
+    quality = "standard"
+
+    try:
+        detection = detect_jewelry_input(req.image_base64, req.jewelry_type)
+        detection_dict = detection.to_dict()
+    except Exception:
+        detection_dict = None
+
+    if req.theme_id:
+        shot_id = (req.shots[0].get("shot_id", "hero")) if req.shots else "hero"
+        prompt = build_jewelry_theme_prompt(
+            jewelry_type=req.jewelry_type,
+            theme_id=req.theme_id,
+            shot_id=shot_id,
+            special_instructions=req.special_instructions,
+            ratio_id=req.aspect_ratio_id,
+            detection=detection_dict,
+        )
+        label = (req.shots[0].get("label", "Studio Shot 1")) if req.shots else "Studio Shot 1"
+    else:
+        prompt = build_jewelry_prompt(
+            req.jewelry_type, req.background, "hero", req.special_instructions,
+            ratio_id=req.aspect_ratio_id, detection=detection_dict,
+        )
+        label = "Studio Shot 1"
+
+    logger.info(f"[ANON FREE GEN] anon_id={anon_id[:8]}..., type={req.jewelry_type}, quality={quality}")
+    try:
+        result = generate_image(prompt, req.image_base64, aspect_ratio_id=req.aspect_ratio_id)
+        img_b64 = result["base64"]
+        try:
+            img_b64 = crop_to_ratio(img_b64, ratio["width"], ratio["height"])
+        except Exception:
+            pass
+    except Exception as e:
+        logger.error(f"Anonymous generation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+    # Watermark the result for anonymous users
+    watermarked_b64 = generate_low_res_preview(img_b64)
+
+    # Record this anonymous generation
+    try:
+        sb.table("anonymous_generations").insert({"anonymous_id": anon_id}).execute()
+    except Exception as e:
+        logger.warning(f"Failed to record anonymous generation: {e}")
+
+    return {
+        "success": True,
+        "images": [{"base64": watermarked_b64, "label": label}],
+        "generation_ids": [],
+        "token_balance": 0,
+        "free_generation_remaining": 0,
+        "anonymous": True,
+    }
 
 
 @router.get("/credits")

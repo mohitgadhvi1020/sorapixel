@@ -137,7 +137,7 @@ const EMPTY_BLOG_CAT_FORM = {
   display_order: 0,
 };
 
-type AdminTab = "overview" | "feed" | "blog" | "revenue";
+type AdminTab = "overview" | "feed" | "blog" | "revenue" | "pricing";
 
 interface RevenueData {
   revenue: { total_inr: number; total_usd: number; payment_count: number };
@@ -242,6 +242,28 @@ export default function AdminPage() {
   const [revenueData, setRevenueData] = useState<RevenueData | null>(null);
   const [revenueLoading, setRevenueLoading] = useState(false);
   const [revenueFetched, setRevenueFetched] = useState(false);
+
+  // Pricing state
+  interface PricingPlan {
+    id?: string;
+    plan_id: string;
+    name: string;
+    plan_type: string;
+    price_inr: number;
+    price_usd: number;
+    price_eur: number;
+    tokens: number;
+    description: string;
+    recommended: boolean;
+    is_active: boolean;
+    sort_order: number;
+  }
+  const [pricingPlans, setPricingPlans] = useState<PricingPlan[]>([]);
+  const [pricingLoading, setPricingLoading] = useState(false);
+  const [pricingFetched, setPricingFetched] = useState(false);
+  const [pricingSource, setPricingSource] = useState<string>("");
+  const [editingPlan, setEditingPlan] = useState<PricingPlan | null>(null);
+  const [pricingSaving, setPricingSaving] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -560,6 +582,65 @@ export default function AdminPage() {
     }
   }, [isAdmin, activeTab, revenueFetched, revenueLoading, fetchRevenue]);
 
+  const fetchPricing = useCallback(async () => {
+    setPricingLoading(true);
+    try {
+      const data = await api.get<{ plans: PricingPlan[]; source: string }>("/admin/plans");
+      setPricingPlans(data.plans || []);
+      setPricingSource(data.source || "");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load pricing plans");
+    } finally {
+      setPricingLoading(false);
+      setPricingFetched(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAdmin && activeTab === "pricing" && !pricingFetched && !pricingLoading) {
+      fetchPricing();
+    }
+  }, [isAdmin, activeTab, pricingFetched, pricingLoading, fetchPricing]);
+
+  const handleSeedPlans = async () => {
+    setPricingSaving(true);
+    try {
+      await api.post("/admin/plans/seed", {});
+      setPricingFetched(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to seed plans");
+    } finally {
+      setPricingSaving(false);
+    }
+  };
+
+  const handleSavePlan = async () => {
+    if (!editingPlan) return;
+    setPricingSaving(true);
+    try {
+      if (editingPlan.id) {
+        await api.put(`/admin/plans/${editingPlan.plan_id}`, editingPlan);
+      } else {
+        await api.post("/admin/plans", editingPlan);
+      }
+      setEditingPlan(null);
+      setPricingFetched(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save plan");
+    } finally {
+      setPricingSaving(false);
+    }
+  };
+
+  const handleTogglePlanActive = async (plan: PricingPlan) => {
+    try {
+      await api.put(`/admin/plans/${plan.plan_id}`, { is_active: !plan.is_active });
+      setPricingFetched(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update plan");
+    }
+  };
+
   const slugify = (text: string) =>
     text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
@@ -850,6 +931,7 @@ export default function AdminPage() {
           {([
             { id: "overview" as const, label: "Overview & Clients" },
             { id: "revenue" as const, label: "Revenue" },
+            { id: "pricing" as const, label: "Pricing" },
             { id: "feed" as const, label: "Feed Manager" },
             { id: "blog" as const, label: "Blog" },
           ]).map(tab => (
@@ -1215,6 +1297,136 @@ export default function AdminPage() {
             ) : (
               <Card padding="lg" className="text-center">
                 <p className="text-text-secondary text-sm">No revenue data available.</p>
+              </Card>
+            )}
+          </>
+        )}
+
+        {/* ===== PRICING TAB ===== */}
+        {activeTab === "pricing" && (
+          <>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">Pricing Plans</h2>
+                <p className="text-sm text-text-secondary">
+                  Manage pricing for all currencies.
+                  {pricingSource === "hardcoded" && (
+                    <span className="ml-2 text-amber-500 font-semibold">(Using hardcoded defaults — seed to DB to enable editing)</span>
+                  )}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                {pricingSource === "hardcoded" && (
+                  <Button onClick={handleSeedPlans} loading={pricingSaving} size="sm">
+                    Seed Plans to DB
+                  </Button>
+                )}
+                <Button
+                  onClick={() => setEditingPlan({
+                    plan_id: "",
+                    name: "",
+                    plan_type: "token_pack",
+                    price_inr: 0,
+                    price_usd: 0,
+                    price_eur: 0,
+                    tokens: 0,
+                    description: "",
+                    recommended: false,
+                    is_active: true,
+                    sort_order: pricingPlans.length,
+                  })}
+                  size="sm"
+                  variant="ghost"
+                >
+                  + Add Plan
+                </Button>
+              </div>
+            </div>
+
+            {pricingLoading ? (
+              <div className="flex justify-center py-16">
+                <div className="w-6 h-6 border-2 border-accent/20 border-t-accent rounded-full animate-spin" />
+              </div>
+            ) : pricingPlans.length === 0 ? (
+              <Card padding="lg" className="text-center">
+                <p className="text-text-secondary text-sm">No plans found. Seed defaults to get started.</p>
+              </Card>
+            ) : (
+              <Card padding="none">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-border bg-surface-secondary/30">
+                        <th className="px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Plan</th>
+                        <th className="px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Type</th>
+                        <th className="px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider text-right">₹ INR</th>
+                        <th className="px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider text-right">$ USD</th>
+                        <th className="px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider text-right">€ EUR</th>
+                        <th className="px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider text-right">Tokens</th>
+                        <th className="px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider text-center">Status</th>
+                        <th className="px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {pricingPlans.map((plan) => (
+                        <tr key={plan.plan_id || plan.id} className={`hover:bg-surface-secondary/20 transition-colors ${!plan.is_active ? "opacity-50" : ""}`}>
+                          <td className="px-4 py-3">
+                            <div>
+                              <span className="text-foreground font-semibold">{plan.name}</span>
+                              {plan.recommended && (
+                                <span className="ml-2 text-[8px] font-bold bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-white px-1.5 py-0.5 rounded-full uppercase">
+                                  Best Value
+                                </span>
+                              )}
+                              <p className="text-[11px] text-text-secondary mt-0.5 line-clamp-1">{plan.description}</p>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                              plan.plan_type === "subscription"
+                                ? "bg-blue-500/15 text-blue-400"
+                                : "bg-emerald-500/15 text-emerald-400"
+                            }`}>
+                              {plan.plan_type === "subscription" ? "Monthly" : "One-time"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono text-foreground">
+                            ₹{plan.price_inr}
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono text-foreground">
+                            ${(plan.price_usd / 100).toFixed(2)}
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono text-foreground">
+                            €{(plan.price_eur / 100).toFixed(2)}
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono font-bold text-accent">
+                            {plan.tokens}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <button
+                              onClick={() => handleTogglePlanActive(plan)}
+                              className={`text-xs font-medium px-2.5 py-1 rounded-full transition-colors ${
+                                plan.is_active
+                                  ? "bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25"
+                                  : "bg-red-500/15 text-red-400 hover:bg-red-500/25"
+                              }`}
+                            >
+                              {plan.is_active ? "Active" : "Inactive"}
+                            </button>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <button
+                              onClick={() => setEditingPlan({ ...plan })}
+                              className="text-xs text-accent hover:text-accent/80 font-medium transition-colors"
+                            >
+                              Edit
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </Card>
             )}
           </>
@@ -2197,6 +2409,137 @@ export default function AdminPage() {
                 </Button>
               </div>
             </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Pricing Plan Edit Modal */}
+      <Modal open={!!editingPlan} onClose={() => setEditingPlan(null)} title={editingPlan?.id ? "Edit Plan" : "New Plan"}>
+        {editingPlan && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-text-secondary mb-1">Plan ID</label>
+                <input
+                  value={editingPlan.plan_id}
+                  onChange={e => setEditingPlan(p => p ? { ...p, plan_id: e.target.value } : p)}
+                  disabled={!!editingPlan.id}
+                  placeholder="e.g. starter_149"
+                  className="w-full px-3 py-2.5 rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] text-white text-sm outline-none focus:border-accent transition-all disabled:opacity-50"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-text-secondary mb-1">Name</label>
+                <input
+                  value={editingPlan.name}
+                  onChange={e => setEditingPlan(p => p ? { ...p, name: e.target.value } : p)}
+                  placeholder="Starter Pack"
+                  className="w-full px-3 py-2.5 rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] text-white text-sm outline-none focus:border-accent transition-all"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-text-secondary mb-1">Type</label>
+                <select
+                  value={editingPlan.plan_type}
+                  onChange={e => setEditingPlan(p => p ? { ...p, plan_type: e.target.value } : p)}
+                  className="w-full px-3 py-2.5 rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] text-white text-sm outline-none focus:border-accent transition-all"
+                >
+                  <option value="token_pack">Token Pack (One-time)</option>
+                  <option value="subscription">Subscription (Monthly)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-text-secondary mb-1">Tokens</label>
+                <input
+                  type="number"
+                  value={editingPlan.tokens}
+                  onChange={e => setEditingPlan(p => p ? { ...p, tokens: parseInt(e.target.value) || 0 } : p)}
+                  className="w-full px-3 py-2.5 rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] text-white text-sm outline-none focus:border-accent transition-all"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-text-secondary mb-2">Pricing</label>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[10px] text-text-secondary mb-1">₹ INR (rupees)</label>
+                  <input
+                    type="number"
+                    value={editingPlan.price_inr}
+                    onChange={e => setEditingPlan(p => p ? { ...p, price_inr: parseInt(e.target.value) || 0 } : p)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] text-white text-sm outline-none focus:border-accent transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-text-secondary mb-1">$ USD (cents)</label>
+                  <input
+                    type="number"
+                    value={editingPlan.price_usd}
+                    onChange={e => setEditingPlan(p => p ? { ...p, price_usd: parseInt(e.target.value) || 0 } : p)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] text-white text-sm outline-none focus:border-accent transition-all"
+                  />
+                  <p className="text-[9px] text-text-secondary/50 mt-0.5">= ${(editingPlan.price_usd / 100).toFixed(2)}</p>
+                </div>
+                <div>
+                  <label className="block text-[10px] text-text-secondary mb-1">€ EUR (cents)</label>
+                  <input
+                    type="number"
+                    value={editingPlan.price_eur}
+                    onChange={e => setEditingPlan(p => p ? { ...p, price_eur: parseInt(e.target.value) || 0 } : p)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] text-white text-sm outline-none focus:border-accent transition-all"
+                  />
+                  <p className="text-[9px] text-text-secondary/50 mt-0.5">= €{(editingPlan.price_eur / 100).toFixed(2)}</p>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-text-secondary mb-1">Description</label>
+              <input
+                value={editingPlan.description}
+                onChange={e => setEditingPlan(p => p ? { ...p, description: e.target.value } : p)}
+                placeholder="80 tokens — 10 Standard images or 4 Pro images"
+                className="w-full px-3 py-2.5 rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] text-white text-sm outline-none focus:border-accent transition-all"
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-[10px] text-text-secondary mb-1">Sort Order</label>
+                <input
+                  type="number"
+                  value={editingPlan.sort_order}
+                  onChange={e => setEditingPlan(p => p ? { ...p, sort_order: parseInt(e.target.value) || 0 } : p)}
+                  className="w-full px-3 py-2.5 rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] text-white text-sm outline-none focus:border-accent transition-all"
+                />
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer pt-4">
+                <input
+                  type="checkbox"
+                  checked={editingPlan.recommended}
+                  onChange={e => setEditingPlan(p => p ? { ...p, recommended: e.target.checked } : p)}
+                  className="rounded border-border"
+                />
+                <span className="text-xs text-text-secondary">Recommended</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer pt-4">
+                <input
+                  type="checkbox"
+                  checked={editingPlan.is_active}
+                  onChange={e => setEditingPlan(p => p ? { ...p, is_active: e.target.checked } : p)}
+                  className="rounded border-border"
+                />
+                <span className="text-xs text-text-secondary">Active</span>
+              </label>
+            </div>
+
+            <Button onClick={handleSavePlan} loading={pricingSaving} fullWidth>
+              {editingPlan.id ? "Update Plan" : "Create Plan"}
+            </Button>
           </div>
         )}
       </Modal>

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api-client";
 import { useAuth } from "@/providers/AppProvider";
+import { useGeoCountry } from "@/hooks/useGeoCountry";
 
 interface Plan {
   id: string;
@@ -11,6 +12,7 @@ interface Plan {
   type: string;
   price_inr: number;
   price_usd: number;
+  price_eur?: number;
   tokens: number;
   description: string;
   recommended?: boolean;
@@ -21,6 +23,7 @@ const SHOW_DELAY_MS = 3500;
 
 export default function PricingModal() {
   const { user } = useAuth();
+  const { currency } = useGeoCountry();
   const [open, setOpen] = useState(false);
   const [closing, setClosing] = useState(false);
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -71,6 +74,18 @@ export default function PricingModal() {
   }, [open, handleClose]);
 
   if (!open) return null;
+
+  function fmtPrice(plan: Plan): React.ReactNode {
+    if (currency === "INR") return <><span className="text-[1rem]">₹</span>{plan.price_inr}</>;
+    if (currency === "EUR") return <><span className="text-[1rem]">€</span>{((plan.price_eur ?? plan.price_usd) / 100).toFixed(2)}</>;
+    return <><span className="text-[1rem]">$</span>{(plan.price_usd / 100).toFixed(2)}</>;
+  }
+
+  function fmtSmall(plan: Plan): React.ReactNode {
+    if (currency === "INR") return <><span className="text-[10px]">₹</span>{plan.price_inr}</>;
+    if (currency === "EUR") return <><span className="text-[10px]">€</span>{((plan.price_eur ?? plan.price_usd) / 100).toFixed(2)}</>;
+    return <><span className="text-[10px]">$</span>{(plan.price_usd / 100).toFixed(2)}</>;
+  }
 
   const subscriptions = plans.filter((p) => p.type === "subscription");
   const tokenPacks = plans.filter((p) => p.type === "token_pack");
@@ -152,7 +167,7 @@ export default function PricingModal() {
                       </div>
                       <div className="mb-3">
                         <span className="text-[1.75rem] font-extrabold text-white leading-none">
-                          <span className="text-[1rem]">₹</span>{plan.price_inr}
+                          {fmtPrice(plan)}
                         </span>
                         <span className="text-[12px] text-white/30 ml-1">/mo</span>
                       </div>
@@ -190,7 +205,7 @@ export default function PricingModal() {
                         <p className="text-[1.1rem] font-extrabold text-white leading-none">{pack.tokens}</p>
                         <p className="text-[9px] text-white/30 uppercase tracking-wider mt-0.5">tokens</p>
                         <p className="text-[13px] font-bold text-white/60 mt-2 group-hover:text-white transition-colors">
-                          <span className="text-[10px]">₹</span>{pack.price_inr}
+                          {fmtSmall(pack)}
                         </p>
                       </Link>
                     ))}
@@ -204,18 +219,18 @@ export default function PricingModal() {
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
                     <div className="bg-white/[0.03] rounded-xl p-5 border border-white/[0.06] text-center">
                       <div className="text-[11px] font-bold text-white/40 uppercase tracking-wide mb-2">Free</div>
-                      <div className="font-display font-extrabold text-[1.75rem] text-white leading-none">₹0</div>
+                      <div className="font-display font-extrabold text-[1.75rem] text-white leading-none">{currency === "INR" ? "₹0" : "$0"}</div>
                       <div className="text-[11px] text-white/30 mt-1">8 daily tokens</div>
                     </div>
                     <div className="bg-gradient-to-b from-[rgba(196,166,125,0.1)] to-transparent rounded-xl p-5 border-2 border-[#c4a67d]/40 text-center relative">
                       <span className="absolute -top-2 left-1/2 -translate-x-1/2 px-2.5 py-0.5 bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-white text-[8px] font-bold uppercase tracking-wider rounded-full">Popular</span>
                       <div className="text-[11px] font-bold text-[#c4a67d] uppercase tracking-wide mb-2">Growth</div>
-                      <div className="font-display font-extrabold text-[1.75rem] text-white leading-none">₹549</div>
+                      <div className="font-display font-extrabold text-[1.75rem] text-white leading-none">{currency === "INR" ? "₹549" : currency === "EUR" ? "€17.99" : "$19.99"}</div>
                       <div className="text-[11px] text-[#c4a67d]/50 mt-1">400 tokens/mo</div>
                     </div>
                     <div className="bg-white/[0.03] rounded-xl p-5 border border-white/[0.06] text-center">
                       <div className="text-[11px] font-bold text-white/40 uppercase tracking-wide mb-2">Business</div>
-                      <div className="font-display font-extrabold text-[1.75rem] text-white leading-none">₹1499</div>
+                      <div className="font-display font-extrabold text-[1.75rem] text-white leading-none">{currency === "INR" ? "₹1499" : currency === "EUR" ? "€44.99" : "$49.99"}</div>
                       <div className="text-[11px] text-white/30 mt-1">1200 tokens/mo</div>
                     </div>
                   </div>

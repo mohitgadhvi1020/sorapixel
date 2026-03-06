@@ -118,6 +118,8 @@ export const api = {
   get: <T = unknown>(endpoint: string) => apiRequest<T>(endpoint),
   post: <T = unknown>(endpoint: string, body?: unknown) =>
     apiRequest<T>(endpoint, { method: "POST", body }),
+  postNoAuth: <T = unknown>(endpoint: string, body?: unknown, headers?: Record<string, string>) =>
+    apiRequest<T>(endpoint, { method: "POST", body, noAuth: true, headers }),
   put: <T = unknown>(endpoint: string, body?: unknown) =>
     apiRequest<T>(endpoint, { method: "PUT", body }),
   patch: <T = unknown>(endpoint: string, body?: unknown) =>

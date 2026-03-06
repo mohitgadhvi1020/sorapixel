@@ -20,8 +20,8 @@ export const JEWELRY_PRICING = {
 } as const;
 
 export const STUDIO_PRICING = {
-  standard: 1,
-  pro: 4,
+  standard: 5,
+  pro: 20,
 } as const;
 
 export const LISTING_PRICING = {

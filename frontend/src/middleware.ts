@@ -3,6 +3,42 @@ import { NextRequest, NextResponse } from "next/server";
 
 const PROTECTED_ROUTES = ["/studio", "/catalogue", "/batch-listing", "/projects", "/profile", "/admin", "/brand-settings"];
 
+const EUROPE_CODES = new Set([
+  "AT","BE","BG","HR","CY","CZ","DK","EE","FI","FR","DE","GR","HU","IE",
+  "IT","LV","LT","LU","MT","NL","PL","PT","RO","SK","SI","ES","SE","GB",
+  "NO","CH","IS",
+]);
+
+function detectCurrency(countryCode: string): string {
+  if (countryCode === "IN") return "INR";
+  if (EUROPE_CODES.has(countryCode)) return "EUR";
+  return "USD";
+}
+
+function setGeoCookie(response: NextResponse, req: NextRequest): NextResponse {
+  if (req.cookies.get("geo_country")) return response;
+
+  const country =
+    req.headers.get("x-vercel-ip-country") ||
+    req.headers.get("cf-ipcountry") ||
+    "";
+
+  if (country) {
+    const currency = detectCurrency(country);
+    response.cookies.set("geo_country", country, { path: "/", maxAge: 86400 * 7 });
+    response.cookies.set("geo_currency", currency, { path: "/", maxAge: 86400 * 7 });
+  }
+
+  return response;
+}
+
+function setAnonIdCookie(response: NextResponse, req: NextRequest): NextResponse {
+  if (req.cookies.get("anon_id")) return response;
+  const id = crypto.randomUUID();
+  response.cookies.set("anon_id", id, { path: "/", maxAge: 86400 * 365, httpOnly: false });
+  return response;
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
@@ -10,7 +46,12 @@ export async function middleware(req: NextRequest) {
     (route) => pathname === route || pathname.startsWith(route + "/"),
   );
 
-  if (!isProtected) return NextResponse.next();
+  if (!isProtected) {
+    let response = NextResponse.next();
+    response = setGeoCookie(response, req);
+    response = setAnonIdCookie(response, req);
+    return response;
+  }
 
   let supabaseResponse = NextResponse.next({ request: req });
 
@@ -43,17 +84,13 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  supabaseResponse = setGeoCookie(supabaseResponse, req);
+  supabaseResponse = setAnonIdCookie(supabaseResponse, req);
   return supabaseResponse;
 }
 
 export const config = {
   matcher: [
-    "/studio/:path*",
-    "/catalogue/:path*",
-    "/batch-listing/:path*",
-    "/projects/:path*",
-    "/profile/:path*",
-    "/admin/:path*",
-    "/brand-settings/:path*",
+    "/((?!_next/static|_next/image|favicon.ico|images/|api/).*)",
   ],
 };

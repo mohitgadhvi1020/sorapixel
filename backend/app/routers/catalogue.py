@@ -11,7 +11,7 @@ from app.services.gemini_service import (
     generate_image, generate_image_multi,
     generate_image_pro, generate_image_pro_multi,
 )
-from app.services.image_service import crop_to_ratio_top, add_branding_bar
+from app.services.image_service import crop_to_ratio_top, add_branding_bar, jewelry_zoom_crop
 from app.services.credit_service import get_jewelry_credits, deduct_jewelry_tokens, get_operation_cost
 from app.services.tracking_service import track_generation
 from app.services.prompt_service import (
@@ -71,14 +71,34 @@ async def generate_catalogue(req: GenerateCatalogueRequest, user: dict = Depends
     category_slug = user.get("category_slug")
     is_branding = req.add_logo and user.get("company_name")
 
-    OUTFIT_OPTIONS = [
+    OUTFIT_MODERN = [
+        "a crisp white blouse with dark formal trousers, clean and professional",
+        "a classic black fitted dress, minimal and elegant",
         "a simple elegant navy blue dress with minimal accessories",
-        "a classic black fitted dress, clean and professional",
-        "a sophisticated maroon/wine-colored outfit, elegant draping",
-        "a crisp white blouse with dark formal trousers",
-        "a deep emerald green ethnic kurta with subtle gold accents",
+        "a tailored charcoal blazer over a white top with dark trousers",
+        "a sophisticated cream silk blouse with high-waisted black pants",
     ]
-    outfit = random.choice(OUTFIT_OPTIONS)
+    OUTFIT_TRADITIONAL = [
+        "a deep emerald green silk saree with subtle gold border, elegantly draped",
+        "a rich maroon/wine-colored silk saree with intricate gold zari work",
+        "a royal blue lehenga choli with delicate gold embroidery",
+        "a pastel pink anarkali suit with subtle gold thread work",
+        "a deep purple banarasi silk saree with traditional gold motifs",
+    ]
+    OUTFIT_MINIMAL = [
+        "a plain solid black sleeveless top, no patterns, no accessories — the jewelry is the only focal point",
+        "a simple solid white t-shirt, clean and minimal — letting the jewelry stand out completely",
+        "a plain solid grey crew-neck top, no prints, no distractions — all attention on the jewelry",
+    ]
+
+    if req.outfit_custom and req.outfit_custom.strip():
+        outfit = req.outfit_custom.strip()
+    elif req.outfit_style == "traditional":
+        outfit = random.choice(OUTFIT_TRADITIONAL)
+    elif req.outfit_style == "minimal":
+        outfit = random.choice(OUTFIT_MINIMAL)
+    else:
+        outfit = random.choice(OUTFIT_MODERN)
 
     # Run detection for jewelry category to get component-level awareness
     detection_dict = None
@@ -154,7 +174,16 @@ async def generate_catalogue(req: GenerateCatalogueRequest, user: dict = Depends
             if gen_id:
                 generation_ids.append(gen_id)
 
-            images.append({"base64": image_b64, "mime_type": "image/png", "label": pose.replace("_", " ").title()})
+            pose_label = pose.replace("_", " ").title()
+            images.append({"base64": image_b64, "mime_type": "image/png", "label": pose_label})
+
+            if req.jewelry_type and not is_branding and pose not in ("hand_closeup", "feet_closeup"):
+                try:
+                    zoomed_b64 = jewelry_zoom_crop(image_b64, req.jewelry_type, pose)
+                    images.append({"base64": zoomed_b64, "mime_type": "image/png", "label": f"{pose_label} · Zoom"})
+                except Exception as zoom_err:
+                    logger.warning(f"Zoom crop failed for pose={pose}: {zoom_err}")
+
         except Exception as e:
             logger.error(f"Catalogue generation error (pose={pose}): {e}")
             images.append({"base64": "", "label": f"{pose.replace('_', ' ').title()} (failed)"})

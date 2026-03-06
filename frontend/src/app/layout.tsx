@@ -95,11 +95,6 @@ const softwareAppJsonLd = {
     priceCurrency: "INR",
     description: "Free tier with daily tokens. Paid plans for professional use.",
   },
-  aggregateRating: {
-    "@type": "AggregateRating",
-    ratingValue: "4.8",
-    ratingCount: "120",
-  },
 };
 
 import { ClientProviders } from "@/providers/ClientProviders";

@@ -11,6 +11,7 @@ from app.middleware.auth import require_admin
 from app.schemas.admin import CreateClientRequest, UpdateClientRequest, AddTokensRequest
 from app.database import get_supabase
 from app.services.credit_service import add_tokens
+from app.services.payment_service import get_all_plans, PLANS as DEFAULT_PLANS
 from app.config import get_settings
 from app.services.gemini_service import generate_image, generate_image_multi
 from app.services.image_service import crop_to_ratio
@@ -361,3 +362,106 @@ async def get_revenue(admin: dict = Depends(require_admin)):
         },
         "recent_logs": token_logs[:50],
     }
+
+
+# ──────────── Pricing Plan Management ────────────
+
+@router.get("/plans")
+async def admin_list_plans(user: dict = Depends(require_admin)):
+    """Return all plans (active and inactive) for admin editing."""
+    sb = get_supabase()
+    try:
+        result = sb.table("pricing_plans").select("*").order("sort_order").execute()
+        if result.data:
+            return {"plans": result.data, "source": "database"}
+    except Exception:
+        pass
+    return {"plans": DEFAULT_PLANS, "source": "hardcoded"}
+
+
+@router.post("/plans/seed")
+async def seed_plans_to_db(user: dict = Depends(require_admin)):
+    """Seed hardcoded plans into the database for the first time."""
+    sb = get_supabase()
+    rows = []
+    for i, p in enumerate(DEFAULT_PLANS):
+        rows.append({
+            "plan_id": p["id"],
+            "name": p["name"],
+            "plan_type": p["type"],
+            "price_inr": p["price_inr"],
+            "price_usd": p["price_usd"],
+            "price_eur": p.get("price_eur", p["price_usd"]),
+            "tokens": p["tokens"],
+            "description": p["description"],
+            "recommended": p.get("recommended", False),
+            "is_active": True,
+            "sort_order": i,
+        })
+    try:
+        result = sb.table("pricing_plans").upsert(rows, on_conflict="plan_id").execute()
+        return {"success": True, "count": len(result.data or [])}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/plans/{plan_id}")
+async def update_plan(plan_id: str, body: dict, user: dict = Depends(require_admin)):
+    """Update a single plan's fields."""
+    sb = get_supabase()
+    allowed = {"name", "plan_type", "price_inr", "price_usd", "price_eur", "tokens", "description", "recommended", "is_active", "sort_order"}
+    updates = {k: v for k, v in body.items() if k in allowed}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No valid fields to update")
+    try:
+        result = sb.table("pricing_plans").update(updates).eq("plan_id", plan_id).execute()
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Plan not found")
+        return {"success": True, "plan": result.data[0]}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/plans")
+async def create_plan(body: dict, user: dict = Depends(require_admin)):
+    """Create a new pricing plan."""
+    required = ["plan_id", "name", "plan_type", "price_inr", "price_usd", "tokens", "description"]
+    missing = [f for f in required if f not in body]
+    if missing:
+        raise HTTPException(status_code=400, detail=f"Missing fields: {', '.join(missing)}")
+    sb = get_supabase()
+    row = {
+        "plan_id": body["plan_id"],
+        "name": body["name"],
+        "plan_type": body["plan_type"],
+        "price_inr": body["price_inr"],
+        "price_usd": body["price_usd"],
+        "price_eur": body.get("price_eur", body["price_usd"]),
+        "tokens": body["tokens"],
+        "description": body["description"],
+        "recommended": body.get("recommended", False),
+        "is_active": body.get("is_active", True),
+        "sort_order": body.get("sort_order", 99),
+    }
+    try:
+        result = sb.table("pricing_plans").insert(row).execute()
+        return {"success": True, "plan": result.data[0] if result.data else row}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/plans/{plan_id}")
+async def delete_plan(plan_id: str, user: dict = Depends(require_admin)):
+    """Soft-delete a plan by deactivating it."""
+    sb = get_supabase()
+    try:
+        result = sb.table("pricing_plans").update({"is_active": False}).eq("plan_id", plan_id).execute()
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Plan not found")
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
