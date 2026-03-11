@@ -17,6 +17,7 @@ export default function DailyRewardModal() {
   const isLight = theme === "light";
 
   if (!visible || !credits?.daily_reward_available || claimed) return null;
+  if ((credits?.token_balance ?? 0) > 0) return null;
 
   const handleClaim = async () => {
     setClaiming(true);

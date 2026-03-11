@@ -354,6 +354,7 @@ export default function AdminPage() {
       setLeadsFetched(true);
     } catch (err) {
       console.error("Failed to fetch leads:", err);
+      setLeadsFetched(true);
     } finally {
       setLeadsLoading(false);
     }

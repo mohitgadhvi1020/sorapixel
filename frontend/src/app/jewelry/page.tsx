@@ -1939,11 +1939,25 @@ function JewelryPage() {
               </div>
             )}
 
-            {/* ===== UGC / MODEL PHOTOS — Featured Section ===== */}
+            {/* ===== NEXT STEPS: UGC + VIDEO CTAs ===== */}
             <div className={`pt-6 border-t ${isLight ? "border-[#e5e2dc]" : "border-[rgba(255,255,255,0.08)]"}`}>
-              <div className={`rounded-2xl p-5 md:p-6 ${isLight ? "border border-[#8b7355]/20 bg-gradient-to-br from-[#8b7355]/[0.04] to-[#f5f0e8]/50" : "border border-[rgba(196,166,125,0.18)] bg-gradient-to-br from-[rgba(196,166,125,0.06)] to-[rgba(255,255,255,0.02)]"}`}>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
+              <h3 className={`text-lg font-bold tracking-tight mb-1.5 ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>Take it further</h3>
+              <p className={`text-[14px] mb-4 leading-relaxed ${isLight ? "text-[#6b6b6b]" : "text-[rgba(255,255,255,0.6)]"}`}>Use your generated images to create videos or model photos.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* UGC CTA */}
+                <button
+                  onClick={() => {
+                    const img = resultImages[0];
+                    const src = img?.url || (img?.base64 ? `data:image/png;base64,${img.base64}` : "");
+                    const params = new URLSearchParams();
+                    if (src && src.startsWith("http")) params.set("image", src);
+                    if (jewelryType) params.set("type", jewelryType);
+                    if (sessionId) params.set("session", sessionId);
+                    router.push(`/ugc?${params.toString()}`);
+                  }}
+                  className={`group text-left rounded-2xl p-5 border transition-all hover:scale-[1.01] ${isLight ? "border-[#8b7355]/20 bg-gradient-to-br from-[#8b7355]/[0.04] to-[#f5f0e8]/50 hover:border-[#8b7355]/40" : "border-[rgba(196,166,125,0.18)] bg-gradient-to-br from-[rgba(196,166,125,0.06)] to-[rgba(255,255,255,0.02)] hover:border-[rgba(196,166,125,0.35)]"}`}
+                >
+                  <div className="flex items-center gap-3 mb-2">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isLight ? "bg-[#8b7355]/10" : "bg-[rgba(196,166,125,0.15)]"}`}>
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={isLight ? "#8b7355" : "#c4a67d"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
@@ -1951,278 +1965,48 @@ function JewelryPage() {
                       </svg>
                     </div>
                     <div>
-                      <h3 className={`text-[15px] font-bold tracking-tight ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>Model / UGC Photos</h3>
-                      <p className={`text-[13px] ${isLight ? "text-[#6b6b6b]" : "text-white/60"}`}>Generate AI model photos wearing your jewelry</p>
+                      <h4 className={`text-[15px] font-bold ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>Model / UGC Photos</h4>
+                      <p className={`text-[12px] ${isLight ? "text-[#6b6b6b]" : "text-white/50"}`}>AI model wearing your jewelry</p>
                     </div>
                   </div>
-                  {ugcImages.length > 0 && (
-                    <button
-                      onClick={openUgcModal}
-                      disabled={ugcLoading}
-                      className={`px-3.5 py-1.5 rounded-lg text-[12px] font-bold border transition-all disabled:opacity-50 ${isLight ? "text-[#8b7355] border-[#8b7355]/25 hover:bg-[#8b7355]/10" : "text-[#c4a67d] border-[rgba(196,166,125,0.25)] hover:bg-[rgba(196,166,125,0.1)]"}`}
-                    >
-                      {ugcLoading ? "Generating..." : "+ Generate More"}
-                    </button>
-                  )}
-                </div>
+                  <span className={`inline-flex items-center gap-1 text-[12px] font-semibold ${isLight ? "text-[#8b7355]" : "text-[#c4a67d]"}`}>
+                    Create UGC Photos
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                  </span>
+                </button>
 
-                {ugcImages.length > 0 ? (
-                  <div className="space-y-4">
-                    {/* Loading skeleton cards while generating more */}
-                    {ugcLoading && ugcPoses.length > 0 && (
-                      <div>
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[rgba(234,179,8,0.1)]">
-                            <div className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse" />
-                            <span className={`text-[10px] font-semibold ${isLight ? "text-yellow-600" : "text-yellow-500"}`}>Generating</span>
-                          </div>
-                          <span className={`text-[11px] ${isLight ? "text-[#999]" : "text-white/30"}`}>
-                            {ugcPoses.length} photo{ugcPoses.length !== 1 ? "s" : ""} · ~20-40s
-                          </span>
-                          <div className={`flex-1 h-px ${isLight ? "bg-[#e5e2dc]" : "bg-white/5"}`} />
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                          {ugcPoses.map((pose, i) => (
-                            <div
-                              key={`ugc-loading-${pose}-${i}`}
-                              className={`rounded-xl overflow-hidden border ${
-                                isLight ? "border-[#e5e2dc] bg-[#f8f6f3]" : "border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.02)]"
-                              }`}
-                            >
-                              <div className="relative flex items-center justify-center aspect-[3/4]">
-                                <div className={`absolute inset-0 ${isLight ? "bg-gradient-to-br from-[#f5f0e8] to-[#ebe5db]" : "bg-gradient-to-br from-[rgba(255,255,255,0.03)] to-[rgba(255,255,255,0.01)]"}`}>
-                                  <div className={`absolute inset-0 animate-pulse ${isLight ? "bg-[#ede8e0]/60" : "bg-white/[0.02]"}`} />
-                                </div>
-                                <div className="relative w-12 h-12">
-                                  <svg className="absolute inset-0 w-full h-full animate-spin" viewBox="0 0 48 48" fill="none" style={{ animationDuration: `${1.8 + i * 0.4}s` }}>
-                                    <circle cx="24" cy="24" r="20" stroke={isLight ? "rgba(139,115,85,0.1)" : "rgba(196,166,125,0.1)"} strokeWidth="2" />
-                                    <path d="M24 4a20 20 0 0 1 20 20" stroke={isLight ? "#8b7355" : "#c4a67d"} strokeWidth="2" strokeLinecap="round" />
-                                  </svg>
-                                  <div className="absolute inset-0 flex items-center justify-center">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={isLight ? "rgba(139,115,85,0.35)" : "rgba(196,166,125,0.4)"} strokeWidth="1.5">
-                                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
-                                    </svg>
-                                  </div>
-                                </div>
-                              </div>
-                              <div className={`px-2.5 py-2 border-t ${isLight ? "border-[#e5e2dc]" : "border-[rgba(255,255,255,0.04)]"}`}>
-                                <span className={`text-[10px] font-semibold ${isLight ? "text-[#999]" : "text-white/30"}`}>
-                                  {pose.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {(() => {
-                      const batches: { title: string; images: { img: ResultImage; globalIdx: number }[] }[] = [];
-                      let currentBatch: typeof batches[0] | null = null;
-                      ugcImages.forEach((img, i) => {
-                        const setMatch = img.label.match(/^Set (\d+)/);
-                        const batchTitle = setMatch ? `Set ${setMatch[1]}` : "Set 1";
-                        if (!currentBatch || currentBatch.title !== batchTitle) {
-                          currentBatch = { title: batchTitle, images: [] };
-                          batches.push(currentBatch);
-                        }
-                        currentBatch.images.push({ img, globalIdx: i });
-                      });
-                      return batches.map((batch, bIdx) => (
-                        <div key={batch.title}>
-                          {batches.length > 1 && (
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className={`text-[11px] font-semibold uppercase tracking-wider ${isLight ? "text-[#999]" : "text-white/40"}`}>{batch.title}</span>
-                              {bIdx === 0 && !ugcLoading && <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${isLight ? "text-[#8b7355]/60 bg-[#8b7355]/[0.08]" : "text-[#c4a67d]/60 bg-[rgba(196,166,125,0.08)]"}`}>Latest</span>}
-                              <div className={`flex-1 h-px ${isLight ? "bg-[#e5e2dc]" : "bg-white/5"}`} />
-                            </div>
-                          )}
-                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                            {batch.images.map(({ img, globalIdx }) => (
-                              <div
-                                key={globalIdx}
-                                className={`rounded-xl overflow-hidden border relative group/ugc cursor-pointer transition-all duration-200 ${
-                                  isLight
-                                    ? "border-[#e5e2dc] hover:border-[#8b7355]/40"
-                                    : "border-[rgba(255,255,255,0.08)] hover:border-[rgba(196,166,125,0.3)]"
-                                }`}
-                                onClick={() => setUgcLightbox(globalIdx)}
-                              >
-                                <img
-                                  src={imgSrc(img)}
-                                  alt={img.label}
-                                  className="w-full aspect-[3/4] object-cover"
-                                />
-                                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-2 pt-6">
-                                  <span className="text-[10px] font-semibold text-white/80 leading-tight line-clamp-1">
-                                    {img.label.replace(/^Set \d+ — /, "")}
-                                  </span>
-                                </div>
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); downloadImage(img); }}
-                                  className="absolute top-1.5 right-1.5 w-7 h-7 flex items-center justify-center rounded-full bg-black/50 backdrop-blur-sm text-white/70 hover:text-white hover:bg-black/70 opacity-0 group-hover/ugc:opacity-100 transition-all"
-                                >
-                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
-                                  </svg>
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ));
-                    })()}
-                    {ugcGenerationIds.length > 0 && (
-                      <FeedbackWidget generationIds={ugcGenerationIds} imageLabel="UGC Model Photos" compact />
-                    )}
-                  </div>
-                ) : ugcLoading ? (
-                  <div className={`rounded-2xl overflow-hidden border ${
-                    isLight ? "border-[#e5e2dc] bg-white" : "border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.02)]"
-                  }`}>
-                    <div className={`px-4 py-2.5 border-b flex items-center gap-2 ${
-                      isLight ? "border-[#f0ede8]" : "border-[rgba(255,255,255,0.04)]"
-                    }`}>
-                      <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[rgba(234,179,8,0.1)]">
-                        <div className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse" />
-                        <span className="text-[10px] font-semibold text-yellow-500">Generating</span>
-                      </div>
-                      <span className={`text-xs font-semibold uppercase tracking-wider ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>Model Photos</span>
-                    </div>
-                    <div className="relative flex items-center justify-center" style={{ aspectRatio: "4/3" }}>
-                      <div className="relative w-14 h-14">
-                        <svg className="absolute inset-0 w-full h-full animate-spin" viewBox="0 0 56 56" fill="none" style={{ animationDuration: "2s" }}>
-                          <circle cx="28" cy="28" r="24" stroke={isLight ? "rgba(139,115,85,0.1)" : "rgba(196,166,125,0.1)"} strokeWidth="2.5" />
-                          <path d="M28 4a24 24 0 0 1 24 24" stroke={isLight ? "#8b7355" : "#c4a67d"} strokeWidth="2.5" strokeLinecap="round" />
-                        </svg>
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={isLight ? "rgba(139,115,85,0.35)" : "rgba(196,166,125,0.4)"} strokeWidth="1.5">
-                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
-                          </svg>
-                        </div>
-                      </div>
-                    </div>
-                    <div className={`px-4 py-2.5 border-t flex items-center justify-between ${
-                      isLight ? "border-[#f0ede8]" : "border-[rgba(255,255,255,0.04)]"
-                    }`}>
-                      <span className={`text-[11px] ${isLight ? "text-[#999]" : "text-white/30"}`}>This typically takes 20-40 seconds</span>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    onClick={openUgcModal}
-                    className={`w-full py-3.5 rounded-xl text-[14px] font-bold border border-dashed active:scale-[0.98] transition-all ${
-                      isLight
-                        ? "bg-gradient-to-r from-[#8b7355]/10 to-[#8b7355]/[0.04] text-[#8b7355] border-[#8b7355]/25 hover:from-[#8b7355]/15 hover:to-[#8b7355]/[0.08] hover:border-[#8b7355]/40"
-                        : "bg-gradient-to-r from-[rgba(196,166,125,0.12)] to-[rgba(196,166,125,0.06)] text-[#c4a67d] border-[rgba(196,166,125,0.25)] hover:from-[rgba(196,166,125,0.18)] hover:to-[rgba(196,166,125,0.1)] hover:border-[rgba(196,166,125,0.4)]"
-                    }`}
-                  >
-                    <span className="flex items-center justify-center gap-2">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                        <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-                      </svg>
-                      Generate Model Photos
-                    </span>
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* ===== VIDEO GENERATION ===== */}
-            <div className={`pt-6 border-t ${isLight ? "border-[#e5e2dc]" : "border-[rgba(255,255,255,0.08)]"}`}>
-              <h3 className={`text-lg font-bold tracking-tight mb-1.5 ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>
-                <span className="flex items-center gap-2">
-                  Video Generation
-                  <span className="text-[9px] font-bold bg-gradient-to-r from-purple-500 to-pink-500 text-white px-2 py-0.5 rounded-full uppercase tracking-wider">New</span>
-                </span>
-              </h3>
-              <p className={`text-[14px] mb-4 leading-relaxed ${isLight ? "text-[#6b6b6b]" : "text-[rgba(255,255,255,0.6)]"}`}>
-                Create stunning product videos from your jewelry photos.
-              </p>
-
-              {videoGenerating ? (
-                <div className={`rounded-2xl p-6 text-center ${isLight ? "border border-[#e5e2dc] bg-white" : "border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)]"}`}>
-                  <div className="relative w-14 h-14 mx-auto mb-3">
-                    <svg className="absolute inset-0 w-full h-full animate-spin" viewBox="0 0 56 56" fill="none" style={{ animationDuration: "2s" }}>
-                      <circle cx="28" cy="28" r="24" stroke={isLight ? "rgba(139,115,85,0.1)" : "rgba(196,166,125,0.1)"} strokeWidth="2.5" />
-                      <path d="M28 4a24 24 0 0 1 24 24" stroke={isLight ? "#8b7355" : "#c4a67d"} strokeWidth="2.5" strokeLinecap="round" />
-                    </svg>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={isLight ? "rgba(139,115,85,0.35)" : "rgba(196,166,125,0.4)"} strokeWidth="1.5">
+                {/* Video CTA */}
+                <button
+                  onClick={() => {
+                    const img = resultImages[0];
+                    const src = img?.url || (img?.base64 ? `data:image/png;base64,${img.base64}` : "");
+                    const params = new URLSearchParams();
+                    if (src && src.startsWith("http")) params.set("image", src);
+                    if (jewelryType) params.set("type", jewelryType);
+                    if (sessionId) params.set("session", sessionId);
+                    router.push(`/video?${params.toString()}`);
+                  }}
+                  className={`group text-left rounded-2xl p-5 border transition-all hover:scale-[1.01] ${isLight ? "border-purple-200 bg-gradient-to-br from-purple-50/50 to-pink-50/30 hover:border-purple-300" : "border-[rgba(168,85,247,0.2)] bg-gradient-to-br from-[rgba(168,85,247,0.06)] to-[rgba(236,72,153,0.04)] hover:border-[rgba(168,85,247,0.35)]"}`}
+                >
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isLight ? "bg-purple-100" : "bg-[rgba(168,85,247,0.15)]"}`}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={isLight ? "#7c3aed" : "#a855f7"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                         <polygon points="5 3 19 12 5 21 5 3" />
                       </svg>
                     </div>
-                  </div>
-                  <span className={`text-xs font-semibold uppercase tracking-wider ${isLight ? "text-[#8b7355]" : "text-[#c4a67d]"}`}>Generating Video</span>
-                  <p className={`text-[11px] mt-1 ${isLight ? "text-[#999]" : "text-white/30"}`}>This may take 2-3 minutes</p>
-                </div>
-              ) : videoResult ? (
-                <div className={`rounded-2xl overflow-hidden ${isLight ? "border border-[#e5e2dc] bg-white" : "border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)]"}`}>
-                  <video
-                    src={videoResult.video_url}
-                    controls
-                    autoPlay
-                    loop
-                    muted
-                    playsInline
-                    className="w-full aspect-video object-contain bg-black"
-                  />
-                  <div className={`p-4 flex items-center justify-between ${isLight ? "border-t border-[#e5e2dc]" : "border-t border-[rgba(255,255,255,0.06)]"}`}>
-                    <span className={`text-xs ${isLight ? "text-[#999]" : "text-white/40"}`}>
-                      {videoResult.mode?.replace("_", " ")} · {videoResult.duration}s · {videoResult.tokens_used} tokens
-                    </span>
-                    <div className="flex gap-2">
-                      <a
-                        href={videoResult.video_url}
-                        download="sorapixel-video.mp4"
-                        className={`text-xs font-semibold px-3 py-1.5 rounded-lg ${isLight ? "bg-[#f5f3ef] text-[#8b7355]" : "bg-[rgba(196,166,125,0.1)] text-[#c4a67d]"}`}
-                      >
-                        Download
-                      </a>
-                      <button
-                        onClick={() => { setVideoResult(null); setVideoModalOpen(true); }}
-                        className={`text-xs font-semibold px-3 py-1.5 rounded-lg ${isLight ? "bg-[#f5f3ef] text-[#8b7355]" : "bg-[rgba(196,166,125,0.1)] text-[#c4a67d]"}`}
-                      >
-                        New Video
-                      </button>
+                    <div>
+                      <h4 className={`text-[15px] font-bold ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>Video Generation</h4>
+                      <p className={`text-[12px] ${isLight ? "text-[#6b6b6b]" : "text-white/50"}`}>360° spin, reveal, lifestyle videos</p>
                     </div>
                   </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { mode: "360_spin", label: "360° Spin", icon: "↻", desc: "Turntable rotation" },
-                    { mode: "hero_reveal", label: "Hero Reveal", icon: "🎬", desc: "Cinematic close-up" },
-                    { mode: "lifestyle", label: "Lifestyle", icon: "✨", desc: "Elegant setting" },
-                    { mode: "sparkle", label: "Sparkle", icon: "💎", desc: "Light play" },
-                  ].map(({ mode, label, icon, desc }) => (
-                    <button
-                      key={mode}
-                      onClick={() => { setVideoMode(mode); setVideoModalOpen(true); }}
-                      className={`p-4 rounded-xl text-left border transition-all active:scale-[0.98] ${
-                        isLight
-                          ? "border-[#e5e2dc] bg-white hover:border-[#8b7355]/30 hover:bg-[#f9f7f4]"
-                          : "border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)] hover:border-[rgba(196,166,125,0.3)] hover:bg-[rgba(196,166,125,0.05)]"
-                      }`}
-                    >
-                      <div className="text-xl mb-1">{icon}</div>
-                      <div className={`text-sm font-semibold ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>{label}</div>
-                      <div className={`text-[11px] ${isLight ? "text-[#999]" : "text-white/40"}`}>{desc}</div>
-                    </button>
-                  ))}
-                  <button
-                    onClick={() => { setVideoMode("custom"); setVideoModalOpen(true); }}
-                    className={`col-span-2 p-4 rounded-xl text-center border border-dashed transition-all active:scale-[0.98] ${
-                      isLight
-                        ? "border-[#8b7355]/25 bg-gradient-to-r from-[#8b7355]/10 to-[#8b7355]/[0.04] text-[#8b7355] hover:border-[#8b7355]/40"
-                        : "border-[rgba(196,166,125,0.25)] bg-gradient-to-r from-[rgba(196,166,125,0.12)] to-[rgba(196,166,125,0.06)] text-[#c4a67d] hover:border-[rgba(196,166,125,0.4)]"
-                    }`}
-                  >
-                    <span className="text-sm font-bold">Custom Prompt Video</span>
-                    <span className={`block text-[11px] mt-0.5 ${isLight ? "text-[#999]" : "text-white/40"}`}>Describe any video you want</span>
-                  </button>
-                </div>
-              )}
+                  <span className={`inline-flex items-center gap-1 text-[12px] font-semibold ${isLight ? "text-purple-600" : "text-purple-400"}`}>
+                    Create Video
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                  </span>
+                </button>
+              </div>
             </div>
+
 
             {/* ===== FEATURE CARDS ===== */}
             <div className={`pt-6 border-t ${isLight ? "border-[#e5e2dc]" : "border-[rgba(255,255,255,0.08)]"}`}>
