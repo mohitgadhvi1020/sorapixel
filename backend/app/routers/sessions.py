@@ -23,7 +23,7 @@ class CreateSessionRequest(BaseModel):
     quality: str = "standard"
 
 
-@router.post("/")
+@router.post("")
 async def create(req: CreateSessionRequest, user: dict = Depends(get_current_user)):
     session = create_session(
         client_id=user["id"],
@@ -38,7 +38,7 @@ async def create(req: CreateSessionRequest, user: dict = Depends(get_current_use
     return session
 
 
-@router.get("/")
+@router.get("")
 async def list_all(
     limit: int = 20,
     offset: int = 0,

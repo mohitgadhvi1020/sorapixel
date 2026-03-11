@@ -5,12 +5,19 @@ import { api } from "@/lib/api-client";
 import { useTheme } from "@/hooks/useTheme";
 
 const FEEDBACK_CATEGORIES = [
-  { id: "quality", label: "Low quality" },
-  { id: "wrong_style", label: "Wrong style" },
+  { id: "low_quality", label: "Low quality" },
+  { id: "wrong_style", label: "Wrong style / theme" },
   { id: "artifacts", label: "Artifacts / glitches" },
-  { id: "color", label: "Wrong colors" },
-  { id: "background", label: "Bad background" },
-  { id: "other", label: "Other" },
+  { id: "color_mismatch", label: "Wrong colors" },
+  { id: "bad_background", label: "Bad background" },
+  { id: "jewelry_distorted", label: "Jewelry distorted" },
+  { id: "wrong_jewelry_type", label: "Wrong jewelry type" },
+  { id: "blurry", label: "Blurry / soft" },
+  { id: "unrealistic", label: "Looks unrealistic" },
+  { id: "wrong_angle", label: "Wrong angle" },
+  { id: "missing_details", label: "Missing details" },
+  { id: "too_dark", label: "Too dark" },
+  { id: "too_bright", label: "Too bright / washed out" },
 ];
 
 interface FeedbackWidgetProps {
@@ -25,21 +32,27 @@ export default function FeedbackWidget({ generationIds, imageLabel, compact }: F
 
   const [rating, setRating] = useState<"up" | "down" | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [category, setCategory] = useState<string | null>(null);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [comment, setComment] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   if (!generationIds.length) return null;
 
-  async function submitFeedback(selectedRating: "up" | "down", cat?: string | null, text?: string) {
+  function toggleCategory(catId: string) {
+    setSelectedCategories((prev) =>
+      prev.includes(catId) ? prev.filter((c) => c !== catId) : [...prev, catId]
+    );
+  }
+
+  async function submitFeedback(selectedRating: "up" | "down", cats?: string[], text?: string) {
     setSubmitting(true);
     try {
       const promises = generationIds.map((gid) =>
         api.post("/feedback", {
           generation_id: gid,
           rating: selectedRating,
-          category: cat || undefined,
+          categories: cats?.length ? cats : undefined,
           comment: text || undefined,
           image_label: imageLabel,
         })
@@ -65,7 +78,7 @@ export default function FeedbackWidget({ generationIds, imageLabel, compact }: F
   }
 
   function handleFormSubmit() {
-    submitFeedback("down", category, comment.trim());
+    submitFeedback("down", selectedCategories, comment.trim());
   }
 
   if (submitted) {
@@ -95,35 +108,45 @@ export default function FeedbackWidget({ generationIds, imageLabel, compact }: F
             What went wrong?
           </p>
           <button
-            onClick={() => { setShowForm(false); setRating(null); }}
+            onClick={() => { setShowForm(false); setRating(null); setSelectedCategories([]); setComment(""); }}
             className={`text-[11px] ${isLight ? "text-[#999]" : "text-white/30"} hover:text-[#c4a67d] transition-colors`}
           >
             Cancel
           </button>
         </div>
 
+        <p className={`text-[11px] ${isLight ? "text-[#999]" : "text-white/30"}`}>
+          Select all that apply
+        </p>
+
         <div className="flex flex-wrap gap-1.5">
-          {FEEDBACK_CATEGORIES.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => setCategory(category === cat.id ? null : cat.id)}
-              className={`px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
-                category === cat.id
-                  ? "bg-[#c4a67d] text-white"
-                  : isLight
-                    ? "bg-white border border-[#e5e0d8] text-[#5a5a5a] hover:border-[#c4a67d]"
-                    : "bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-white/50 hover:border-[#c4a67d]/40"
-              }`}
-            >
-              {cat.label}
-            </button>
-          ))}
+          {FEEDBACK_CATEGORIES.map((cat) => {
+            const isSelected = selectedCategories.includes(cat.id);
+            return (
+              <button
+                key={cat.id}
+                onClick={() => toggleCategory(cat.id)}
+                className={`px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
+                  isSelected
+                    ? "bg-[#c4a67d] text-white"
+                    : isLight
+                      ? "bg-white border border-[#e5e0d8] text-[#5a5a5a] hover:border-[#c4a67d]"
+                      : "bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-white/50 hover:border-[#c4a67d]/40"
+                }`}
+              >
+                {isSelected && (
+                  <span className="mr-1">✓</span>
+                )}
+                {cat.label}
+              </button>
+            );
+          })}
         </div>
 
         <textarea
           value={comment}
           onChange={(e) => setComment(e.target.value)}
-          placeholder="Tell us more (optional)..."
+          placeholder="Describe the issue in your own words (optional)..."
           rows={2}
           className={`w-full rounded-lg px-3 py-2 text-[12px] resize-none outline-none transition-colors ${
             isLight
@@ -134,10 +157,10 @@ export default function FeedbackWidget({ generationIds, imageLabel, compact }: F
 
         <button
           onClick={handleFormSubmit}
-          disabled={submitting || (!category && !comment.trim())}
+          disabled={submitting || (selectedCategories.length === 0 && !comment.trim())}
           className="w-full py-2 rounded-lg text-[12px] font-semibold bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-white hover:shadow-lg hover:shadow-[#c4a67d]/20 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          {submitting ? "Sending..." : "Submit Feedback"}
+          {submitting ? "Sending..." : `Submit Feedback${selectedCategories.length > 0 ? ` (${selectedCategories.length})` : ""}`}
         </button>
       </div>
     );
@@ -148,7 +171,7 @@ export default function FeedbackWidget({ generationIds, imageLabel, compact }: F
       isLight ? "bg-[#f9f6f1]" : "bg-[rgba(255,255,255,0.02)]"
     }`}>
       <span className={`text-[11px] ${isLight ? "text-[#999]" : "text-white/30"}`}>
-        Rate this
+        How was this result?
       </span>
       <div className="flex gap-1">
         <button

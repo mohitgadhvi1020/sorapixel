@@ -16,7 +16,8 @@ router = APIRouter(prefix="/feedback", tags=["Feedback"])
 class FeedbackRequest(BaseModel):
     generation_id: str
     rating: str  # "up" or "down"
-    category: str | None = None  # e.g. "quality", "wrong_style", "artifacts", "other"
+    category: str | None = None
+    categories: list[str] | None = None
     comment: str | None = None
     image_label: str | None = None
 
@@ -34,12 +35,16 @@ async def submit_feedback(req: FeedbackRequest, user: dict = Depends(get_current
     try:
         sb = get_supabase()
         feedback_id = str(uuid.uuid4())
+        merged_category = req.category
+        if req.categories:
+            merged_category = ",".join(req.categories)
+
         sb.table("generation_feedback").insert({
             "id": feedback_id,
             "client_id": user["id"],
             "generation_id": req.generation_id,
             "rating": req.rating,
-            "category": req.category,
+            "category": merged_category,
             "comment": req.comment,
             "image_label": req.image_label,
         }).execute()

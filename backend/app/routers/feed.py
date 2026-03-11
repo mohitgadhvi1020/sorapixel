@@ -10,7 +10,7 @@ from fastapi import Depends, Request
 router = APIRouter(prefix="/feed", tags=["Feed"])
 
 
-@router.get("/")
+@router.get("")
 async def get_feed(
     category: str | None = None,
     item_type: str | None = None,

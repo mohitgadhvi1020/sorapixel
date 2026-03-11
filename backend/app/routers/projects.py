@@ -36,7 +36,7 @@ def _enrich_project(sb, project: dict) -> dict:
     return project
 
 
-@router.get("/")
+@router.get("")
 async def list_projects(
     project_type: str | None = None,
     page: int = 1,
