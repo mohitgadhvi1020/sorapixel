@@ -1,0 +1,55 @@
+services:
+  - type: web
+    name: sorapixel-leadgen
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    region: oregon
+    plan: free
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: PERPLEXITY_API_KEY
+        sync: false
+      - key: GOOGLE_PLACES_API_KEY
+        sync: false
+      - key: ETSY_API_KEY
+        sync: false
+      - key: APOLLO_API_KEY
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+      - key: ADMIN_EMAILS
+        sync: false
+      - key: LEAD_FROM_EMAIL
+        value: contact@soraipixel.com
+      - key: LEAD_FROM_NAME
+        value: Mohit from SoraPixel
+    healthCheckPath: /health
+    autoDeploy: true
+
+  - type: cron
+    name: sorapixel-leadgen-cron
+    runtime: image
+    image:
+      url: curlimages/curl:latest
+    schedule: "0 9 * * *"  # Every day at 9 AM UTC
+    envVars:
+      - key: LEADGEN_URL
+        fromService:
+          name: sorapixel-leadgen
+          type: web
+          property: host
+      - key: CRON_SECRET
+        sync: false
+    buildCommand: ""
+    startCommand: >-
+      curl -s -X POST https://$LEADGEN_URL/api/v1/pipeline/cron
+      -H "X-Cron-Secret: $CRON_SECRET"
+      -H "Content-Type: application/json"

@@ -72,15 +72,17 @@ export default function PricingPage() {
   const isLight = theme === "light";
 
   useEffect(() => {
-    if (!geoApplied && geo.country && geo.currency) {
+    if (geoApplied) return;
+    if (isAdmin) {
+      setCurrency("INR");
+      setGeoApplied(true);
+      return;
+    }
+    if (geo.country && geo.currency) {
       setCurrency(geo.currency as Currency);
       setGeoApplied(true);
     }
-  }, [geo.country, geo.currency, geoApplied]);
-
-  useEffect(() => {
-    if (isAdmin) setCurrency("INR");
-  }, [isAdmin]);
+  }, [geo.country, geo.currency, geoApplied, isAdmin]);
 
   useEffect(() => {
     async function loadPlans() {

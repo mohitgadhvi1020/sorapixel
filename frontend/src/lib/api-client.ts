@@ -3,6 +3,7 @@
  * Uses Supabase session tokens for authentication.
  */
 
+import * as Sentry from "@sentry/nextjs";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
@@ -75,11 +76,15 @@ async function apiRequest<T = unknown>(endpoint: string, options: ApiOptions = {
 
   if (!resp.ok) {
     const errorData = await resp.json().catch(() => ({}));
-    throw new ApiError(
+    const err = new ApiError(
       errorData.detail || `Request failed: ${resp.status}`,
       resp.status,
       errorData,
     );
+    if (resp.status >= 500) {
+      Sentry.captureException(err, { extra: { endpoint, method, status: resp.status, errorData } });
+    }
+    throw err;
   }
 
   return resp.json();
@@ -108,7 +113,11 @@ async function apiUpload<T = unknown>(endpoint: string, formData: FormData): Pro
 
   if (!resp.ok) {
     const errorData = await resp.json().catch(() => ({}));
-    throw new ApiError(errorData.detail || `Upload failed: ${resp.status}`, resp.status, errorData);
+    const err = new ApiError(errorData.detail || `Upload failed: ${resp.status}`, resp.status, errorData);
+    if (resp.status >= 500) {
+      Sentry.captureException(err, { extra: { endpoint, status: resp.status, errorData } });
+    }
+    throw err;
   }
 
   return resp.json();

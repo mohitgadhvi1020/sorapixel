@@ -33,6 +33,11 @@ STUDIO_PRICING = {
     "pro": 20,
 }
 
+VIDEO_PRICING = {
+    "standard": 25,
+    "pro": 50,
+}
+
 DAILY_REWARD_TOKENS = 8
 
 FREE_FIRST_GENERATION = 1

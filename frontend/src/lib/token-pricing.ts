@@ -24,6 +24,11 @@ export const STUDIO_PRICING = {
   pro: 20,
 } as const;
 
+export const VIDEO_PRICING = {
+  standard: 25,
+  pro: 50,
+} as const;
+
 export const LISTING_PRICING = {
   costPerImage: 5,
   costPerRegen: 3,
@@ -51,4 +56,5 @@ export const TOKEN_COSTS_TABLE = [
   { feature: "Product Listing (AI)", standard: `${JEWELRY_PRICING.standard.listing} tokens`, pro: `${JEWELRY_PRICING.pro.listing} tokens` },
   { feature: "Branding Strip", standard: "FREE", pro: "FREE" },
   { feature: "Studio Shot", standard: `${STUDIO_PRICING.standard} token`, pro: `${STUDIO_PRICING.pro} tokens` },
+  { feature: "Video Generation", standard: `${VIDEO_PRICING.standard} tokens`, pro: `${VIDEO_PRICING.pro} tokens` },
 ];

@@ -87,6 +87,12 @@ const UGC_ALL_POSES = [
   { id: "back_view", label: "Back View" },
   { id: "hand_closeup", label: "Hand Close-up" },
   { id: "feet_closeup", label: "Feet Close-up" },
+  { id: "finger_macro", label: "Ring Macro" },
+  { id: "ear_macro", label: "Earring Macro" },
+  { id: "neck_macro", label: "Neck Macro" },
+  { id: "wrist_macro", label: "Wrist Macro" },
+  { id: "ankle_macro", label: "Anklet Macro" },
+  { id: "lapel_macro", label: "Brooch Macro" },
 ];
 
 const UGC_BACKGROUNDS = [
@@ -99,15 +105,15 @@ const UGC_BACKGROUNDS = [
 ];
 
 const JEWELRY_POSE_MAP: Record<string, string[]> = {
-  ring: ["hand_closeup", "standing", "side_view"],
-  necklace: ["standing", "close_up", "side_view", "sitting"],
-  earring: ["close_up", "side_view", "standing"],
-  bracelet: ["hand_closeup", "standing", "sitting"],
-  bangle: ["hand_closeup", "standing", "side_view"],
-  pendant: ["close_up", "standing", "sitting"],
-  brooch: ["close_up", "standing", "side_view"],
-  anklet: ["feet_closeup", "sitting", "standing"],
-  chain: ["standing", "close_up", "side_view"],
+  ring: ["finger_macro", "hand_closeup", "standing", "side_view"],
+  necklace: ["neck_macro", "standing", "close_up", "side_view", "sitting"],
+  earring: ["ear_macro", "close_up", "side_view", "standing"],
+  bracelet: ["wrist_macro", "hand_closeup", "standing", "sitting"],
+  bangle: ["wrist_macro", "hand_closeup", "standing", "side_view"],
+  pendant: ["neck_macro", "close_up", "standing", "sitting"],
+  brooch: ["lapel_macro", "close_up", "standing", "side_view"],
+  anklet: ["ankle_macro", "feet_closeup", "sitting", "standing"],
+  chain: ["neck_macro", "standing", "close_up", "side_view"],
   set: ["standing", "close_up", "side_view", "sitting"],
 };
 
@@ -211,6 +217,16 @@ function JewelryPage() {
   const [ugcSourceIndex, setUgcSourceIndex] = useState(0);
   const [catalogueLoading, setCatalogueLoading] = useState(false);
   const [catalogueData, setCatalogueData] = useState<Record<string, unknown> | null>(null);
+
+  // Video generation
+  const [videoModalOpen, setVideoModalOpen] = useState(false);
+  const [videoMode, setVideoMode] = useState("360_spin");
+  const [videoQuality, setVideoQuality] = useState<"standard" | "pro">("standard");
+  const [videoCustomPrompt, setVideoCustomPrompt] = useState("");
+  const [videoAspect, setVideoAspect] = useState("landscape");
+  const [videoGenerating, setVideoGenerating] = useState(false);
+  const [videoResult, setVideoResult] = useState<{ video_url: string; duration: number; mode: string; tokens_used: number } | null>(null);
+  const [videoSourceIndex, setVideoSourceIndex] = useState(0);
   const [listingModalOpen, setListingModalOpen] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editMeta, setEditMeta] = useState("");
@@ -788,6 +804,44 @@ function JewelryPage() {
     setUgcPoses(recommended.slice(0, 2));
     setUgcSourceIndex(0);
     setUgcModalOpen(true);
+  }
+
+  async function generateVideo() {
+    if (resultImages.length === 0) return;
+    const sourceIdx = Math.min(videoSourceIndex, resultImages.length - 1);
+    setVideoModalOpen(false);
+    setVideoGenerating(true);
+    setVideoResult(null);
+    try {
+      const imgB64 = resultImages[sourceIdx].base64 || (resultImages[sourceIdx] as ResultImage & { url?: string }).url || "";
+      let imageData = imgB64;
+      if (imgB64.startsWith("http")) {
+        const resp = await fetch(imgB64);
+        const blob = await resp.blob();
+        imageData = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve((reader.result as string).split(",")[1]);
+          reader.readAsDataURL(blob);
+        });
+      }
+      const data = await api.post<{ success: boolean; video_url: string; duration: number; mode: string; tokens_used: number }>("/video/generate", {
+        image_b64: imageData,
+        mode: videoMode,
+        jewelry_type: jewelryType?.toLowerCase().replace(/\s+/g, "") || "jewelry",
+        aspect_ratio: videoAspect,
+        quality: videoQuality,
+        custom_prompt: videoMode === "custom" ? videoCustomPrompt : undefined,
+        session_id: sessionId || undefined,
+      });
+      if (data.success) {
+        setVideoResult(data);
+        refreshCredits();
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Video generation failed");
+    } finally {
+      setVideoGenerating(false);
+    }
   }
 
   async function generateUGC() {
@@ -2073,6 +2127,103 @@ function JewelryPage() {
               </div>
             </div>
 
+            {/* ===== VIDEO GENERATION ===== */}
+            <div className={`pt-6 border-t ${isLight ? "border-[#e5e2dc]" : "border-[rgba(255,255,255,0.08)]"}`}>
+              <h3 className={`text-lg font-bold tracking-tight mb-1.5 ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>
+                <span className="flex items-center gap-2">
+                  Video Generation
+                  <span className="text-[9px] font-bold bg-gradient-to-r from-purple-500 to-pink-500 text-white px-2 py-0.5 rounded-full uppercase tracking-wider">New</span>
+                </span>
+              </h3>
+              <p className={`text-[14px] mb-4 leading-relaxed ${isLight ? "text-[#6b6b6b]" : "text-[rgba(255,255,255,0.6)]"}`}>
+                Create stunning product videos from your jewelry photos.
+              </p>
+
+              {videoGenerating ? (
+                <div className={`rounded-2xl p-6 text-center ${isLight ? "border border-[#e5e2dc] bg-white" : "border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)]"}`}>
+                  <div className="relative w-14 h-14 mx-auto mb-3">
+                    <svg className="absolute inset-0 w-full h-full animate-spin" viewBox="0 0 56 56" fill="none" style={{ animationDuration: "2s" }}>
+                      <circle cx="28" cy="28" r="24" stroke={isLight ? "rgba(139,115,85,0.1)" : "rgba(196,166,125,0.1)"} strokeWidth="2.5" />
+                      <path d="M28 4a24 24 0 0 1 24 24" stroke={isLight ? "#8b7355" : "#c4a67d"} strokeWidth="2.5" strokeLinecap="round" />
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={isLight ? "rgba(139,115,85,0.35)" : "rgba(196,166,125,0.4)"} strokeWidth="1.5">
+                        <polygon points="5 3 19 12 5 21 5 3" />
+                      </svg>
+                    </div>
+                  </div>
+                  <span className={`text-xs font-semibold uppercase tracking-wider ${isLight ? "text-[#8b7355]" : "text-[#c4a67d]"}`}>Generating Video</span>
+                  <p className={`text-[11px] mt-1 ${isLight ? "text-[#999]" : "text-white/30"}`}>This may take 2-3 minutes</p>
+                </div>
+              ) : videoResult ? (
+                <div className={`rounded-2xl overflow-hidden ${isLight ? "border border-[#e5e2dc] bg-white" : "border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)]"}`}>
+                  <video
+                    src={videoResult.video_url}
+                    controls
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    className="w-full aspect-video object-contain bg-black"
+                  />
+                  <div className={`p-4 flex items-center justify-between ${isLight ? "border-t border-[#e5e2dc]" : "border-t border-[rgba(255,255,255,0.06)]"}`}>
+                    <span className={`text-xs ${isLight ? "text-[#999]" : "text-white/40"}`}>
+                      {videoResult.mode?.replace("_", " ")} · {videoResult.duration}s · {videoResult.tokens_used} tokens
+                    </span>
+                    <div className="flex gap-2">
+                      <a
+                        href={videoResult.video_url}
+                        download="sorapixel-video.mp4"
+                        className={`text-xs font-semibold px-3 py-1.5 rounded-lg ${isLight ? "bg-[#f5f3ef] text-[#8b7355]" : "bg-[rgba(196,166,125,0.1)] text-[#c4a67d]"}`}
+                      >
+                        Download
+                      </a>
+                      <button
+                        onClick={() => { setVideoResult(null); setVideoModalOpen(true); }}
+                        className={`text-xs font-semibold px-3 py-1.5 rounded-lg ${isLight ? "bg-[#f5f3ef] text-[#8b7355]" : "bg-[rgba(196,166,125,0.1)] text-[#c4a67d]"}`}
+                      >
+                        New Video
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { mode: "360_spin", label: "360° Spin", icon: "↻", desc: "Turntable rotation" },
+                    { mode: "hero_reveal", label: "Hero Reveal", icon: "🎬", desc: "Cinematic close-up" },
+                    { mode: "lifestyle", label: "Lifestyle", icon: "✨", desc: "Elegant setting" },
+                    { mode: "sparkle", label: "Sparkle", icon: "💎", desc: "Light play" },
+                  ].map(({ mode, label, icon, desc }) => (
+                    <button
+                      key={mode}
+                      onClick={() => { setVideoMode(mode); setVideoModalOpen(true); }}
+                      className={`p-4 rounded-xl text-left border transition-all active:scale-[0.98] ${
+                        isLight
+                          ? "border-[#e5e2dc] bg-white hover:border-[#8b7355]/30 hover:bg-[#f9f7f4]"
+                          : "border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)] hover:border-[rgba(196,166,125,0.3)] hover:bg-[rgba(196,166,125,0.05)]"
+                      }`}
+                    >
+                      <div className="text-xl mb-1">{icon}</div>
+                      <div className={`text-sm font-semibold ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>{label}</div>
+                      <div className={`text-[11px] ${isLight ? "text-[#999]" : "text-white/40"}`}>{desc}</div>
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => { setVideoMode("custom"); setVideoModalOpen(true); }}
+                    className={`col-span-2 p-4 rounded-xl text-center border border-dashed transition-all active:scale-[0.98] ${
+                      isLight
+                        ? "border-[#8b7355]/25 bg-gradient-to-r from-[#8b7355]/10 to-[#8b7355]/[0.04] text-[#8b7355] hover:border-[#8b7355]/40"
+                        : "border-[rgba(196,166,125,0.25)] bg-gradient-to-r from-[rgba(196,166,125,0.12)] to-[rgba(196,166,125,0.06)] text-[#c4a67d] hover:border-[rgba(196,166,125,0.4)]"
+                    }`}
+                  >
+                    <span className="text-sm font-bold">Custom Prompt Video</span>
+                    <span className={`block text-[11px] mt-0.5 ${isLight ? "text-[#999]" : "text-white/40"}`}>Describe any video you want</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
             {/* ===== FEATURE CARDS ===== */}
             <div className={`pt-6 border-t ${isLight ? "border-[#e5e2dc]" : "border-[rgba(255,255,255,0.08)]"}`}>
               <h3 className={`text-lg font-bold tracking-tight mb-1.5 ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>Do more with your photos</h3>
@@ -2970,6 +3121,155 @@ function JewelryPage() {
                 ) : (
                   `Brand ${brandingSelectedIdxs.length} Photo${brandingSelectedIdxs.length !== 1 ? "s" : ""}`
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== VIDEO CONFIG MODAL ===== */}
+      {videoModalOpen && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-md animate-fade-in"
+          onClick={() => setVideoModalOpen(false)}
+        >
+          <div
+            className={`w-full max-w-md mx-4 rounded-2xl overflow-hidden shadow-2xl animate-scale-in ${
+              isLight ? "bg-white border border-[#e5e2dc]" : "bg-[#141414] border border-[rgba(255,255,255,0.1)]"
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={`p-5 border-b ${isLight ? "border-[#e5e2dc]" : "border-[rgba(255,255,255,0.08)]"}`}>
+              <div className="flex items-center justify-between">
+                <h3 className={`text-lg font-bold ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>Generate Video</h3>
+                <button onClick={() => setVideoModalOpen(false)} className={`w-8 h-8 rounded-full flex items-center justify-center ${isLight ? "bg-[#f5f3ef] hover:bg-[#ebe8e2]" : "bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.12)]"}`}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={isLight ? "#666" : "white"} strokeWidth="2" strokeLinecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
+              {/* Mode */}
+              <div>
+                <label className={`text-xs font-semibold uppercase tracking-wider mb-2 block ${isLight ? "text-[#999]" : "text-white/40"}`}>Video Style</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: "360_spin", label: "360° Spin", icon: "↻" },
+                    { id: "hero_reveal", label: "Hero Reveal", icon: "🎬" },
+                    { id: "lifestyle", label: "Lifestyle", icon: "✨" },
+                    { id: "sparkle", label: "Sparkle", icon: "💎" },
+                    { id: "custom", label: "Custom", icon: "✏️" },
+                  ].map(({ id, label, icon }) => (
+                    <button
+                      key={id}
+                      onClick={() => setVideoMode(id)}
+                      className={`p-3 rounded-xl text-left text-sm font-medium transition-all border ${
+                        videoMode === id
+                          ? isLight ? "border-[#8b7355] bg-[#8b7355]/10 text-[#8b7355]" : "border-[#c4a67d] bg-[rgba(196,166,125,0.15)] text-[#c4a67d]"
+                          : isLight ? "border-[#e5e2dc] text-[#666] hover:border-[#8b7355]/30" : "border-[rgba(255,255,255,0.08)] text-white/60 hover:border-[rgba(196,166,125,0.3)]"
+                      }`}
+                    >
+                      <span className="mr-1.5">{icon}</span>{label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Custom prompt */}
+              {videoMode === "custom" && (
+                <div>
+                  <label className={`text-xs font-semibold uppercase tracking-wider mb-2 block ${isLight ? "text-[#999]" : "text-white/40"}`}>Custom Prompt</label>
+                  <textarea
+                    value={videoCustomPrompt}
+                    onChange={(e) => setVideoCustomPrompt(e.target.value)}
+                    placeholder="Describe the video you want..."
+                    rows={3}
+                    className={`w-full text-sm p-3 rounded-xl border resize-none ${
+                      isLight ? "border-[#e5e2dc] bg-white text-[#0a0a0a]" : "border-[rgba(255,255,255,0.1)] bg-[rgba(255,255,255,0.03)] text-white"
+                    }`}
+                  />
+                </div>
+              )}
+
+              {/* Aspect ratio */}
+              <div>
+                <label className={`text-xs font-semibold uppercase tracking-wider mb-2 block ${isLight ? "text-[#999]" : "text-white/40"}`}>Aspect Ratio</label>
+                <div className="flex gap-2">
+                  {[
+                    { id: "landscape", label: "16:9", icon: "▬" },
+                    { id: "portrait", label: "9:16", icon: "▮" },
+                  ].map(({ id, label, icon }) => (
+                    <button
+                      key={id}
+                      onClick={() => setVideoAspect(id)}
+                      className={`flex-1 p-2.5 rounded-xl text-sm font-medium text-center transition-all border ${
+                        videoAspect === id
+                          ? isLight ? "border-[#8b7355] bg-[#8b7355]/10 text-[#8b7355]" : "border-[#c4a67d] bg-[rgba(196,166,125,0.15)] text-[#c4a67d]"
+                          : isLight ? "border-[#e5e2dc] text-[#666]" : "border-[rgba(255,255,255,0.08)] text-white/60"
+                      }`}
+                    >
+                      {icon} {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Quality */}
+              <div>
+                <label className={`text-xs font-semibold uppercase tracking-wider mb-2 block ${isLight ? "text-[#999]" : "text-white/40"}`}>Quality</label>
+                <div className="flex gap-2">
+                  {(["standard", "pro"] as const).map((q) => (
+                    <button
+                      key={q}
+                      onClick={() => setVideoQuality(q)}
+                      className={`flex-1 p-2.5 rounded-xl text-sm font-medium text-center transition-all border ${
+                        videoQuality === q
+                          ? isLight ? "border-[#8b7355] bg-[#8b7355]/10 text-[#8b7355]" : "border-[#c4a67d] bg-[rgba(196,166,125,0.15)] text-[#c4a67d]"
+                          : isLight ? "border-[#e5e2dc] text-[#666]" : "border-[rgba(255,255,255,0.08)] text-white/60"
+                      }`}
+                    >
+                      {q === "standard" ? "Standard (25 tokens)" : "Pro (50 tokens)"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Source image */}
+              {resultImages.length > 1 && (
+                <div>
+                  <label className={`text-xs font-semibold uppercase tracking-wider mb-2 block ${isLight ? "text-[#999]" : "text-white/40"}`}>Source Image</label>
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {resultImages.map((img, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setVideoSourceIndex(i)}
+                        className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all ${
+                          videoSourceIndex === i
+                            ? isLight ? "border-[#8b7355]" : "border-[#c4a67d]"
+                            : "border-transparent opacity-50"
+                        }`}
+                      >
+                        <img src={imgSrc(img)} alt={img.label} className="w-full h-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className={`p-5 border-t ${isLight ? "border-[#e5e2dc]" : "border-[rgba(255,255,255,0.08)]"}`}>
+              <button
+                onClick={generateVideo}
+                disabled={videoMode === "custom" && !videoCustomPrompt.trim()}
+                className={`w-full py-3.5 rounded-xl text-sm font-bold transition-all active:scale-[0.98] ${
+                  isLight
+                    ? "bg-gradient-to-r from-[#8b7355] to-[#a08060] text-white shadow-[0_4px_16px_rgba(139,115,85,0.3)]"
+                    : "bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-white shadow-[0_4px_16px_rgba(196,166,125,0.3)]"
+                } disabled:opacity-50`}
+              >
+                Generate Video · {videoQuality === "pro" ? 50 : 25} tokens
               </button>
             </div>
           </div>

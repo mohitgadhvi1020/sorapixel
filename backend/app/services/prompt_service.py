@@ -193,39 +193,39 @@ JEWELRY_SIZE_HINTS = {
 
 JEWELRY_UGC_POSES = {
     "ring": {
-        "poses": ["hand_closeup", "standing", "side_view"],
+        "poses": ["finger_macro", "hand_closeup", "standing", "side_view"],
         "interaction": "wearing the ring on the finger — the ring must be realistically sized, fitting snugly around the finger as a real ring would, NOT oversized or miniaturized. The ring's design, stone size, and band width must exactly match the reference image",
     },
     "necklace": {
-        "poses": ["standing", "close_up", "side_view", "sitting"],
+        "poses": ["neck_macro", "standing", "close_up", "side_view", "sitting"],
         "interaction": "wearing the necklace around the neck — the necklace must match the exact length, drape, and thickness visible in the reference image. If it's a short choker it sits tight at the base of the neck; if it's a long chain it drapes naturally down the chest. The outfit neckline must be low enough to fully reveal the necklace",
     },
     "earring": {
-        "poses": ["close_up", "side_view", "standing"],
+        "poses": ["ear_macro", "close_up", "side_view", "standing"],
         "interaction": "wearing the earrings with ears clearly visible, hair tucked or swept to one side — the earrings must be realistically sized relative to the ear (studs are tiny, drops hang 3-5cm, chandeliers up to 8cm). Match the exact size from the reference image",
     },
     "bracelet": {
-        "poses": ["hand_closeup", "standing", "sitting"],
+        "poses": ["wrist_macro", "hand_closeup", "standing", "sitting"],
         "interaction": "wearing the bracelet on the wrist — the bracelet must fit naturally around the wrist at its real-world size, NOT enlarged or shrunk. Hand and forearm elegantly positioned to showcase it",
     },
     "bangle": {
-        "poses": ["hand_closeup", "standing", "side_view"],
+        "poses": ["wrist_macro", "hand_closeup", "standing", "side_view"],
         "interaction": "wearing the bangles on the forearm — each bangle must be realistically proportioned to the wrist/forearm (6-8cm diameter). If multiple bangles, they stack naturally. Arm raised or posed to showcase them",
     },
     "pendant": {
-        "poses": ["close_up", "standing", "sitting"],
+        "poses": ["neck_macro", "close_up", "standing", "sitting"],
         "interaction": "wearing the pendant on a chain around the neck — the pendant must be its real-world size (typically smaller than the model's palm), resting naturally on the chest. The chain length and pendant size must match the reference image exactly",
     },
     "brooch": {
-        "poses": ["close_up", "standing", "side_view"],
+        "poses": ["lapel_macro", "close_up", "standing", "side_view"],
         "interaction": "wearing the brooch pinned to the outfit on the chest or lapel area — the brooch must be realistically sized (3-6cm), NOT enlarged to fill the frame. It should look like a natural accessory, not a dominant element",
     },
     "anklet": {
-        "poses": ["feet_closeup", "sitting", "standing"],
+        "poses": ["ankle_macro", "feet_closeup", "sitting", "standing"],
         "interaction": "wearing the anklet around the ankle — the anklet must be a thin, delicate chain proportional to a real human ankle, NOT thick or oversized. Legs and feet visible and elegantly posed",
     },
     "chain": {
-        "poses": ["standing", "close_up", "side_view"],
+        "poses": ["neck_macro", "standing", "close_up", "side_view"],
         "interaction": "wearing the chain around the neck — the chain link size, thickness, and overall length must match the reference image exactly. It should drape naturally with realistic weight and movement",
     },
     "set": {
@@ -303,7 +303,49 @@ POSE_DESCRIPTIONS = {
     "walking": "in a natural walking pose, full-body mid-stride. Zoom out to fit entire body with the head at roughly 15% from the top edge of the frame",
     "hand_closeup": "a close-up of the hand and wrist area, elegantly posed to showcase jewelry on the fingers or wrist. Shallow depth of field, hand sharp and well-lit",
     "feet_closeup": "a close-up of the feet and ankle area, elegantly posed to showcase ankle jewelry. Clean background, feet and ankles sharp and well-lit",
+    # Macro close-ups for small jewelry — extreme tight framing
+    "finger_macro": (
+        "an EXTREME close-up macro shot of the hand showing ONLY the fingers and the ring. "
+        "The ring MUST fill at least 40-50% of the frame. Fingers slightly spread or gently curved in an elegant pose. "
+        "Very shallow depth of field — the ring is tack-sharp while the rest of the hand softly blurs. "
+        "Soft, diffused studio lighting with a subtle highlight on the metal and stones. "
+        "Think high-end jewelry campaign close-up — the viewer should feel they can touch the ring"
+    ),
+    "ear_macro": (
+        "an EXTREME close-up of the ear and side of the face, showing the earring as the hero. "
+        "The earring MUST fill at least 30-40% of the frame. Hair tucked or swept behind the ear to fully reveal the earring. "
+        "Very shallow depth of field — earring tack-sharp, face and hair softly blurred. "
+        "Soft side lighting that catches the metal and stones beautifully. "
+        "Frame from jawline to just above the ear — no need to show the full face"
+    ),
+    "neck_macro": (
+        "a close-up of the neck and upper chest area, showcasing the pendant/necklace as the hero. "
+        "The pendant MUST fill at least 25-35% of the frame. Neckline of outfit low enough to reveal the full piece. "
+        "Shallow depth of field — pendant and chain tack-sharp, skin and clothing softly blurred. "
+        "Warm, diffused lighting that highlights the pendant's details and chain links"
+    ),
+    "wrist_macro": (
+        "an EXTREME close-up of the wrist and forearm, showcasing the bracelet/bangle as the hero. "
+        "The bracelet MUST fill at least 40-50% of the frame. Hand and wrist elegantly posed — "
+        "fingers relaxed, wrist slightly turned to show the bracelet's full design. "
+        "Very shallow depth of field — bracelet tack-sharp, hand and background softly blurred. "
+        "Soft studio lighting that catches every detail of the metalwork and stones"
+    ),
+    "ankle_macro": (
+        "an EXTREME close-up of the ankle and lower leg, showcasing the anklet as the hero. "
+        "The anklet MUST fill at least 30-40% of the frame. Foot elegantly pointed or resting naturally. "
+        "Very shallow depth of field — anklet tack-sharp, foot and background softly blurred. "
+        "Soft, warm lighting that highlights the delicate chain and charms"
+    ),
+    "lapel_macro": (
+        "a close-up of the upper chest and lapel area, showcasing the brooch as the hero. "
+        "The brooch MUST fill at least 30-40% of the frame. Pinned naturally to the outfit fabric. "
+        "Shallow depth of field — brooch tack-sharp, clothing texture softly blurred. "
+        "Soft directional lighting that catches the brooch's details and pin structure"
+    ),
 }
+
+MACRO_POSE_TYPES = {"finger_macro", "ear_macro", "neck_macro", "wrist_macro", "ankle_macro", "lapel_macro"}
 
 CATALOGUE_BACKGROUNDS = [
     {"id": "best_match", "label": "Best Match", "thumb": "https://images.unsplash.com/photo-1557682250-33bd709cbe85?w=200&h=200&fit=crop&q=80", "prompt": "a plain solid light-grey (#E0E0E0) seamless studio backdrop with soft diffused lighting from above — no patterns, no gradients, no props, no windows, no outdoor elements"},
@@ -323,6 +365,12 @@ CATALOGUE_POSES = [
     {"id": "sitting", "label": "Sitting", "thumb": "/thumbnails/pose_sitting.png"},
     {"id": "close_up", "label": "Close Up", "thumb": "/thumbnails/pose_close_up.png"},
     {"id": "walking", "label": "Walking", "thumb": "/thumbnails/pose_walking.png"},
+    {"id": "finger_macro", "label": "Ring Macro", "thumb": "/thumbnails/pose_finger_macro.png"},
+    {"id": "ear_macro", "label": "Earring Macro", "thumb": "/thumbnails/pose_ear_macro.png"},
+    {"id": "neck_macro", "label": "Neck Macro", "thumb": "/thumbnails/pose_neck_macro.png"},
+    {"id": "wrist_macro", "label": "Wrist Macro", "thumb": "/thumbnails/pose_wrist_macro.png"},
+    {"id": "ankle_macro", "label": "Anklet Macro", "thumb": "/thumbnails/pose_ankle_macro.png"},
+    {"id": "lapel_macro", "label": "Brooch Macro", "thumb": "/thumbnails/pose_lapel_macro.png"},
 ]
 
 AI_MODEL_FACES = [
@@ -370,31 +418,57 @@ def build_catalogue_prompt(
     if outfit_description:
         outfit_line = f"Outfit: The model MUST wear exactly this outfit: {outfit_description}\n"
 
-    prompt = (
-        "⚠️ MANDATORY FRAMING RULE — READ FIRST:\n"
-        "This image MUST include the model's COMPLETE HEAD AND FACE. "
-        "The top of the head, forehead, eyes, nose, mouth, and chin must ALL be visible. "
-        "Compose the shot so the head is in the upper 25%% of the canvas with at least 8-10%% "
-        "empty space above the crown. Think of how a professional e-commerce photographer frames "
-        "a catalogue shot — the face is ALWAYS fully visible. If any part of the head is cut off, "
-        "the image is UNUSABLE. Imagine the final image printed on a product page — the customer "
-        "must see the model's full face to trust the product.\n\n"
-        f"Subject: {model_desc} {interaction}.\n"
-        f"Pose: {pose_desc}\n"
-        f"Background: {bg_desc}\n"
-        "⚠️ BACKGROUND CONSISTENCY — The background MUST match EXACTLY the description above. "
-        "Do NOT improvise, add outdoor elements, change the color, or use a different setting. "
-        "The background must look identical across all shots in this series.\n"
-        f"{outfit_line}\n"
-        f"{PRODUCT_ISOLATION_PROMPT}\n\n"
-        "⚠️ SIZE & PROPORTION RULE — CRITICAL:\n"
-        "- The jewelry must appear at its REAL-WORLD physical size relative to the human body\n"
-        "- Study the input image carefully to understand the actual dimensions of the piece\n"
-        "- Do NOT enlarge or shrink the jewelry — maintain realistic proportions as seen in real product photography\n"
-        "- If the jewelry is small/delicate (e.g. a stud earring, thin anklet), it MUST appear small on the model\n"
-        "- If the jewelry is large/statement (e.g. a chunky necklace, large jhumkas), it should appear proportionally large\n"
-        "- Use the model's body parts as scale anchors: finger width for rings, earlobe for earrings, neck circumference for necklaces, wrist for bracelets\n"
-    )
+    is_macro_pose = pose in MACRO_POSE_TYPES
+
+    if is_macro_pose:
+        prompt = (
+            "⚠️ MACRO CLOSE-UP SHOT — READ FIRST:\n"
+            "This is an EXTREME CLOSE-UP shot. The jewelry is the HERO of this image.\n"
+            "The jewelry piece MUST fill a large portion of the frame (30-50%).\n"
+            "Use very shallow depth of field — jewelry tack-sharp, everything else softly blurred.\n"
+            "This is NOT a full-body or portrait shot. Frame ONLY the body part wearing the jewelry.\n"
+            "Think high-end jewelry campaign macro photography — the viewer should see every detail.\n\n"
+            f"Subject: {model_desc} {interaction}.\n"
+            f"Pose: {pose_desc}\n"
+            f"Background: {bg_desc}\n"
+            "⚠️ BACKGROUND CONSISTENCY — The background MUST match EXACTLY the description above. "
+            "Do NOT improvise, add outdoor elements, change the color, or use a different setting. "
+            "The background must look identical across all shots in this series.\n"
+            f"{outfit_line}\n"
+            f"{PRODUCT_ISOLATION_PROMPT}\n\n"
+            "⚠️ SIZE & PROPORTION RULE — CRITICAL:\n"
+            "- The jewelry must appear at its REAL-WORLD physical size relative to the human body\n"
+            "- Because this is a macro close-up, the jewelry should appear LARGE in frame but still proportional to the body part\n"
+            "- Study the input image carefully to understand the actual dimensions of the piece\n"
+            "- Do NOT enlarge or shrink the jewelry — maintain realistic proportions\n"
+            "- The close-up framing naturally makes the jewelry prominent — do NOT additionally scale it up\n"
+        )
+    else:
+        prompt = (
+            "⚠️ MANDATORY FRAMING RULE — READ FIRST:\n"
+            "This image MUST include the model's COMPLETE HEAD AND FACE. "
+            "The top of the head, forehead, eyes, nose, mouth, and chin must ALL be visible. "
+            "Compose the shot so the head is in the upper 25%% of the canvas with at least 8-10%% "
+            "empty space above the crown. Think of how a professional e-commerce photographer frames "
+            "a catalogue shot — the face is ALWAYS fully visible. If any part of the head is cut off, "
+            "the image is UNUSABLE. Imagine the final image printed on a product page — the customer "
+            "must see the model's full face to trust the product.\n\n"
+            f"Subject: {model_desc} {interaction}.\n"
+            f"Pose: {pose_desc}\n"
+            f"Background: {bg_desc}\n"
+            "⚠️ BACKGROUND CONSISTENCY — The background MUST match EXACTLY the description above. "
+            "Do NOT improvise, add outdoor elements, change the color, or use a different setting. "
+            "The background must look identical across all shots in this series.\n"
+            f"{outfit_line}\n"
+            f"{PRODUCT_ISOLATION_PROMPT}\n\n"
+            "⚠️ SIZE & PROPORTION RULE — CRITICAL:\n"
+            "- The jewelry must appear at its REAL-WORLD physical size relative to the human body\n"
+            "- Study the input image carefully to understand the actual dimensions of the piece\n"
+            "- Do NOT enlarge or shrink the jewelry — maintain realistic proportions as seen in real product photography\n"
+            "- If the jewelry is small/delicate (e.g. a stud earring, thin anklet), it MUST appear small on the model\n"
+            "- If the jewelry is large/statement (e.g. a chunky necklace, large jhumkas), it should appear proportionally large\n"
+            "- Use the model's body parts as scale anchors: finger width for rings, earlobe for earrings, neck circumference for necklaces, wrist for bracelets\n"
+        )
 
     if jewelry_type and jewelry_type in JEWELRY_SIZE_HINTS:
         prompt += f"- Size reference: {JEWELRY_SIZE_HINTS[jewelry_type]}\n"
@@ -454,22 +528,42 @@ def build_catalogue_prompt(
             "- The model's hands, wrists, ears, neck, and ankles should be bare EXCEPT for the input jewelry.\n"
         )
 
-    prompt += (
-        "\nCOMPOSITION GUIDE:\n"
-        "- Frame as a 3/4-length or full-length portrait (head to below knees minimum)\n"
-        "- Camera at chest/waist height, angled slightly up toward the face\n"
-        "- The model's face should be sharp, well-lit, and the anchor point of the composition\n"
-        "- Leave generous headroom — the top of the frame should have empty background above the hair\n"
-        "- NEVER frame so tight that the head touches or exits the top edge\n\n"
-        "QUALITY RULES:\n"
-        f"- The model should look natural, authentic, and {nationality or 'Indian'}\n"
-        "- Product must be clearly visible, well-lit, and the focal point\n"
-        "- Commercial quality, suitable for e-commerce catalogue\n"
-        "- Realistic proportions between model and product — the jewelry must look like it belongs on the model's body, not pasted on\n"
-        "- Output should look like a real professional photograph\n"
-        "- CRITICAL: The model's clothing color, style, and fabric must be EXACTLY "
-        "the same across all images in this set. Do NOT change the outfit between poses."
-    )
+    if is_macro_pose:
+        prompt += (
+            "\nCOMPOSITION GUIDE — MACRO CLOSE-UP:\n"
+            "- This is a TIGHT close-up — frame ONLY the body part wearing the jewelry\n"
+            "- The jewelry MUST be the sharpest, most prominent element in the frame\n"
+            "- Use very shallow depth of field (f/1.8-2.8 equivalent) — jewelry razor-sharp, background and skin softly blurred\n"
+            "- Camera positioned close to the jewelry, angled to show maximum design detail\n"
+            "- Soft, diffused lighting with a subtle highlight catch on metal and stones\n"
+            "- Do NOT show the full body or full face — this is about the jewelry, not the model\n"
+            "- The model's skin should look natural and well-groomed in the visible area\n\n"
+            "QUALITY RULES:\n"
+            f"- The model should look natural, authentic, and {nationality or 'Indian'}\n"
+            "- Jewelry must be the clear focal point — sharp, well-lit, hero of the image\n"
+            "- Commercial quality, suitable for e-commerce product detail shots\n"
+            "- Realistic proportions — the jewelry must look like it belongs on the body, not pasted on\n"
+            "- Output should look like a real high-end jewelry campaign macro photograph\n"
+            "- CRITICAL: The model's skin tone and any visible clothing must be EXACTLY "
+            "the same across all images in this set."
+        )
+    else:
+        prompt += (
+            "\nCOMPOSITION GUIDE:\n"
+            "- Frame as a 3/4-length or full-length portrait (head to below knees minimum)\n"
+            "- Camera at chest/waist height, angled slightly up toward the face\n"
+            "- The model's face should be sharp, well-lit, and the anchor point of the composition\n"
+            "- Leave generous headroom — the top of the frame should have empty background above the hair\n"
+            "- NEVER frame so tight that the head touches or exits the top edge\n\n"
+            "QUALITY RULES:\n"
+            f"- The model should look natural, authentic, and {nationality or 'Indian'}\n"
+            "- Product must be clearly visible, well-lit, and the focal point\n"
+            "- Commercial quality, suitable for e-commerce catalogue\n"
+            "- Realistic proportions between model and product — the jewelry must look like it belongs on the model's body, not pasted on\n"
+            "- Output should look like a real professional photograph\n"
+            "- CRITICAL: The model's clothing color, style, and fabric must be EXACTLY "
+            "the same across all images in this set. Do NOT change the outfit between poses."
+        )
 
     if key_highlights:
         prompt += f"\n\nPRODUCT HIGHLIGHTS to emphasize visually: {key_highlights}"

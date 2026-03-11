@@ -137,7 +137,50 @@ const EMPTY_BLOG_CAT_FORM = {
   display_order: 0,
 };
 
-type AdminTab = "overview" | "feed" | "blog" | "revenue" | "pricing";
+type AdminTab = "overview" | "feed" | "blog" | "revenue" | "pricing" | "leads";
+
+const LEADGEN_API = process.env.NEXT_PUBLIC_LEADGEN_API_URL || "http://localhost:8001/api/v1";
+
+interface LeadStats {
+  total_leads: number;
+  by_status: Record<string, number>;
+  by_platform: Record<string, number>;
+  by_region: Record<string, number>;
+  emails: { total: number; opened: number; clicked: number };
+}
+
+interface Lead {
+  id: string;
+  store_name: string;
+  platform: string;
+  region: string;
+  store_url: string;
+  domain: string;
+  contact_email: string | null;
+  contact_name: string | null;
+  status: string;
+  created_at: string;
+  metadata: Record<string, string> | null;
+}
+
+interface LeadProduct {
+  id: string;
+  product_name: string;
+  original_image_url: string;
+  generated_studio_url: string | null;
+  generated_model_url: string | null;
+  jewelry_type: string;
+  status: string;
+}
+
+interface LeadEmail {
+  id: string;
+  subject: string;
+  status: string;
+  sent_at: string | null;
+  opened_at: string | null;
+  clicked_at: string | null;
+}
 
 interface RevenueData {
   revenue: { total_inr: number; total_usd: number; payment_count: number };
@@ -265,6 +308,83 @@ export default function AdminPage() {
   const [editingPlan, setEditingPlan] = useState<PricingPlan | null>(null);
   const [pricingSaving, setPricingSaving] = useState(false);
 
+  // Leads state
+  const [leadStats, setLeadStats] = useState<LeadStats | null>(null);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [leadsTotal, setLeadsTotal] = useState(0);
+  const [leadsLoading, setLeadsLoading] = useState(false);
+  const [leadsFetched, setLeadsFetched] = useState(false);
+  const [leadsFilter, setLeadsFilter] = useState({ status: "", platform: "", region: "" });
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [leadProducts, setLeadProducts] = useState<LeadProduct[]>([]);
+  const [leadEmails, setLeadEmails] = useState<LeadEmail[]>([]);
+  const [leadDetailOpen, setLeadDetailOpen] = useState(false);
+  const [pipelineRunning, setPipelineRunning] = useState<string | null>(null);
+  const [pipelineResult, setPipelineResult] = useState<string | null>(null);
+
+  const leadgenFetch = useCallback(async (endpoint: string, options?: { method?: string; body?: unknown }) => {
+    const adminEmail = user?.email || "";
+    const resp = await fetch(`${LEADGEN_API}${endpoint}`, {
+      method: options?.method || "GET",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Admin-Email": adminEmail,
+      },
+      body: options?.body ? JSON.stringify(options.body) : undefined,
+    });
+    if (!resp.ok) throw new Error(`LeadGen API error: ${resp.status}`);
+    return resp.json();
+  }, [user?.email]);
+
+  const fetchLeads = useCallback(async () => {
+    setLeadsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (leadsFilter.status) params.set("status", leadsFilter.status);
+      if (leadsFilter.platform) params.set("platform", leadsFilter.platform);
+      if (leadsFilter.region) params.set("region", leadsFilter.region);
+      params.set("limit", "100");
+      const [statsRes, leadsRes] = await Promise.all([
+        leadgenFetch("/pipeline/stats"),
+        leadgenFetch(`/pipeline/leads?${params.toString()}`),
+      ]);
+      setLeadStats(statsRes);
+      setLeads(leadsRes.leads || []);
+      setLeadsTotal(leadsRes.total || 0);
+      setLeadsFetched(true);
+    } catch (err) {
+      console.error("Failed to fetch leads:", err);
+    } finally {
+      setLeadsLoading(false);
+    }
+  }, [leadgenFetch, leadsFilter]);
+
+  const fetchLeadDetail = useCallback(async (leadId: string) => {
+    try {
+      const data = await leadgenFetch(`/pipeline/leads/${leadId}`);
+      setSelectedLead(data.lead);
+      setLeadProducts(data.products || []);
+      setLeadEmails(data.emails || []);
+      setLeadDetailOpen(true);
+    } catch (err) {
+      console.error("Failed to fetch lead detail:", err);
+    }
+  }, [leadgenFetch]);
+
+  const runPipelineStep = useCallback(async (step: string, body?: Record<string, unknown>) => {
+    setPipelineRunning(step);
+    setPipelineResult(null);
+    try {
+      const data = await leadgenFetch(`/pipeline/${step}`, { method: "POST", body: body || {} });
+      setPipelineResult(JSON.stringify(data, null, 2));
+      fetchLeads();
+    } catch (err) {
+      setPipelineResult(`Error: ${err instanceof Error ? err.message : "Unknown error"}`);
+    } finally {
+      setPipelineRunning(null);
+    }
+  }, [leadgenFetch, fetchLeads]);
+
   const fetchData = useCallback(async () => {
     try {
       setError(null);
@@ -322,6 +442,12 @@ export default function AdminPage() {
       fetchFeed();
     }
   }, [isAdmin, activeTab, feedFetched, feedLoading, fetchFeed]);
+
+  useEffect(() => {
+    if (isAdmin && activeTab === "leads" && !leadsFetched && !leadsLoading) {
+      fetchLeads();
+    }
+  }, [isAdmin, activeTab, leadsFetched, leadsLoading, fetchLeads]);
 
   const handleCreateClient = useCallback(async () => {
     if (!newPhone.trim() || creating) return;
@@ -934,6 +1060,7 @@ export default function AdminPage() {
             { id: "pricing" as const, label: "Pricing" },
             { id: "feed" as const, label: "Feed Manager" },
             { id: "blog" as const, label: "Blog" },
+            { id: "leads" as const, label: "Leads" },
           ]).map(tab => (
             <button
               key={tab.id}
@@ -2540,6 +2667,674 @@ export default function AdminPage() {
             <Button onClick={handleSavePlan} loading={pricingSaving} fullWidth>
               {editingPlan.id ? "Update Plan" : "Create Plan"}
             </Button>
+          </div>
+        )}
+      </Modal>
+
+      {/* ===== LEADS TAB ===== */}
+      {activeTab === "leads" && (
+        <>
+          {/* Pipeline Controls */}
+          <Card className="p-4">
+            <h3 className="text-sm font-semibold mb-3">Pipeline Controls</h3>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { step: "discover", label: "Discover", body: { platform: null, region: "us", max_results: 50 } },
+                { step: "enrich", label: "Enrich Emails" },
+                { step: "scrape", label: "Scrape Photos" },
+                { step: "generate", label: "Generate AI" },
+                { step: "send-emails", label: "Send Emails" },
+                { step: "find-instagram", label: "Find Instagram" },
+              ].map(({ step, label, body }) => (
+                <Button
+                  key={step}
+                  onClick={() => runPipelineStep(step, body)}
+                  loading={pipelineRunning === step}
+                  className="text-xs"
+                >
+                  {label}
+                </Button>
+              ))}
+              <Button
+                onClick={() => runPipelineStep("run-full", { platform: null, region: "us", max_discover: 50, batch_size: 50 })}
+                loading={pipelineRunning === "run-full"}
+                className="text-xs !bg-gradient-to-r !from-[#c4a67d] !to-[#d4b88f] !text-[#1a1612]"
+              >
+                Run Full Pipeline
+              </Button>
+            </div>
+            {pipelineResult && (
+              <pre className="mt-3 p-3 bg-surface rounded-lg text-xs overflow-auto max-h-40 border border-border">
+                {pipelineResult}
+              </pre>
+            )}
+          </Card>
+
+          {/* Stats */}
+          {leadStats && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { label: "Total Leads", value: leadStats.total_leads },
+                { label: "Emails Sent", value: leadStats.emails.total },
+                { label: "Opened", value: leadStats.emails.opened },
+                { label: "Clicked", value: leadStats.emails.clicked },
+              ].map(s => (
+                <Card key={s.label} className="p-3 text-center">
+                  <div className="text-lg font-bold text-foreground">{s.value}</div>
+                  <div className="text-xs text-text-secondary">{s.label}</div>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* Funnel */}
+          {leadStats && Object.keys(leadStats.by_status).length > 0 && (
+            <Card className="p-4">
+              <h3 className="text-sm font-semibold mb-3">Funnel</h3>
+              <div className="space-y-1.5">
+                {Object.entries(leadStats.by_status)
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([status, count]) => (
+                    <div key={status} className="flex items-center gap-2">
+                      <span className="text-xs text-text-secondary w-24 truncate">{status}</span>
+                      <div className="flex-1 h-5 bg-surface rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-[#c4a67d] to-[#d4b88f] rounded-full transition-all"
+                          style={{ width: `${Math.max(2, (count / leadStats.total_leads) * 100)}%` }}
+                        />
+                      </div>
+                      <span className="text-xs font-medium w-10 text-right">{count}</span>
+                    </div>
+                  ))}
+              </div>
+            </Card>
+          )}
+
+          {/* Platform & Region breakdown */}
+          {leadStats && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Card className="p-4">
+                <h3 className="text-sm font-semibold mb-2">By Platform</h3>
+                {Object.entries(leadStats.by_platform).map(([p, c]) => (
+                  <div key={p} className="flex justify-between text-xs py-1">
+                    <span className="text-text-secondary capitalize">{p.replace("_", " ")}</span>
+                    <span className="font-medium">{c}</span>
+                  </div>
+                ))}
+              </Card>
+              <Card className="p-4">
+                <h3 className="text-sm font-semibold mb-2">By Region</h3>
+                {Object.entries(leadStats.by_region).map(([r, c]) => (
+                  <div key={r} className="flex justify-between text-xs py-1">
+                    <span className="text-text-secondary uppercase">{r}</span>
+                    <span className="font-medium">{c}</span>
+                  </div>
+                ))}
+              </Card>
+            </div>
+          )}
+
+          {/* Filters */}
+          <Card className="p-4">
+            <div className="flex flex-wrap gap-3 items-end">
+              <div>
+                <label className="text-xs text-text-secondary block mb-1">Status</label>
+                <select
+                  value={leadsFilter.status}
+                  onChange={e => { setLeadsFilter(f => ({ ...f, status: e.target.value })); setLeadsFetched(false); }}
+                  className="text-xs border border-border rounded-lg px-3 py-1.5 bg-surface"
+                >
+                  <option value="">All</option>
+                  {["discovered","enriched","no_email","scraped","scrape_failed","generating","generated","gen_failed","sent","delivered","opened","clicked","converted","bounced"].map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-text-secondary block mb-1">Platform</label>
+                <select
+                  value={leadsFilter.platform}
+                  onChange={e => { setLeadsFilter(f => ({ ...f, platform: e.target.value })); setLeadsFetched(false); }}
+                  className="text-xs border border-border rounded-lg px-3 py-1.5 bg-surface"
+                >
+                  <option value="">All</option>
+                  {["google_places","shopify","etsy","instagram"].map(p => (
+                    <option key={p} value={p}>{p.replace("_", " ")}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-text-secondary block mb-1">Region</label>
+                <select
+                  value={leadsFilter.region}
+                  onChange={e => { setLeadsFilter(f => ({ ...f, region: e.target.value })); setLeadsFetched(false); }}
+                  className="text-xs border border-border rounded-lg px-3 py-1.5 bg-surface"
+                >
+                  <option value="">All</option>
+                  {["us","eu","dubai","other"].map(r => (
+                    <option key={r} value={r}>{r.toUpperCase()}</option>
+                  ))}
+                </select>
+              </div>
+              <Button onClick={() => { setLeadsFetched(false); }} className="text-xs">Refresh</Button>
+            </div>
+          </Card>
+
+          {/* Leads Table */}
+          <Card className="p-0 overflow-hidden">
+            {leadsLoading ? (
+              <div className="p-8 text-center text-text-secondary text-sm">Loading leads...</div>
+            ) : leads.length === 0 ? (
+              <div className="p-8 text-center text-text-secondary text-sm">
+                No leads found. Run the discovery pipeline to find jewelry stores.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border bg-surface/50">
+                      <th className="text-left px-3 py-2 font-medium text-text-secondary">Store</th>
+                      <th className="text-left px-3 py-2 font-medium text-text-secondary">Platform</th>
+                      <th className="text-left px-3 py-2 font-medium text-text-secondary">Region</th>
+                      <th className="text-left px-3 py-2 font-medium text-text-secondary">Email</th>
+                      <th className="text-left px-3 py-2 font-medium text-text-secondary">IG</th>
+                      <th className="text-left px-3 py-2 font-medium text-text-secondary">Status</th>
+                      <th className="text-left px-3 py-2 font-medium text-text-secondary">Date</th>
+                      <th className="px-3 py-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {leads.map(lead => (
+                      <tr
+                        key={lead.id}
+                        className="border-b border-border/50 hover:bg-surface/30 cursor-pointer transition-colors"
+                        onClick={() => fetchLeadDetail(lead.id)}
+                      >
+                        <td className="px-3 py-2">
+                          <div className="font-medium truncate max-w-[180px]">{lead.store_name}</div>
+                          <div className="text-text-secondary truncate max-w-[180px]">{lead.domain}</div>
+                        </td>
+                        <td className="px-3 py-2 capitalize">{lead.platform.replace("_", " ")}</td>
+                        <td className="px-3 py-2 uppercase">{lead.region}</td>
+                        <td className="px-3 py-2 truncate max-w-[160px]">{lead.contact_email || "—"}</td>
+                        <td className="px-3 py-2">
+                          {lead.metadata?.instagram_handle ? (
+                            <a href={lead.metadata.instagram_url} target="_blank" rel="noopener noreferrer" className="text-[#c4a67d] hover:underline text-xs">@{lead.metadata.instagram_handle}</a>
+                          ) : "—"}
+                        </td>
+                        <td className="px-3 py-2">
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                            lead.status === "converted" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
+                            lead.status === "clicked" || lead.status === "opened" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
+                            lead.status === "sent" || lead.status === "delivered" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
+                            lead.status === "generated" ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" :
+                            lead.status.includes("fail") || lead.status === "bounced" || lead.status === "no_email" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
+                            "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                          }`}>
+                            {lead.status}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-text-secondary">
+                          {new Date(lead.created_at).toLocaleDateString()}
+                        </td>
+                        <td className="px-3 py-2">
+                          <button
+                            onClick={e => { e.stopPropagation(); leadgenFetch(`/pipeline/leads/${lead.id}`, { method: "DELETE" }).then(() => { setLeadsFetched(false); }); }}
+                            className="text-red-400 hover:text-red-600 text-[10px]"
+                          >
+                            ✕
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {leadsTotal > 0 && (
+              <div className="px-3 py-2 text-xs text-text-secondary border-t border-border bg-surface/30">
+                Showing {leads.length} of {leadsTotal} leads
+              </div>
+            )}
+          </Card>
+        </>
+      )}
+
+      {/* Lead Detail Modal */}
+      <Modal open={leadDetailOpen} onClose={() => setLeadDetailOpen(false)} title={selectedLead?.store_name || "Lead Detail"}>
+        {selectedLead && (
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto">
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div><span className="text-text-secondary">Platform:</span> <span className="capitalize">{selectedLead.platform.replace("_", " ")}</span></div>
+              <div><span className="text-text-secondary">Region:</span> <span className="uppercase">{selectedLead.region}</span></div>
+              <div><span className="text-text-secondary">Email:</span> {selectedLead.contact_email || <span className="text-red-400">No email</span>}</div>
+              <div><span className="text-text-secondary">Status:</span> <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                selectedLead.status === "sent" || selectedLead.status === "delivered" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
+                selectedLead.status === "generated" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
+                selectedLead.status === "no_email" || selectedLead.status === "scrape_failed" || selectedLead.status === "gen_failed" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
+                "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+              }`}>{selectedLead.status}</span></div>
+              <div className="col-span-2"><span className="text-text-secondary">URL:</span> <a href={selectedLead.store_url} target="_blank" rel="noopener noreferrer" className="text-[#c4a67d] hover:underline">{selectedLead.store_url}</a></div>
+            </div>
+
+            {/* Instagram */}
+            {(() => {
+              const meta = selectedLead.metadata || {};
+              const igHandle = meta.instagram_handle;
+              const igUrl = meta.instagram_url;
+              const storeName = selectedLead.store_name;
+
+              const dmTemplate = `Hi! I came across ${storeName} and love your jewelry collection 💎\n\nI work at SoraPixel — we use AI to transform product photos into studio-quality shots. I actually ran one of your products through our tool and the result is amazing.\n\nWould love to show you the before/after — can I send it over?\n\nCheck us out: soraipixel.com`;
+
+              return (
+                <div className="border border-border rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-sm font-semibold">Instagram</h4>
+                    {!igHandle && (
+                      <Button
+                        className="text-xs"
+                        loading={pipelineRunning === `find-ig-${selectedLead.id}`}
+                        onClick={async () => {
+                          setPipelineRunning(`find-ig-${selectedLead.id}`);
+                          try {
+                            const res = await leadgenFetch(`/pipeline/leads/${selectedLead.id}/find-instagram`, { method: "POST" });
+                            if (res.instagram_handle) {
+                              fetchLeadDetail(selectedLead.id);
+                            } else {
+                              alert("No Instagram found. You can add it manually.");
+                            }
+                          } catch (err) {
+                            alert(err instanceof Error ? err.message : "Search failed");
+                          } finally {
+                            setPipelineRunning(null);
+                          }
+                        }}
+                      >
+                        Find Instagram
+                      </Button>
+                    )}
+                  </div>
+
+                  {igHandle ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <a href={igUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-[#c4a67d] hover:underline font-medium">
+                          @{igHandle}
+                        </a>
+                        <a
+                          href={`https://www.instagram.com/direct/new/?text=${encodeURIComponent(dmTemplate)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90 transition"
+                        >
+                          Open DM
+                        </a>
+                      </div>
+                      <div className="relative">
+                        <textarea
+                          readOnly
+                          value={dmTemplate}
+                          className="w-full text-xs p-2 rounded-lg border border-border bg-surface-secondary resize-none"
+                          rows={5}
+                        />
+                        <button
+                          onClick={() => { navigator.clipboard.writeText(dmTemplate); }}
+                          className="absolute top-2 right-2 text-[10px] px-2 py-0.5 rounded bg-surface-primary border border-border hover:bg-surface-secondary"
+                        >
+                          Copy
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2 items-center">
+                      <input
+                        type="text"
+                        placeholder="@handle or instagram.com/handle"
+                        id={`manual-ig-${selectedLead.id}`}
+                        className="text-xs px-3 py-1.5 rounded-lg border border-border bg-transparent flex-1"
+                      />
+                      <Button
+                        className="text-xs whitespace-nowrap"
+                        loading={pipelineRunning === `save-ig-${selectedLead.id}`}
+                        onClick={async () => {
+                          const input = document.getElementById(`manual-ig-${selectedLead.id}`) as HTMLInputElement;
+                          let val = input?.value?.trim();
+                          if (!val) return alert("Enter an Instagram handle or URL");
+                          val = val.replace(/^@/, "").replace(/.*instagram\.com\//, "").replace(/\/$/, "");
+                          setPipelineRunning(`save-ig-${selectedLead.id}`);
+                          try {
+                            await leadgenFetch(`/pipeline/leads/${selectedLead.id}`, {
+                              method: "PATCH",
+                              body: { instagram_handle: val },
+                            });
+                            fetchLeadDetail(selectedLead.id);
+                          } catch (err) {
+                            alert(err instanceof Error ? err.message : "Save failed");
+                          } finally {
+                            setPipelineRunning(null);
+                          }
+                        }}
+                      >
+                        Save
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Manual Email / Name Input */}
+            {(!selectedLead.contact_email || selectedLead.status === "no_email" || selectedLead.status === "discovered") && (
+              <div className="border border-amber-500/30 bg-amber-500/5 rounded-lg p-3">
+                <h4 className="text-sm font-semibold mb-2 text-amber-500">Add Contact Info</h4>
+                <p className="text-xs text-text-secondary mb-2">Find the owner&apos;s email from their website, LinkedIn, or Instagram and add it here.</p>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <input
+                    type="email"
+                    placeholder="owner@store.com"
+                    id={`manual-email-${selectedLead.id}`}
+                    defaultValue={selectedLead.contact_email || ""}
+                    className="text-xs px-3 py-1.5 rounded-lg border border-border bg-transparent"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Owner name (optional)"
+                    id={`manual-name-${selectedLead.id}`}
+                    defaultValue={selectedLead.contact_name || ""}
+                    className="text-xs px-3 py-1.5 rounded-lg border border-border bg-transparent"
+                  />
+                </div>
+                <Button
+                  className="text-xs"
+                  loading={pipelineRunning === `save-email-${selectedLead.id}`}
+                  onClick={async () => {
+                    const emailInput = document.getElementById(`manual-email-${selectedLead.id}`) as HTMLInputElement;
+                    const nameInput = document.getElementById(`manual-name-${selectedLead.id}`) as HTMLInputElement;
+                    const email = emailInput?.value?.trim();
+                    if (!email || !email.includes("@")) return alert("Enter a valid email");
+                    setPipelineRunning(`save-email-${selectedLead.id}`);
+                    try {
+                      await leadgenFetch(`/pipeline/leads/${selectedLead.id}`, {
+                        method: "PATCH",
+                        body: { contact_email: email, contact_name: nameInput?.value?.trim() || null },
+                      });
+                      fetchLeadDetail(selectedLead.id);
+                      fetchLeads();
+                    } catch (err) {
+                      alert(err instanceof Error ? err.message : "Save failed");
+                    } finally {
+                      setPipelineRunning(null);
+                    }
+                  }}
+                >
+                  Save Email
+                </Button>
+              </div>
+            )}
+
+            {/* Editable email for leads that already have one */}
+            {selectedLead.contact_email && !["no_email", "discovered"].includes(selectedLead.status) && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="email"
+                  id={`edit-email-${selectedLead.id}`}
+                  defaultValue={selectedLead.contact_email}
+                  className="text-xs px-3 py-1.5 rounded-lg border border-border bg-transparent flex-1"
+                />
+                <input
+                  type="text"
+                  id={`edit-name-${selectedLead.id}`}
+                  defaultValue={selectedLead.contact_name || ""}
+                  placeholder="Name"
+                  className="text-xs px-3 py-1.5 rounded-lg border border-border bg-transparent w-32"
+                />
+                <Button
+                  className="text-xs whitespace-nowrap"
+                  loading={pipelineRunning === `update-email-${selectedLead.id}`}
+                  onClick={async () => {
+                    const emailInput = document.getElementById(`edit-email-${selectedLead.id}`) as HTMLInputElement;
+                    const nameInput = document.getElementById(`edit-name-${selectedLead.id}`) as HTMLInputElement;
+                    const email = emailInput?.value?.trim();
+                    if (!email || !email.includes("@")) return alert("Enter a valid email");
+                    setPipelineRunning(`update-email-${selectedLead.id}`);
+                    try {
+                      await leadgenFetch(`/pipeline/leads/${selectedLead.id}`, {
+                        method: "PATCH",
+                        body: { contact_email: email, contact_name: nameInput?.value?.trim() || null },
+                      });
+                      fetchLeadDetail(selectedLead.id);
+                    } catch (err) {
+                      alert(err instanceof Error ? err.message : "Update failed");
+                    } finally {
+                      setPipelineRunning(null);
+                    }
+                  }}
+                >
+                  Update
+                </Button>
+              </div>
+            )}
+
+            {/* Products — Before/After */}
+            {leadProducts.length > 0 && (
+              <div>
+                <h4 className="text-sm font-semibold mb-2">Products ({leadProducts.length})</h4>
+                <div className="space-y-3">
+                  {leadProducts.map(p => (
+                    <div key={p.id} className="border border-border rounded-lg p-3">
+                      <div className="text-xs font-medium mb-2">{p.product_name} <span className="text-text-secondary capitalize">({p.jewelry_type})</span>
+                        <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] ${
+                          p.status === "generated" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
+                          p.status === "failed" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
+                          "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                        }`}>{p.status}</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {p.original_image_url && (
+                          <div>
+                            <div className="text-[10px] text-text-secondary mb-1 uppercase tracking-wider">Original</div>
+                            <img src={p.original_image_url} alt="Original" className="w-full rounded-lg border border-border" />
+                          </div>
+                        )}
+                        {p.generated_studio_url && (
+                          <div>
+                            <div className="text-[10px] text-text-secondary mb-1 uppercase tracking-wider">Studio</div>
+                            <img src={p.generated_studio_url} alt="Studio" className="w-full rounded-lg border border-border" />
+                          </div>
+                        )}
+                        {p.generated_model_url && (
+                          <div>
+                            <div className="text-[10px] text-text-secondary mb-1 uppercase tracking-wider">Model</div>
+                            <img src={p.generated_model_url} alt="Model" className="w-full rounded-lg border border-border" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* No products message */}
+            {leadProducts.length === 0 && (
+              <div className="text-center py-3 text-xs text-text-secondary">No product images yet — drop images below</div>
+            )}
+
+            {/* Drag & Drop Image Upload */}
+            <div
+              className={`relative border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
+                pipelineRunning === `drag-${selectedLead.id}` ? "border-[#c4a67d] bg-[#c4a67d]/10" : "border-border hover:border-[#c4a67d]/50"
+              }`}
+              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setPipelineRunning(`drag-${selectedLead.id}`); }}
+              onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); if (pipelineRunning === `drag-${selectedLead.id}`) setPipelineRunning(null); }}
+              onDrop={async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
+                if (files.length === 0) { setPipelineRunning(null); return alert("Drop image files only"); }
+                const nameInput = document.getElementById(`upload-name-${selectedLead.id}`) as HTMLInputElement;
+                const typeSelect = document.getElementById(`upload-type-${selectedLead.id}`) as HTMLSelectElement;
+                setPipelineRunning(`upload-${selectedLead.id}`);
+                try {
+                  for (const file of files) {
+                    const formData = new FormData();
+                    formData.append("file", file);
+                    formData.append("product_name", nameInput?.value || file.name.replace(/\.[^.]+$/, ""));
+                    formData.append("jewelry_type", typeSelect?.value || "other");
+                    const resp = await fetch(`${LEADGEN_API}/pipeline/leads/${selectedLead.id}/upload-image`, {
+                      method: "POST",
+                      headers: { "X-Admin-Email": user?.email || "" },
+                      body: formData,
+                    });
+                    if (!resp.ok) throw new Error(`Upload failed: ${resp.status}`);
+                  }
+                  fetchLeadDetail(selectedLead.id);
+                } catch (err) {
+                  alert(err instanceof Error ? err.message : "Upload failed");
+                } finally {
+                  setPipelineRunning(null);
+                }
+              }}
+            >
+              <label htmlFor={`upload-file-${selectedLead.id}`} className="block cursor-pointer mb-3">
+                {pipelineRunning === `upload-${selectedLead.id}` ? (
+                  <p className="text-sm text-[#c4a67d] animate-pulse">Uploading...</p>
+                ) : (
+                  <>
+                    <div className="text-2xl mb-1">📸</div>
+                    <p className="text-sm font-medium">Drop product images here</p>
+                    <p className="text-xs text-text-secondary mt-0.5">or click to browse</p>
+                  </>
+                )}
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                id={`upload-file-${selectedLead.id}`}
+                onChange={async (e) => {
+                  const files = Array.from(e.target.files || []);
+                  if (files.length === 0) return;
+                  const nameInput = document.getElementById(`upload-name-${selectedLead.id}`) as HTMLInputElement;
+                  const typeSelect = document.getElementById(`upload-type-${selectedLead.id}`) as HTMLSelectElement;
+                  setPipelineRunning(`upload-${selectedLead.id}`);
+                  try {
+                    for (const file of files) {
+                      const formData = new FormData();
+                      formData.append("file", file);
+                      formData.append("product_name", nameInput?.value || file.name.replace(/\.[^.]+$/, ""));
+                      formData.append("jewelry_type", typeSelect?.value || "other");
+                      const resp = await fetch(`${LEADGEN_API}/pipeline/leads/${selectedLead.id}/upload-image`, {
+                        method: "POST",
+                        headers: { "X-Admin-Email": user?.email || "" },
+                        body: formData,
+                      });
+                      if (!resp.ok) throw new Error(`Upload failed: ${resp.status}`);
+                    }
+                    fetchLeadDetail(selectedLead.id);
+                  } catch (err) {
+                    alert(err instanceof Error ? err.message : "Upload failed");
+                  } finally {
+                    setPipelineRunning(null);
+                    e.target.value = "";
+                  }
+                }}
+              />
+              <div className="grid grid-cols-2 gap-2 mt-3">
+                <input
+                  type="text"
+                  placeholder="Product name (optional)"
+                  id={`upload-name-${selectedLead.id}`}
+                  className="text-xs px-3 py-1.5 rounded-lg border border-border bg-transparent"
+                />
+                <select
+                  id={`upload-type-${selectedLead.id}`}
+                  className="text-xs px-3 py-1.5 rounded-lg border border-border bg-transparent"
+                  defaultValue="other"
+                >
+                  <option value="ring">Ring</option>
+                  <option value="necklace">Necklace</option>
+                  <option value="bracelet">Bracelet</option>
+                  <option value="earring">Earring</option>
+                  <option value="pendant">Pendant</option>
+                  <option value="watch">Watch</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Email History */}
+            {leadEmails.length > 0 && (
+              <div>
+                <h4 className="text-sm font-semibold mb-2">Email History</h4>
+                <div className="space-y-1">
+                  {leadEmails.map(e => (
+                    <div key={e.id} className="flex items-center justify-between text-xs py-1.5 border-b border-border/50">
+                      <span className="truncate max-w-[200px]">{e.subject}</span>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                          e.status === "clicked" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
+                          e.status === "opened" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
+                          e.status === "bounced" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
+                          "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                        }`}>{e.status}</span>
+                        {e.sent_at && <span className="text-text-secondary">{new Date(e.sent_at).toLocaleDateString()}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex flex-wrap gap-2 pt-2">
+              {leadProducts.length > 0 && !["sent", "delivered", "opened", "clicked", "converted"].includes(selectedLead.status) && (
+                <Button
+                  onClick={async () => {
+                    setPipelineRunning(`regenerate-${selectedLead.id}`);
+                    try {
+                      await leadgenFetch(`/pipeline/leads/${selectedLead.id}/regenerate`, { method: "POST" });
+                      fetchLeadDetail(selectedLead.id);
+                    } catch (err) {
+                      alert(err instanceof Error ? err.message : "Regenerate failed");
+                    } finally {
+                      setPipelineRunning(null);
+                    }
+                  }}
+                  loading={pipelineRunning === `regenerate-${selectedLead.id}`}
+                  className="text-xs"
+                >
+                  {leadProducts.some(p => p.generated_studio_url) ? "Regenerate AI" : "Generate AI"}
+                </Button>
+              )}
+              {selectedLead.contact_email && leadProducts.some(p => p.generated_studio_url || p.generated_model_url) && (
+                <Button
+                  onClick={async () => {
+                    setPipelineRunning(`send-email-${selectedLead.id}`);
+                    try {
+                      await leadgenFetch(`/pipeline/send-email/${selectedLead.id}`, { method: "POST" });
+                      fetchLeadDetail(selectedLead.id);
+                      fetchLeads();
+                    } catch (err) {
+                      alert(err instanceof Error ? err.message : "Send failed");
+                    } finally {
+                      setPipelineRunning(null);
+                    }
+                  }}
+                  loading={pipelineRunning === `send-email-${selectedLead.id}`}
+                  className="text-xs !bg-green-600 hover:!bg-green-700 !text-white"
+                >
+                  Send Email
+                </Button>
+              )}
+              <Button
+                onClick={() => { leadgenFetch(`/pipeline/leads/${selectedLead.id}`, { method: "DELETE" }).then(() => { setLeadDetailOpen(false); setLeadsFetched(false); }); }}
+                className="text-xs !bg-red-500/10 !text-red-500"
+              >
+                Delete Lead
+              </Button>
+            </div>
           </div>
         )}
       </Modal>
