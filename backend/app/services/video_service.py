@@ -126,16 +126,59 @@ async def generate_video(
     if not operation.response or not operation.response.generated_videos:
         raise RuntimeError("Video generation failed — no video returned")
 
-    video = operation.response.generated_videos[0].video
-    video_bytes = video.video_bytes if hasattr(video, "video_bytes") and video.video_bytes else None
+    generated_video = operation.response.generated_videos[0]
+    video = generated_video.video
+    video_bytes: bytes | None = None
 
-    if not video_bytes and hasattr(video, "uri") and video.uri:
-        async with httpx.AsyncClient() as http_client:
-            resp = await http_client.get(video.uri, timeout=60.0)
-            if resp.status_code == 200:
-                video_bytes = resp.content
+    logger.info("Video object: uri=%s, has video_bytes=%s", video.uri, video.video_bytes is not None)
+
+    if video.video_bytes:
+        video_bytes = video.video_bytes
+
+    # Gemini API key path: must call client.files.download to populate video_bytes
+    if not video_bytes:
+        try:
+            logger.info("Downloading video via client.files.download...")
+            await asyncio.to_thread(client.files.download, file=video)
+            if video.video_bytes:
+                video_bytes = video.video_bytes
+                logger.info("Got %d bytes via files.download", len(video_bytes))
+        except Exception as dl_err:
+            logger.warning("client.files.download failed: %s", dl_err)
+
+    # Fallback: save to temp file via video.save() and read back
+    if not video_bytes:
+        try:
+            import tempfile, os
+            tmp = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+            tmp_path = tmp.name
+            tmp.close()
+            logger.info("Saving video to temp file via video.save()...")
+            await asyncio.to_thread(video.save, tmp_path)
+            with open(tmp_path, "rb") as f:
+                video_bytes = f.read()
+            os.unlink(tmp_path)
+            if video_bytes:
+                logger.info("Got %d bytes via video.save()", len(video_bytes))
+        except Exception as save_err:
+            logger.warning("video.save() fallback failed: %s", save_err)
+
+    # Last resort: HTTP GET on the URI directly
+    if not video_bytes and video.uri:
+        try:
+            logger.info("Downloading video from URI: %s", video.uri[:120])
+            async with httpx.AsyncClient() as http_client:
+                resp = await http_client.get(video.uri, timeout=120.0)
+                if resp.status_code == 200:
+                    video_bytes = resp.content
+                    logger.info("Got %d bytes via URI download", len(video_bytes))
+                else:
+                    logger.warning("URI download returned status %d", resp.status_code)
+        except Exception as uri_err:
+            logger.warning("URI download failed: %s", uri_err)
 
     if not video_bytes:
+        logger.error("Could not retrieve video bytes. uri=%s, mime=%s", video.uri, video.mime_type)
         raise RuntimeError("Could not retrieve generated video bytes")
 
     storage_path = f"videos/{client_id or 'anon'}/{uuid.uuid4()}.mp4"
@@ -215,14 +258,42 @@ async def generate_video_first_last_frame(
     if not operation.response or not operation.response.generated_videos:
         raise RuntimeError("Video generation failed — no video returned")
 
-    video = operation.response.generated_videos[0].video
-    video_bytes = video.video_bytes if hasattr(video, "video_bytes") and video.video_bytes else None
+    generated_video = operation.response.generated_videos[0]
+    video = generated_video.video
+    video_bytes: bytes | None = None
 
-    if not video_bytes and hasattr(video, "uri") and video.uri:
-        async with httpx.AsyncClient() as http_client:
-            resp = await http_client.get(video.uri, timeout=60.0)
-            if resp.status_code == 200:
-                video_bytes = resp.content
+    if video.video_bytes:
+        video_bytes = video.video_bytes
+
+    if not video_bytes:
+        try:
+            await asyncio.to_thread(client.files.download, file=video)
+            if video.video_bytes:
+                video_bytes = video.video_bytes
+        except Exception as dl_err:
+            logger.warning("client.files.download failed (first-last): %s", dl_err)
+
+    if not video_bytes:
+        try:
+            import tempfile, os
+            tmp = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+            tmp_path = tmp.name
+            tmp.close()
+            await asyncio.to_thread(video.save, tmp_path)
+            with open(tmp_path, "rb") as f:
+                video_bytes = f.read()
+            os.unlink(tmp_path)
+        except Exception as save_err:
+            logger.warning("video.save() fallback failed (first-last): %s", save_err)
+
+    if not video_bytes and video.uri:
+        try:
+            async with httpx.AsyncClient() as http_client:
+                resp = await http_client.get(video.uri, timeout=120.0)
+                if resp.status_code == 200:
+                    video_bytes = resp.content
+        except Exception as uri_err:
+            logger.warning("URI download failed (first-last): %s", uri_err)
 
     if not video_bytes:
         raise RuntimeError("Could not retrieve generated video bytes")
