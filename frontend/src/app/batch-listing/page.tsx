@@ -91,7 +91,7 @@ function stripHtml(html: string): string {
 export default function BatchListingPage() {
   const [phase, setPhase] = useState<Phase>("upload");
   const [items, setItems] = useState<BatchItem[]>([]);
-  const [batchId] = useState(() => crypto.randomUUID());
+  const [batchId, setBatchId] = useState(() => crypto.randomUUID());
   const [batchDescription, setBatchDescription] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [processedCount, setProcessedCount] = useState(0);
@@ -566,8 +566,18 @@ export default function BatchListingPage() {
     const failed = items.filter((i) => i.status === "failed");
     if (failed.length === 0) return;
 
+    const tokensNeeded = failed.length * COST_PER_IMAGE;
+    if (tokenBalance !== null && tokenBalance < tokensNeeded) {
+      showToast(
+        `Not enough tokens. You need ${tokensNeeded} tokens (${failed.length} images × ${COST_PER_IMAGE}) but have ${tokenBalance}. Please contact admin.`,
+        "error"
+      );
+      return;
+    }
+
     setPhase("processing");
     cancelRef.current = false;
+    abortRef.current = new AbortController();
 
     for (const item of failed) {
       if (cancelRef.current) break;
@@ -576,10 +586,18 @@ export default function BatchListingPage() {
 
       try {
         const base64 = await readFileAsBase64(item.file);
+
+        if (cancelRef.current) {
+          updateItem(item.localId, { status: "failed", error: "Cancelled" });
+          break;
+        }
+
         const result = await safeFetch<{
           success: boolean;
+          balance?: number;
           item?: ApiItem;
           error?: string;
+          code?: string;
         }>("/api/batch-listing", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -590,11 +608,20 @@ export default function BatchListingPage() {
             batchId,
             batchDescription,
           }),
+          signal: abortRef.current?.signal,
         });
 
         if (!result.success || !result.item) {
+          if (result.code === "INSUFFICIENT_TOKENS") {
+            updateItem(item.localId, { status: "failed", error: "Insufficient tokens" });
+            showToast("Ran out of listing tokens. Remaining images skipped.", "error");
+            if (typeof result.balance === "number") setTokenBalance(result.balance);
+            break;
+          }
           throw new Error(result.error || "Generation failed");
         }
+
+        if (typeof result.balance === "number") setTokenBalance(result.balance);
 
         updateItem(item.localId, {
           status: "completed",
@@ -606,13 +633,18 @@ export default function BatchListingPage() {
           attributes: result.item.attributes,
         });
       } catch (err) {
+        if (cancelRef.current) {
+          updateItem(item.localId, { status: "failed", error: "Cancelled" });
+          break;
+        }
         const msg = err instanceof Error ? err.message : "Failed";
         updateItem(item.localId, { status: "failed", error: msg });
       }
     }
 
+    abortRef.current = null;
     setPhase("done");
-  }, [items, batchId, batchDescription, updateItem]);
+  }, [items, batchId, batchDescription, updateItem, tokenBalance, showToast]);
 
   /* ─── Export CSV ─────────────────────────────────────────── */
 
@@ -697,11 +729,16 @@ export default function BatchListingPage() {
     setProcessedCount(0);
     cancelRef.current = false;
     setBatchDescription("");
+    setPushedToShopify(new Set());
+    setBatchId(crypto.randomUUID());
   }, [items]);
 
   /* ─── Derived state ─────────────────────────────────────── */
 
-  const completedCount = items.filter((i) => i.status === "completed").length;
+  const completedItems = items.filter((i) => i.status === "completed");
+  const completedCount = completedItems.length;
+  const allPushedToShopify = completedItems.length > 0 && completedItems.every((i) => pushedToShopify.has(i.localId));
+  const unpushedCount = completedItems.filter((i) => !pushedToShopify.has(i.localId)).length;
   const failedCount = items.filter((i) => i.status === "failed").length;
   const selectedItem = items.find((i) => i.localId === selectedId) || null;
   const isProcessing = phase === "processing";
@@ -1115,7 +1152,7 @@ export default function BatchListingPage() {
               </button>
               <button
                 onClick={pushAllToShopify}
-                disabled={pushingAll || pushedToShopify.size >= completedCount}
+                disabled={pushingAll || allPushedToShopify}
                 className="px-6 py-3 bg-[#96bf48] text-white rounded-full font-semibold text-[13px] hover:bg-[#7ba33a] transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {pushingAll ? (
@@ -1123,10 +1160,10 @@ export default function BatchListingPage() {
                     <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     Pushing to Shopify...
                   </span>
-                ) : pushedToShopify.size >= completedCount ? (
+                ) : allPushedToShopify ? (
                   "All Pushed to Shopify ✓"
                 ) : (
-                  `Push All to Shopify (${completedCount - pushedToShopify.size})`
+                  `Push All to Shopify (${unpushedCount})`
                 )}
               </button>
               <button
