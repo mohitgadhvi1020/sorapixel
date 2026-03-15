@@ -31,7 +31,7 @@ function OtpLoginInner() {
   const { signInWithGoogle, isAuthenticated } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirect") || "/jewelry";
+  const redirectTo = searchParams.get("redirect") || "/studio";
 
   const [email, setEmail] = useState("");
   const [step, setStep] = useState<"main" | "email" | "email-sent" | "forgot" | "forgot-sent">("main");

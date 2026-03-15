@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Logo from "@/components/ui/Logo";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://soraipixel.com";
 
@@ -74,7 +75,7 @@ const useCases = [
   {
     title: "Jewelry & Accessories",
     desc: "The most demanding product photography niche. AI handles reflections, sparkle, and micro-details that even professional photographers struggle with.",
-    link: "/ai-jewelry-photography",
+    link: "/studio",
   },
   {
     title: "E-commerce Listings",
@@ -110,7 +111,7 @@ const faqs = [
   },
   {
     q: "What kind of products work with AI photography?",
-    a: "AI photography works best with jewelry, accessories, watches, and small products. SoraiPixel specializes in jewelry photography — the most technically demanding product category — which means it handles simpler products with ease.",
+    a: "AI photography works with virtually any product — jewelry, fashion, cosmetics, electronics, food, home goods, accessories, and more. SoraiPixel adapts to your product category automatically.",
   },
   {
     q: "Do I need any photography experience?",
@@ -162,54 +163,65 @@ export default function AIPhotographyPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
 
-      <div className="min-h-screen bg-background text-foreground">
+      <div className="min-h-screen bg-[#f7f7f5]">
+        {/* Header */}
+        <header className="bg-white border-b border-[#e8e5df]">
+          <div className="max-w-[1400px] mx-auto px-4 sm:px-8 lg:px-12">
+            <div className="flex items-center justify-between py-4">
+              <Link href="/" className="flex items-center">
+                <Logo className="text-lg" />
+              </Link>
+              <div className="flex items-center gap-3">
+                <Link href="/gallery" className="text-[13px] font-medium text-[#4a4a4a] hover:text-[#0a0a0a] transition-colors hidden sm:block">Gallery</Link>
+                <Link href="/pricing" className="text-[13px] font-medium text-[#4a4a4a] hover:text-[#0a0a0a] transition-colors hidden sm:block">Pricing</Link>
+                <Link href="/studio" className="px-5 py-2 bg-[#0a0a0a] text-white text-[13px] font-semibold rounded-full hover:bg-[#1a1a1a] transition-all">Start Creating</Link>
+              </div>
+            </div>
+          </div>
+        </header>
+
         {/* Hero */}
-        <section className="relative overflow-hidden pt-24 pb-16 sm:pt-32 sm:pb-24">
-          <div className="absolute inset-0 bg-gradient-to-b from-[rgba(196,166,125,0.06)] to-transparent" />
-          <div className="relative max-w-5xl mx-auto px-4 sm:px-6 text-center">
-            <p className="text-xs sm:text-sm font-medium tracking-widest uppercase text-[#c4a67d] mb-4">
-              The Future of Product Photography
-            </p>
-            <h1 className="text-3xl sm:text-5xl lg:text-6xl font-bold leading-tight tracking-tight mb-6">
-              <span className="text-[#c4a67d]">AI Photography</span>
-              <br />
-              <span className="text-foreground">Professional Product Images, Instantly</span>
-            </h1>
-            <p className="max-w-2xl mx-auto text-base sm:text-lg text-text-secondary leading-relaxed mb-8">
-              Upload any product photo. AI generates studio-quality hero shots, lifestyle scenes,
-              model photography, and close-ups — in under 10 seconds. No camera. No studio.
-              No photographer.
-            </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-              <Link
-                href="/jewelry"
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#c4a67d] text-[#1a1a2e] font-semibold text-sm hover:bg-[#d4b88d] transition-all shadow-lg shadow-[rgba(196,166,125,0.25)]"
-              >
-                Try AI Photography Free
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
-              </Link>
-              <Link
-                href="/ai-jewelry-photography"
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-border text-text-secondary font-medium text-sm hover:border-[#c4a67d] hover:text-[#c4a67d] transition-all"
-              >
-                Jewelry Photography
-              </Link>
+        <section className="bg-[#0a0a0a] overflow-hidden">
+          <div className="max-w-[1400px] mx-auto px-4 sm:px-8 lg:px-12 py-16 md:py-24 text-center relative">
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#8b7355]/5 rounded-full blur-[120px] pointer-events-none" />
+            <div className="relative z-10">
+              <span className="text-[11px] sm:text-xs font-semibold text-[#c4a67d]/60 tracking-[0.12em] uppercase mb-4 block">The Future of Product Photography</span>
+              <h1 className="font-display font-extrabold text-white uppercase tracking-[-0.03em] text-[2rem] sm:text-[3rem] md:text-[4rem] leading-[0.95] mb-5">
+                <span className="bg-gradient-to-r from-[#c4a67d] via-[#e8d5b5] to-[#8b7355] bg-clip-text text-transparent">AI Photography</span>
+                <br />Professional Product Images, Instantly
+              </h1>
+              <p className="text-white/40 text-[15px] md:text-[17px] max-w-2xl mx-auto leading-relaxed mb-8">
+                Upload any product photo. AI generates studio-quality hero shots, lifestyle scenes,
+                model photography, and close-ups — in under 10 seconds. No camera. No studio.
+                No photographer.
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-4">
+                <Link href="/studio" className="px-8 py-4 bg-white text-[#0a0a0a] text-[14px] font-semibold rounded-full hover:bg-white/90 transition-all active:scale-[0.97] shadow-[0_4px_24px_rgba(255,255,255,0.08)]">
+                  Try AI Photography Free
+                </Link>
+                <Link href="/pricing" prefetch={false} className="px-7 py-4 text-white/30 text-[14px] font-medium hover:text-white/60 transition-colors">
+                  View Pricing →
+                </Link>
+              </div>
             </div>
           </div>
         </section>
 
         {/* Benefits */}
-        <section className="py-16 sm:py-24 border-t border-border">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6">
-            <h2 className="text-2xl sm:text-3xl font-bold text-center mb-12">
-              Why AI Photography Is Replacing Traditional Studios
-            </h2>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <section className="bg-[#f7f7f5]">
+          <div className="max-w-[1400px] mx-auto px-4 sm:px-8 lg:px-12 py-20 md:py-32">
+            <div className="text-center mb-12 md:mb-16">
+              <span className="text-[10px] sm:text-[11px] font-semibold text-[#8b7355] tracking-[0.15em] uppercase mb-4 block">Why AI Photography</span>
+              <h2 className="font-display font-bold text-[#0a0a0a] uppercase tracking-[-0.03em] text-[1.75rem] sm:text-[2.5rem] md:text-[3.5rem] leading-[0.95]">
+                Replacing Traditional <span className="text-[#8b7355]">Studios</span>
+              </h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {benefits.map((b) => (
-                <div key={b.title} className="rounded-2xl border border-border bg-surface p-6 text-center hover:border-[rgba(196,166,125,0.3)] transition-colors">
-                  <div className="text-3xl font-bold text-[#c4a67d] mb-2">{b.stat}</div>
-                  <h3 className="font-semibold text-foreground mb-2">{b.title}</h3>
-                  <p className="text-xs text-text-secondary leading-relaxed">{b.desc}</p>
+                <div key={b.title} className="bg-white rounded-2xl border border-[#e8e5df] p-6 text-center hover:border-[#c4a67d]/30 transition-colors">
+                  <div className="font-display font-extrabold text-[2rem] text-[#8b7355] mb-2">{b.stat}</div>
+                  <h3 className="font-display font-bold text-[#0a0a0a] text-[15px] mb-2">{b.title}</h3>
+                  <p className="text-[#8c8c8c] text-[13px] leading-relaxed">{b.desc}</p>
                 </div>
               ))}
             </div>
@@ -217,29 +229,32 @@ export default function AIPhotographyPage() {
         </section>
 
         {/* Comparison Table */}
-        <section className="py-16 sm:py-24 bg-surface border-t border-border">
-          <div className="max-w-3xl mx-auto px-4 sm:px-6">
-            <h2 className="text-2xl sm:text-3xl font-bold text-center mb-4">
-              AI Photography vs Traditional Photography
-            </h2>
-            <p className="text-text-secondary text-center mb-10 max-w-xl mx-auto">
-              See how AI photography compares to hiring a professional photographer.
-            </p>
-            <div className="rounded-2xl border border-border overflow-hidden">
-              <table className="w-full text-sm">
+        <section className="bg-white border-y border-[#e8e5df]">
+          <div className="max-w-[900px] mx-auto px-4 sm:px-8 lg:px-12 py-20 md:py-32">
+            <div className="text-center mb-12 md:mb-16">
+              <span className="text-[10px] sm:text-[11px] font-semibold text-[#8b7355] tracking-[0.15em] uppercase mb-4 block">Comparison</span>
+              <h2 className="font-display font-bold text-[#0a0a0a] uppercase tracking-[-0.03em] text-[1.75rem] sm:text-[2.5rem] md:text-[3rem] leading-[0.95]">
+                AI vs <span className="text-[#8b7355]">Traditional</span>
+              </h2>
+              <p className="mt-4 text-[#8c8c8c] text-[15px] max-w-md mx-auto leading-relaxed">
+                See how AI photography compares to hiring a professional photographer.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-[#e8e5df] overflow-hidden">
+              <table className="w-full text-[14px]">
                 <thead>
-                  <tr className="border-b border-border bg-background">
-                    <th className="text-left px-4 py-3 font-medium text-text-secondary">Feature</th>
-                    <th className="text-center px-4 py-3 font-medium text-text-secondary">Traditional</th>
-                    <th className="text-center px-4 py-3 font-medium text-[#c4a67d]">AI (SoraiPixel)</th>
+                  <tr className="border-b border-[#e8e5df] bg-[#f7f7f5]">
+                    <th className="text-left px-5 py-3.5 font-semibold text-[#8c8c8c] text-[12px] uppercase tracking-[0.08em]">Feature</th>
+                    <th className="text-center px-5 py-3.5 font-semibold text-[#8c8c8c] text-[12px] uppercase tracking-[0.08em]">Traditional</th>
+                    <th className="text-center px-5 py-3.5 font-semibold text-[#8b7355] text-[12px] uppercase tracking-[0.08em]">AI (SoraiPixel)</th>
                   </tr>
                 </thead>
                 <tbody>
                   {comparisons.map((c) => (
-                    <tr key={c.feature} className="border-b border-border last:border-0">
-                      <td className="px-4 py-3 text-foreground font-medium">{c.feature}</td>
-                      <td className="px-4 py-3 text-center text-text-secondary">{c.traditional}</td>
-                      <td className="px-4 py-3 text-center text-[#c4a67d] font-medium">{c.ai}</td>
+                    <tr key={c.feature} className="border-b border-[#e8e5df] last:border-0">
+                      <td className="px-5 py-3.5 text-[#0a0a0a] font-medium">{c.feature}</td>
+                      <td className="px-5 py-3.5 text-center text-[#8c8c8c]">{c.traditional}</td>
+                      <td className="px-5 py-3.5 text-center text-[#8b7355] font-medium">{c.ai}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -249,25 +264,27 @@ export default function AIPhotographyPage() {
         </section>
 
         {/* Use Cases */}
-        <section className="py-16 sm:py-24 border-t border-border">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6">
-            <h2 className="text-2xl sm:text-3xl font-bold text-center mb-12">
-              AI Photography Use Cases
-            </h2>
-            <div className="grid sm:grid-cols-3 gap-6">
+        <section className="bg-[#f7f7f5]">
+          <div className="max-w-[1400px] mx-auto px-4 sm:px-8 lg:px-12 py-20 md:py-32">
+            <div className="text-center mb-12 md:mb-16">
+              <span className="text-[10px] sm:text-[11px] font-semibold text-[#8b7355] tracking-[0.15em] uppercase mb-4 block">Use Cases</span>
+              <h2 className="font-display font-bold text-[#0a0a0a] uppercase tracking-[-0.03em] text-[1.75rem] sm:text-[2.5rem] md:text-[3rem] leading-[0.95]">
+                AI Photography <span className="text-[#8b7355]">For Every Product</span>
+              </h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {useCases.map((u) => (
                 <Link
                   key={u.title}
                   href={u.link}
-                  className="rounded-2xl border border-border bg-surface p-6 hover:border-[rgba(196,166,125,0.3)] transition-colors group block"
+                  className="bg-white rounded-2xl border border-[#e8e5df] p-6 hover:border-[#c4a67d]/30 transition-colors group block"
                 >
-                  <h3 className="font-semibold text-foreground mb-2 group-hover:text-[#c4a67d] transition-colors">
+                  <h3 className="font-display font-bold text-[#0a0a0a] text-[15px] mb-2 group-hover:text-[#8b7355] transition-colors">
                     {u.title}
                   </h3>
-                  <p className="text-sm text-text-secondary leading-relaxed mb-3">{u.desc}</p>
-                  <span className="text-xs text-[#c4a67d] font-medium flex items-center gap-1">
-                    Learn more
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
+                  <p className="text-[#8c8c8c] text-[13px] leading-relaxed mb-3">{u.desc}</p>
+                  <span className="text-[12px] text-[#8b7355] font-semibold flex items-center gap-1">
+                    Learn more →
                   </span>
                 </Link>
               ))}
@@ -276,22 +293,26 @@ export default function AIPhotographyPage() {
         </section>
 
         {/* FAQ */}
-        <section className="py-16 sm:py-24 bg-surface border-t border-border">
-          <div className="max-w-3xl mx-auto px-4 sm:px-6">
-            <h2 className="text-2xl sm:text-3xl font-bold text-center mb-12">
-              AI Photography — Frequently Asked Questions
-            </h2>
-            <div className="space-y-4">
+        <section className="bg-white border-t border-[#e8e5df]">
+          <div className="max-w-[720px] mx-auto px-4 sm:px-8 lg:px-12 py-20 md:py-32">
+            <div className="text-center mb-12 md:mb-16">
+              <h2 className="font-display font-bold text-[#0a0a0a] uppercase tracking-[-0.03em] text-[1.75rem] sm:text-[2.5rem] md:text-[3rem] leading-[0.95]">
+                Common <span className="text-[#8b7355]">Questions</span>
+              </h2>
+            </div>
+            <div className="space-y-2">
               {faqs.map((f) => (
                 <details
                   key={f.q}
-                  className="group rounded-xl border border-border bg-background overflow-hidden"
+                  className="group bg-[#f7f7f5] rounded-xl border border-[#e8e5df] overflow-hidden"
                 >
-                  <summary className="flex items-center justify-between cursor-pointer px-5 py-4 text-sm font-medium text-foreground hover:text-[#c4a67d] transition-colors">
-                    {f.q}
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="flex-shrink-0 ml-3 transition-transform group-open:rotate-180"><polyline points="6 9 12 15 18 9" /></svg>
+                  <summary className="flex items-center justify-between cursor-pointer px-6 py-4 text-left">
+                    <span className="font-semibold text-[#0a0a0a] text-[14px] pr-4">{f.q}</span>
+                    <svg className="w-4 h-4 text-[#8c8c8c] flex-shrink-0 transition-transform duration-200 group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
                   </summary>
-                  <div className="px-5 pb-4 text-sm text-text-secondary leading-relaxed">{f.a}</div>
+                  <div className="px-6 pb-5">
+                    <p className="text-[#8c8c8c] text-[14px] leading-relaxed">{f.a}</p>
+                  </div>
                 </details>
               ))}
             </div>
@@ -299,24 +320,38 @@ export default function AIPhotographyPage() {
         </section>
 
         {/* CTA */}
-        <section className="py-16 sm:py-24 border-t border-border">
-          <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
-            <h2 className="text-2xl sm:text-3xl font-bold mb-4">
-              Try AI Photography Today — Free
-            </h2>
-            <p className="text-text-secondary mb-8 max-w-xl mx-auto">
-              8 free tokens every day — 1 free image daily. No credit card. No commitment.
-              See for yourself why thousands of sellers are switching to AI photography.
-            </p>
-            <Link
-              href="/jewelry"
-              className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-[#c4a67d] text-[#1a1a2e] font-semibold text-sm hover:bg-[#d4b88d] transition-all shadow-lg shadow-[rgba(196,166,125,0.25)]"
-            >
-              Start Free — Upload Your First Photo
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
-            </Link>
+        <section className="bg-[#0a0a0a]">
+          <div className="max-w-[1400px] mx-auto px-4 sm:px-8 lg:px-12 py-16 md:py-24 text-center relative">
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-[#8b7355]/5 rounded-full blur-[100px] pointer-events-none" />
+            <div className="relative z-10">
+              <h2 className="font-display font-extrabold text-white uppercase tracking-[-0.03em] text-[1.75rem] sm:text-[2.5rem] md:text-[3.5rem] leading-[0.95] mb-5">
+                Try AI Photography<br /><span className="text-[#c4a67d]">Today — Free</span>
+              </h2>
+              <p className="text-white/40 text-[15px] max-w-md mx-auto mb-8 leading-relaxed">
+                8 free tokens every day — 1 free image daily. No credit card. No commitment.
+              </p>
+              <Link href="/studio" className="px-8 py-4 bg-white text-[#0a0a0a] text-[14px] font-semibold rounded-full hover:bg-white/90 transition-all active:scale-[0.97] shadow-lg inline-block">
+                Start Free — Upload Your First Photo
+              </Link>
+            </div>
           </div>
         </section>
+
+        {/* Footer */}
+        <footer className="bg-[#0a0a0a] border-t border-white/5">
+          <div className="max-w-[1400px] mx-auto px-4 sm:px-8 lg:px-12 py-8">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-6">
+                <Link href="/" className="text-[13px] text-white/35 hover:text-white/70 transition-colors">Home</Link>
+                <Link href="/gallery" className="text-[13px] text-white/35 hover:text-white/70 transition-colors">Gallery</Link>
+                <Link href="/blog" className="text-[13px] text-white/35 hover:text-white/70 transition-colors">Blog</Link>
+                <Link href="/privacy" className="text-[13px] text-white/35 hover:text-white/70 transition-colors">Privacy</Link>
+                <Link href="/terms" className="text-[13px] text-white/35 hover:text-white/70 transition-colors">Terms</Link>
+              </div>
+              <span className="text-[11px] text-white/20">&copy; {new Date().getFullYear()} SoraiPixel. All rights reserved.</span>
+            </div>
+          </div>
+        </footer>
       </div>
     </>
   );

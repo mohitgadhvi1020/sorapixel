@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api-client";
 import { useAuth, useCredits } from "@/providers/AppProvider";
 import { useTheme } from "@/hooks/useTheme";
@@ -61,7 +61,7 @@ const UGC_BACKGROUNDS = [
   { id: "livingroom", label: "Living Room", swatch: "#BC8F8F" },
 ] as const;
 
-const JEWELRY_POSE_MAP: Record<string, string[]> = {
+const PRODUCT_POSE_MAP: Record<string, string[]> = {
   necklace: ["standing", "close_up", "neck_macro", "side_view"],
   pendant: ["standing", "close_up", "neck_macro", "side_view"],
   chain: ["standing", "close_up", "neck_macro"],
@@ -106,6 +106,7 @@ export default function UgcPage() {
 
 function UgcPageInner() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const { credits, refreshCredits } = useCredits();
   const { theme } = useTheme();
@@ -114,7 +115,7 @@ function UgcPageInner() {
   // Source image
   const [imageB64, setImageB64] = useState("");
   const [imagePreview, setImagePreview] = useState("");
-  const [jewelryType, setJewelryType] = useState("jewelry");
+  const [productType, setProductType] = useState("product");
   const [sessionId, setSessionId] = useState<string | null>(null);
 
   // Config
@@ -145,7 +146,7 @@ function UgcPageInner() {
   const initRef = useRef(false);
   const natRef = useRef<HTMLDivElement>(null);
 
-  const recommendedPoses = JEWELRY_POSE_MAP[jewelryType] || JEWELRY_POSE_MAP.default;
+  const recommendedPoses = PRODUCT_POSE_MAP[productType] || PRODUCT_POSE_MAP.default;
   const tokenCost = poses.length * JEWELRY_PRICING[quality].ugcPerPose;
 
   // ─── Init from query params ───
@@ -157,21 +158,28 @@ function UgcPageInner() {
     const type = searchParams.get("type");
     const session = searchParams.get("session");
 
-    if (type) setJewelryType(type);
+    if (type) setProductType(type);
     if (session) setSessionId(session);
 
     if (imageUrl) {
       fetchImageAsBase64(imageUrl);
     }
+
+    const storedB64 = sessionStorage.getItem("ugc_image_b64");
+    if (!imageUrl && storedB64) {
+      setImageB64(storedB64);
+      setImagePreview(`data:image/png;base64,${storedB64}`);
+      sessionStorage.removeItem("ugc_image_b64");
+    }
   }, [searchParams]);
 
-  // Auto-select recommended poses when jewelry type changes
+  // Auto-select recommended poses when product type changes
   useEffect(() => {
     if (poses.length === 0) {
       setPoses(recommendedPoses.slice(0, 2));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jewelryType]);
+  }, [productType]);
 
   // Close nationality dropdown on outside click
   useEffect(() => {
@@ -245,7 +253,7 @@ function UgcPageInner() {
         gender,
         nationality,
         skin_tone: skinTone,
-        jewelry_type: jewelryType,
+        jewelry_type: productType,
         poses,
         quality,
         background,
@@ -265,7 +273,7 @@ function UgcPageInner() {
     } finally {
       setLoading(false);
     }
-  }, [imageB64, loading, poses, gender, nationality, skinTone, jewelryType, quality, background, outfitStyle, outfitCustom, sessionId, refreshCredits]);
+  }, [imageB64, loading, poses, gender, nationality, skinTone, productType, quality, background, outfitStyle, outfitCustom, sessionId, refreshCredits]);
 
   function resetFull() {
     setImageB64("");
@@ -334,7 +342,7 @@ function UgcPageInner() {
             Model / UGC Photos
           </h1>
           <p className={`text-sm mt-1.5 ${lt ? "text-[#0a0a0a]/50" : "text-white/50"}`}>
-            Generate AI model photos wearing your jewelry
+            Generate AI model photos with your product
           </p>
         </div>
 
@@ -377,7 +385,7 @@ function UgcPageInner() {
                 </svg>
               </div>
               <p className={`text-sm font-semibold ${lt ? "text-[#0a0a0a]" : "text-white"}`}>
-                Upload your jewelry image
+                Upload your product image
               </p>
               <p className={`text-xs mt-1.5 ${lt ? "text-[#0a0a0a]/40" : "text-white/40"}`}>
                 Drag and drop or click to browse
@@ -409,7 +417,7 @@ function UgcPageInner() {
             >
               <img
                 src={imagePreview}
-                alt="Source jewelry"
+                alt="Source product"
                 className="w-full h-auto max-h-[400px] object-contain p-4"
               />
               <button
@@ -420,10 +428,10 @@ function UgcPageInner() {
                   <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
               </button>
-              {jewelryType !== "jewelry" && (
+              {productType !== "product" && (
                 <div className="px-4 pb-3">
                   <span className={`text-[10px] font-medium uppercase tracking-wider px-2 py-1 rounded-full ${lt ? "bg-[#f0ebe3] text-[#8b7355]" : "bg-[rgba(196,166,125,0.12)] text-[#c4a67d]"}`}>
-                    {jewelryType}
+                    {productType}
                   </span>
                 </div>
               )}
@@ -635,7 +643,7 @@ function UgcPageInner() {
                 </div>
                 {recommendedPoses.length > 0 && (
                   <p className={`text-[10px] mt-2 ${lt ? "text-[#0a0a0a]/30" : "text-white/30"}`}>
-                    &#9733; Recommended for {jewelryType}
+                    &#9733; Recommended for {productType}
                   </p>
                 )}
               </ConfigSection>
@@ -715,7 +723,7 @@ function UgcPageInner() {
                 Generating model photos...
               </p>
               <p className={`text-sm mt-2 ${lt ? "text-[#0a0a0a]/50" : "text-white/50"}`}>
-                Creating {poses.length} pose{poses.length !== 1 ? "s" : ""} with your jewelry. This may take a moment.
+                Creating {poses.length} pose{poses.length !== 1 ? "s" : ""} with your product. This may take a moment.
               </p>
             </div>
             <div className="max-w-xs mx-auto">
@@ -819,6 +827,42 @@ function UgcPageInner() {
                 Start Over
               </button>
             </div>
+
+            {/* Create Video CTA */}
+            {results.length > 0 && results[0]?.image_url && (
+              <div className={`pt-4 border-t ${lt ? "border-[rgba(0,0,0,0.06)]" : "border-[rgba(255,255,255,0.08)]"}`}>
+                <button
+                  onClick={async () => {
+                    try {
+                      const resp = await fetch(results[0].image_url);
+                      const blob = await resp.blob();
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        const b64 = (reader.result as string).split(",")[1] || "";
+                        sessionStorage.setItem("video_image_b64", b64);
+                        router.push("/video");
+                      };
+                      reader.readAsDataURL(blob);
+                    } catch {
+                      router.push("/video");
+                    }
+                  }}
+                  className={`flex items-center gap-3 w-full p-4 rounded-xl transition-all text-left ${
+                    lt
+                      ? "bg-[rgba(0,0,0,0.02)] border border-[rgba(0,0,0,0.06)] hover:border-[rgba(139,115,85,0.3)]"
+                      : "bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(196,166,125,0.3)]"
+                  }`}
+                >
+                  <div className="w-10 h-10 rounded-lg bg-[rgba(196,166,125,0.1)] flex items-center justify-center flex-shrink-0">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c4a67d" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                  </div>
+                  <div>
+                    <span className={`text-sm font-semibold block ${lt ? "text-[#0a0a0a]" : "text-white"}`}>Create Video</span>
+                    <span className={`text-[11px] ${lt ? "text-[#0a0a0a]/40" : "text-[rgba(255,255,255,0.35)]"}`}>Turn this UGC photo into a product video</span>
+                  </div>
+                </button>
+              </div>
+            )}
           </div>
         )}
 

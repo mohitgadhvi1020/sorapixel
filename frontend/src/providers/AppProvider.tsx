@@ -170,7 +170,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const signInWithGoogle = useCallback(
     async (redirectAfterLogin?: string) => {
-      const next = redirectAfterLogin || "/jewelry";
+      const next = redirectAfterLogin || "/studio";
       localStorage.setItem("sp_auth_redirect", next);
       const callbackUrl = `${window.location.origin}/auth/callback`;
       const { error } = await supabase.auth.signInWithOAuth({

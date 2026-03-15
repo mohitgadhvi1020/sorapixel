@@ -1,26 +1,27 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Logo from "@/components/ui/Logo";
 import BlogCard from "@/components/blog/BlogCard";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://soraipixel.com";
 
 export const metadata: Metadata = {
-  title: "Blog — AI Photography & Jewelry Photography Tips | SoraiPixel",
+  title: "Blog — AI Product Photography Tips & Guides | SoraiPixel",
   description:
-    "Expert guides on AI photography, AI jewelry photography, product photography tips, and e-commerce imagery. Learn how to create studio-quality photos with AI.",
+    "Expert guides on AI product photography, e-commerce imagery, and tips to create studio-quality photos with AI. Learn how to transform your product photos.",
   keywords: [
     "AI photography blog",
-    "AI jewelry photography tips",
+    "AI product photography tips",
     "product photography guide",
     "AI photo editing",
-    "jewelry photography tutorial",
+    "product photography tutorial",
     "ecommerce photography tips",
   ],
   alternates: { canonical: `${SITE_URL}/blog` },
   openGraph: {
-    title: "Blog — AI Photography Tips & Guides | SoraiPixel",
-    description: "Expert guides on AI photography, jewelry photography, and AI-powered product imagery.",
+    title: "Blog — AI Product Photography Tips & Guides | SoraiPixel",
+    description: "Expert guides on AI product photography and AI-powered e-commerce imagery.",
     url: `${SITE_URL}/blog`,
     siteName: "SoraiPixel",
     type: "website",
@@ -91,16 +92,11 @@ export default async function BlogPage({
       <header className="bg-white border-b border-[#e8e5df]">
         <div className="max-w-[1200px] mx-auto px-5 md:px-8 lg:px-12">
           <div className="flex items-center justify-between py-4">
-            <Link href="/" className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-[#0a0a0a] flex items-center justify-center">
-                <span className="text-white text-xs font-bold">SP</span>
-              </div>
-              <span className="font-display font-bold text-[15px] tracking-tight text-[#0a0a0a]">
-                SoraiPixel
-              </span>
+            <Link href="/" className="flex items-center">
+              <Logo className="text-lg" />
             </Link>
             <Link
-              href="/jewelry"
+              href="/studio"
               className="px-5 py-2 bg-[#0a0a0a] text-white text-[13px] font-semibold rounded-full hover:bg-[#1a1a1a] transition-all"
             >
               Start Creating
@@ -116,12 +112,12 @@ export default async function BlogPage({
             Our Blog
           </span>
           <h1 className="font-display font-bold text-[#0a0a0a] uppercase tracking-[-0.02em] text-[2rem] sm:text-[2.75rem] md:text-[3.5rem] leading-[0.95]">
-            Jewelry Photography
+            Product Photography
             <br />
             <span className="text-[#8b7355]">Tips & Guides</span>
           </h1>
           <p className="mt-4 text-[#8c8c8c] text-[15px] max-w-lg mx-auto leading-relaxed">
-            Expert insights on product photography, e-commerce imagery, and leveraging AI to create stunning visuals for your jewelry brand.
+            Expert insights on product photography, e-commerce imagery, and leveraging AI to create stunning visuals for your brand.
           </p>
         </div>
 
@@ -204,19 +200,29 @@ export default async function BlogPage({
           <h2 className="font-display font-bold text-white uppercase tracking-[-0.02em] text-[1.5rem] sm:text-[2rem] leading-tight mb-4">
             Ready to Transform Your
             <br />
-            <span className="text-[#c4a67d]">Jewelry Photography?</span>
+            <span className="text-[#c4a67d]">Product Photography?</span>
           </h2>
           <p className="text-white/40 text-[14px] max-w-md mx-auto mb-8">
-            Start creating studio-quality jewelry images with AI. No photographer needed.
+            Start creating studio-quality product images with AI. No photographer needed.
           </p>
           <Link
-            href="/jewelry"
+            href="/studio"
             className="inline-flex px-8 py-3.5 bg-white text-[#0a0a0a] text-[14px] font-semibold rounded-full hover:bg-white/90 transition-all active:scale-[0.97]"
           >
             Get Started Free
           </Link>
         </div>
       </section>
+
+      <footer className="bg-[#0a0a0a] border-t border-white/5">
+        <div className="max-w-[1200px] mx-auto px-5 md:px-8 lg:px-12 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <span className="text-[11px] text-white/20">&copy; {new Date().getFullYear()} SoraiPixel. All rights reserved.</span>
+          <div className="flex items-center gap-6">
+            <Link href="/privacy" className="text-[13px] text-white/35 hover:text-white/70 transition-colors">Privacy Policy</Link>
+            <Link href="/terms" className="text-[13px] text-white/35 hover:text-white/70 transition-colors">Terms of Service</Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

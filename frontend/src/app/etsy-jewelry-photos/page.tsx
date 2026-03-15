@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Logo from "@/components/ui/Logo";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://soraipixel.com";
 
@@ -37,11 +38,8 @@ export default function EtsyJewelryPhotosPage() {
       <div className="min-h-screen bg-[#f7f7f5]">
         <header className="bg-white border-b border-[#e8e5df]">
           <div className="max-w-[900px] mx-auto px-4 sm:px-8 py-4 flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-[#0a0a0a] flex items-center justify-center">
-                <span className="text-white text-xs font-bold">SP</span>
-              </div>
-              <span className="font-display font-bold text-[15px] tracking-tight text-[#0a0a0a]">SoraiPixel</span>
+            <Link href="/" className="flex items-center">
+              <Logo className="text-lg" />
             </Link>
             <Link href="/" className="text-[13px] font-medium text-[#4a4a4a] hover:text-[#0a0a0a] transition-colors">
               Back to Home

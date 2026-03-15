@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Save generated images as projects in Supabase (storage + DB)."""
+"""Save generated images/videos as projects in Supabase (storage + DB)."""
 
 import base64
 import logging
@@ -62,5 +62,47 @@ def save_project(
             return result.data[0]
     except Exception as e:
         logger.error(f"save_project DB insert error: {e}")
+
+    return None
+
+
+def save_video_project(
+    client_id: str,
+    title: str,
+    video_storage_path: str,
+    source_image_b64: str | None = None,
+    metadata: dict | None = None,
+) -> dict | None:
+    """Save a generated video as a project.
+
+    Optionally uploads the source image as a thumbnail.
+    """
+    sb = get_supabase()
+    project_meta = metadata or {}
+    project_meta["video_storage_path"] = video_storage_path
+
+    if source_image_b64:
+        try:
+            raw = base64.b64decode(source_image_b64)
+            thumb_path = f"projects/{client_id}/{uuid.uuid4()}_thumb.png"
+            sb.storage.from_("sorapixel-images").upload(
+                thumb_path, raw, {"content-type": "image/png"}
+            )
+            project_meta["images"] = [{"label": "Source Frame", "storage_path": thumb_path, "size": len(raw)}]
+        except Exception as e:
+            logger.warning(f"Video thumbnail upload failed: {e}")
+
+    try:
+        result = sb.table("projects").insert({
+            "client_id": client_id,
+            "title": title,
+            "project_type": "video",
+            "metadata": project_meta,
+        }).execute()
+
+        if result.data:
+            return result.data[0]
+    except Exception as e:
+        logger.error(f"save_video_project DB insert error: {e}")
 
     return None

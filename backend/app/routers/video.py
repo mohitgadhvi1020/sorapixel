@@ -11,7 +11,7 @@ from app.services.credit_service import (
     get_jewelry_credits, check_and_deduct_jewelry, JEWELRY_PRICING,
 )
 from app.services.tracking_service import track_generation
-from app.services.project_service import save_project
+from app.services.project_service import save_project, save_video_project
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/video", tags=["Video"])
@@ -107,6 +107,17 @@ async def generate_video_endpoint(req: GenerateVideoRequest, user: dict = Depend
 
     track_generation(client_id=user["id"], generation_type="video", model_used=result["model"])
 
+    try:
+        save_video_project(
+            client_id=user["id"],
+            title=f"Video – {req.mode.replace('_', ' ').title()}",
+            video_storage_path=result["storage_path"],
+            source_image_b64=req.image_b64[:500000] if len(req.image_b64) < 500000 else None,
+            metadata={"mode": req.mode, "aspect_ratio": req.aspect_ratio, "duration": result["duration"]},
+        )
+    except Exception as save_err:
+        logger.warning(f"Video project save failed (non-blocking): {save_err}")
+
     return {
         "success": True,
         "video_url": result["video_url"],
@@ -147,6 +158,17 @@ async def generate_first_last_endpoint(req: FirstLastFrameRequest, user: dict = 
     deduct_jewelry_tokens(user["id"], cost, operation="videoGen", quality=req.quality, session_id=req.session_id)
 
     track_generation(client_id=user["id"], generation_type="video", model_used=result["model"])
+
+    try:
+        save_video_project(
+            client_id=user["id"],
+            title="Video – First/Last Frame",
+            video_storage_path=result["storage_path"],
+            source_image_b64=req.first_frame_b64[:500000] if len(req.first_frame_b64) < 500000 else None,
+            metadata={"mode": "first_last_frame", "aspect_ratio": req.aspect_ratio, "duration": result["duration"]},
+        )
+    except Exception as save_err:
+        logger.warning(f"Video project save failed (non-blocking): {save_err}")
 
     return {
         "success": True,

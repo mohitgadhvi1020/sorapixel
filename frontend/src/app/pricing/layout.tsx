@@ -3,20 +3,20 @@ import type { Metadata } from "next";
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://soraipixel.com";
 
 export const metadata: Metadata = {
-  title: "Pricing — AI Jewelry Photography Plans",
+  title: "Pricing — AI Product Photography Plans",
   description:
-    "Simple, transparent pricing for AI jewelry photography. Start free with 8 daily tokens. Upgrade for studio-quality hero shots, model photos, and bulk listings.",
+    "Simple, transparent pricing for AI product photography. Start free with 8 daily tokens. Upgrade for studio-quality hero shots, model photos, and bulk listings.",
   keywords: [
-    "AI jewelry photography pricing",
+    "AI product photography pricing",
     "product photography pricing",
-    "jewelry photo editing cost",
+    "product photo editing cost",
     "AI photo plans",
   ],
   alternates: { canonical: "/pricing" },
   openGraph: {
-    title: "Pricing — SoraiPixel AI Jewelry Photography",
+    title: "Pricing — SoraiPixel AI Product Photography",
     description:
-      "Simple, transparent pricing for AI jewelry photography. Start free, upgrade when ready.",
+      "Simple, transparent pricing for AI product photography. Start free, upgrade when ready.",
     url: `${SITE_URL}/pricing`,
     siteName: "SoraiPixel",
     type: "website",

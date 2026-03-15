@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useAuth } from "@/providers/AppProvider";
 import { useTheme } from "@/hooks/useTheme";
 import Header from "./Header";
 import MobileNav from "./MobileNav";
@@ -15,7 +14,6 @@ interface ResponsiveLayoutProps {
 }
 
 export default function ResponsiveLayout({ children, title }: ResponsiveLayoutProps) {
-  const { isAdmin } = useAuth();
   const { theme } = useTheme();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
@@ -28,7 +26,6 @@ export default function ResponsiveLayout({ children, title }: ResponsiveLayoutPr
       <MobileNav
         open={mobileNavOpen}
         onClose={() => setMobileNavOpen(false)}
-        isAdmin={isAdmin}
       />
 
       <Header

@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Logo from "@/components/ui/Logo";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://soraipixel.com";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
-  description: "SoraiPixel privacy policy. Learn how we collect, use, and protect your data when you use our AI jewelry photography platform.",
+  description: "SoraiPixel privacy policy. Learn how we collect, use, and protect your data when you use our AI product photography platform.",
   alternates: { canonical: "/privacy" },
   openGraph: {
     title: "Privacy Policy — SoraiPixel",
@@ -21,11 +22,8 @@ export default function PrivacyPage() {
     <div className="min-h-screen bg-[#f7f7f5]">
       <header className="bg-white border-b border-[#e8e5df]">
         <div className="max-w-[900px] mx-auto px-4 sm:px-8 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-[#0a0a0a] flex items-center justify-center">
-              <span className="text-white text-xs font-bold">SP</span>
-            </div>
-            <span className="font-display font-bold text-[15px] tracking-tight text-[#0a0a0a]">SoraiPixel</span>
+          <Link href="/" className="flex items-center">
+            <Logo className="text-lg" />
           </Link>
           <Link href="/" className="text-[13px] font-medium text-[#4a4a4a] hover:text-[#0a0a0a] transition-colors">Back to Home</Link>
         </div>
@@ -51,7 +49,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className="font-display font-bold text-[#0a0a0a] text-[1.25rem] mb-3">2. How We Use Your Information</h2>
             <ul className="list-disc pl-6 space-y-2">
-              <li>To provide and improve our AI jewelry photography services.</li>
+              <li>To provide and improve our AI product photography services.</li>
               <li>To process payments and manage your account and token balance.</li>
               <li>To send important service updates and, with your consent, marketing communications.</li>
               <li>To detect and prevent fraud and abuse.</li>
@@ -61,7 +59,7 @@ export default function PrivacyPage() {
 
           <section>
             <h2 className="font-display font-bold text-[#0a0a0a] text-[1.25rem] mb-3">3. Your Uploaded Images</h2>
-            <p>Your jewelry photos are important to us. Here&apos;s how we handle them:</p>
+            <p>Your product photos are important to us. Here&apos;s how we handle them:</p>
             <ul className="list-disc pl-6 space-y-2 mt-3">
               <li>Images are processed through our AI pipeline solely to generate your requested output.</li>
               <li>We do not use your images to train AI models without your explicit consent.</li>

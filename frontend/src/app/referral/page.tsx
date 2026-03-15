@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Logo from "@/components/ui/Logo";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://soraipixel.com";
 
 export const metadata: Metadata = {
   title: "Referral Program — Earn Free Images | SoraiPixel",
-  description: "Share SoraiPixel with fellow jewelers and earn free AI-generated jewelry images. Get 5 free tokens for every friend who signs up.",
+  description: "Share SoraiPixel with friends and earn free AI-generated product images. Get 5 free tokens for every friend who signs up.",
   alternates: { canonical: "/referral" },
   openGraph: {
     title: "Referral Program — Earn Free Images | SoraiPixel",
-    description: "Share SoraiPixel with fellow jewelers and earn free tokens for every referral.",
+    description: "Share SoraiPixel with friends and earn free tokens for every referral.",
     url: `${SITE_URL}/referral`,
     siteName: "SoraiPixel",
     type: "website",
@@ -35,11 +36,8 @@ export default function ReferralPage() {
 
       <header className="bg-white border-b border-[#e8e5df]">
         <div className="max-w-[900px] mx-auto px-4 sm:px-8 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-[#0a0a0a] flex items-center justify-center">
-              <span className="text-white text-xs font-bold">SP</span>
-            </div>
-            <span className="font-display font-bold text-[15px] tracking-tight text-[#0a0a0a]">SoraiPixel</span>
+          <Link href="/" className="flex items-center">
+            <Logo className="text-lg" />
           </Link>
           <Link href="/" className="text-[13px] font-medium text-[#4a4a4a] hover:text-[#0a0a0a] transition-colors">Back to Home</Link>
         </div>
@@ -58,7 +56,7 @@ export default function ReferralPage() {
               Share SoraiPixel,<br /><span className="text-[#c4a67d]">Earn Free Images</span>
             </h1>
             <p className="text-white/40 text-[15px] md:text-[17px] max-w-md mx-auto leading-relaxed">
-              Know a jeweler who needs better product photos? Refer them to SoraiPixel and you both get rewarded.
+              Know someone who needs better product photos? Refer them to SoraiPixel and you both get rewarded.
             </p>
           </div>
         </div>
@@ -73,7 +71,7 @@ export default function ReferralPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-16">
           {[
-            { step: "1", title: "Share Your Link", desc: "Get your unique referral link from your dashboard and share it with fellow jewelers, friends, or social media followers." },
+            { step: "1", title: "Share Your Link", desc: "Get your unique referral link from your dashboard and share it with friends, colleagues, or social media followers." },
             { step: "2", title: "They Sign Up", desc: "When someone signs up through your link, they automatically get 3 bonus tokens to start creating professional photos." },
             { step: "3", title: "You Get Rewarded", desc: "For every friend who signs up, you receive 5 free tokens. No limit — the more you share, the more you earn." },
           ].map((item) => (
@@ -131,7 +129,7 @@ export default function ReferralPage() {
                 Get My Referral Link
               </Link>
               <Link
-                href="/jewelry"
+                href="/studio"
                 className="px-7 py-3.5 border border-white/15 text-white/60 text-[14px] font-medium rounded-full hover:border-white/30 hover:text-white transition-all"
               >
                 Try SoraiPixel Free

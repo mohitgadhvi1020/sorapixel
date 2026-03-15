@@ -239,6 +239,141 @@ def refine_prompt(raw_prompt: str) -> dict:
         return {"refined": text, "isolate": False}
 
 
+def analyze_product_image(image_b64: str, mime_type: str = "image/png") -> dict:
+    """Analyze a product image to understand what the product is, its visual
+    attributes, and how it is realistically used.  Returns a structured dict
+    that feeds into the blog-image strategy layer."""
+    import json
+
+    prompt = (
+        "You are a senior product photographer and e-commerce strategist.\n"
+        "Look at the attached product image carefully and return ONLY valid JSON "
+        "with the following fields:\n"
+        "{\n"
+        '  "product_type": "specific product name (e.g. \'wireless over-ear headphones\', \'organic face serum bottle\', \'leather crossbody bag\')",\n'
+        '  "category": "broad category (e.g. \'electronics\', \'skincare\', \'fashion accessories\', \'food & beverage\', \'home decor\')",\n'
+        '  "material": "primary material(s) visible (e.g. \'brushed aluminium and memory-foam cushions\', \'frosted glass with gold pump cap\')",\n'
+        '  "color": "dominant colors of the product itself (e.g. \'matte black with silver accents\')",\n'
+        '  "finish_texture": "surface finish (e.g. \'glossy\', \'matte\', \'textured leather grain\', \'transparent glass\')",\n'
+        '  "form_factor": "shape and size impression (e.g. \'compact rectangular box\', \'tall slim bottle\', \'wide brimmed hat\')",\n'
+        '  "branding_visible": "any logos, labels, or text visible on the product — describe exactly what you see",\n'
+        '  "hero_features": "2-3 standout visual features that make this product recognizable (e.g. \'distinctive red sole\', \'hexagonal bottle shape\', \'braided strap detail\')",\n'
+        '  "realistic_use_context": "how a real person actually uses this product in daily life — be specific (e.g. \'worn on wrist while typing at a desk\', \'placed on bathroom shelf next to a mirror\', \'carried over shoulder while walking in a city\')",\n'
+        '  "natural_environments": "3-4 real-world environments where this product naturally belongs (e.g. \'modern office desk\', \'gym locker room\', \'kitchen countertop\', \'bedside table\')",\n'
+        '  "interaction_type": "how a person interacts with it: worn | held | placed | applied | consumed | poured | opened | displayed | carried | plugged_in | other",\n'
+        '  "show_preference": "best way to photograph this product for a blog: alone_on_surface | in_use_by_person | in_natural_context | flat_lay_arrangement | close_up_detail",\n'
+        '  "preservation_warnings": "anything the AI image generator must NOT change about this product (e.g. \'do not alter the logo text\', \'keep the exact shade of blue\', \'maintain the curved handle shape\')"\n'
+        "}\n\n"
+        "Be extremely specific and grounded in what you actually see. "
+        "Do NOT guess brand names unless clearly visible. "
+        "Do NOT hallucinate features that are not in the image."
+    )
+
+    result = generate_text(prompt, image_b64, mime_type, json_mode=True)
+    text = result["text"].strip()
+
+    try:
+        text_clean = re.sub(r"^```json\s*", "", text)
+        text_clean = re.sub(r"\s*```$", "", text_clean)
+        parsed = json.loads(text_clean)
+        parsed["_product_usage"] = result.get("usage", {})
+        return parsed
+    except Exception:
+        logger.warning(f"Product analysis JSON parse failed: {text[:200]}")
+        return {
+            "product_type": "product",
+            "category": "general",
+            "material": "unknown",
+            "color": "unknown",
+            "finish_texture": "unknown",
+            "form_factor": "unknown",
+            "branding_visible": "none detected",
+            "hero_features": "standard product",
+            "realistic_use_context": "general use",
+            "natural_environments": "neutral setting",
+            "interaction_type": "placed",
+            "show_preference": "in_natural_context",
+            "preservation_warnings": "preserve all product details exactly",
+            "_product_usage": result.get("usage", {}),
+        }
+
+
+def analyze_blog_for_image(blog_content: str, scene_style: str | None = None, include_human: bool = False) -> dict:
+    """Analyze blog text to extract both creative direction AND SEO/article intent.
+    Returns a structured dict with visual brief fields plus article-intent fields.
+    """
+    import json
+
+    style_hint = f'\nThe user has requested a "{scene_style}" scene style — factor this into your choices.' if scene_style else ""
+    human_hint = (
+        '\nThe image MUST include a realistic human model interacting with the product. '
+        'Include a "human_direction" field describing the person\'s age range, gender (or neutral), '
+        'pose, clothing style, and how they interact with the product (holding, wearing, using, etc.).'
+    ) if include_human else ""
+
+    prompt = (
+        "You are a creative director AND SEO content strategist at a top agency.\n"
+        "Read the blog content below and extract TWO things:\n"
+        "1) A precise visual brief for a product photograph that would accompany this article\n"
+        "2) The article's SEO intent so the image actually supports the content goal\n\n"
+        f"--- BLOG CONTENT ---\n{blog_content[:3000]}\n--- END ---\n"
+        f"{style_hint}{human_hint}\n\n"
+        "Return ONLY valid JSON with ALL of these fields:\n"
+        "{\n"
+        '  "product_context": "what the product is and how the blog talks about it",\n'
+        '  "article_intent": "one of: informational | comparison | how_to | listicle | buyer_guide | problem_solution | review | tutorial",\n'
+        '  "funnel_stage": "one of: awareness | consideration | decision",\n'
+        '  "target_reader": "who is reading this article and why (e.g. \'first-time buyer researching options\', \'existing user looking for tips\')",\n'
+        '  "likely_search_query": "the search query someone would type to find this article (e.g. \'best wireless headphones for working out\')",\n'
+        '  "visual_goal": "what the image should communicate to the reader in one sentence (e.g. \'show the headphones being comfortably worn during a workout\')",\n'
+        '  "recommended_image_type": "one of: hero_banner | in_use_contextual | explanatory_support | lifestyle_credibility | comparison_support | step_illustration | product_detail_closeup",\n'
+        '  "what_section_it_supports": "which part of the article this image best supports (e.g. \'introduction\', \'benefits section\', \'how-to step 3\')",\n'
+        '  "setting": "specific physical location/environment for the photo — be very specific (e.g. \'sunlit Scandinavian kitchen with white oak countertops\')",\n'
+        '  "lighting": "exact lighting setup (e.g. \'warm golden-hour side light from a large window, soft fill from white walls\')",\n'
+        '  "color_palette": "3-5 specific colors that match the blog mood (e.g. \'warm ivory, terracotta, sage green, matte brass\')",\n'
+        '  "mood": "emotional tone in 2-3 words (e.g. \'cozy and intimate\', \'bold and energetic\')",\n'
+        '  "props": "2-4 complementary DECORATIVE objects only (NOT products/merchandise). Be specific. Never suggest other commercial products.",\n'
+        '  "camera_angle": "specific camera position (e.g. \'45-degree overhead\', \'eye-level straight-on\')",\n'
+        '  "depth_of_field": "shallow/medium/deep and what should be in focus vs blurred",\n'
+        '  "photography_brief": "A single, dense paragraph (80-120 words) that a photographer could use as a shot list. Hyper-specific."\n'
+        + (',  "human_direction": "detailed description of the person in the shot"' if include_human else "")
+        + "\n}\n\n"
+        "IMPORTANT: The image must SERVE the article — not just look pretty. "
+        "Think about what a reader searching for this topic needs to SEE to trust the article. "
+        "Be extremely specific and visual. Avoid generic descriptions."
+    )
+
+    result = generate_text(prompt, json_mode=True)
+    text = result["text"].strip()
+
+    try:
+        text_clean = re.sub(r"^```json\s*", "", text)
+        text_clean = re.sub(r"\s*```$", "", text_clean)
+        parsed = json.loads(text_clean)
+        parsed["_analysis_usage"] = result.get("usage", {})
+        return parsed
+    except Exception:
+        logger.warning(f"Blog analysis JSON parse failed, using raw text: {text[:200]}")
+        return {
+            "photography_brief": text[:500],
+            "article_intent": "informational",
+            "funnel_stage": "awareness",
+            "target_reader": "general reader",
+            "likely_search_query": "",
+            "visual_goal": "show the product in a relevant context",
+            "recommended_image_type": "in_use_contextual",
+            "what_section_it_supports": "general",
+            "setting": "contextual scene",
+            "lighting": "natural soft lighting",
+            "mood": "professional",
+            "color_palette": "neutral tones",
+            "props": "minimal complementary objects",
+            "camera_angle": "eye-level",
+            "depth_of_field": "shallow, product in focus",
+            "_analysis_usage": result.get("usage", {}),
+        }
+
+
 def extract_jewelry_details(image_b64: str, jewelry_type: str) -> dict:
     """Extract details from jewelry image for better prompts.
     Returns {"description": str, "metal": str, "stones": str}

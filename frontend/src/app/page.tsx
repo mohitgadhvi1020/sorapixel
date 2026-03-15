@@ -4,47 +4,47 @@ import HomePageClient from "./HomePageClient";
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://soraipixel.com";
 
 export const metadata: Metadata = {
-  title: "SoraiPixel — AI Photography for Jewelry | Studio-Quality Product Images in Seconds",
+  title: "SoraiPixel — AI Product Photography | Studio-Quality Images in Seconds",
   description:
-    "AI photography platform that transforms raw jewelry photos into studio-quality product images. Hero shots, close-ups, model photos, and lifestyle scenes — no studio needed. Try free.",
+    "AI photography platform that transforms any product photo into studio-quality images. Hero shots, close-ups, model photos, lifestyle scenes, and videos — no studio needed. Try free.",
   keywords: [
     "AI photography",
-    "AI jewelry photography",
     "AI product photography",
-    "jewelry product photography",
-    "AI photo generator",
-    "jewelry photo editing AI",
-    "studio quality jewelry images",
-    "e-commerce jewelry photos",
+    "product photo generator",
+    "e-commerce product photography",
     "AI photo enhancement",
-    "jewelry catalogue photography",
+    "studio quality product images",
+    "AI photo generator",
+    "product catalogue photography",
     "product photography AI tool",
     "AI image generator for products",
+    "UGC content creator",
+    "AI video generator",
   ],
   alternates: { canonical: "/" },
   openGraph: {
-    title: "SoraiPixel — AI Jewelry Photography",
+    title: "SoraiPixel — AI Product Photography",
     description:
-      "Transform raw jewelry photos into studio-quality images in seconds. AI-powered product photography for jewelers.",
+      "Transform any product photo into studio-quality images in seconds. AI-powered photography for e-commerce sellers.",
     url: SITE_URL,
     siteName: "SoraiPixel",
     type: "website",
     locale: "en_US",
     images: [
       {
-        url: `${SITE_URL}/images/hero-jewelry.png`,
+        url: `${SITE_URL}/images/og-hero.png`,
         width: 1376,
         height: 768,
-        alt: "SoraiPixel AI Jewelry Photography",
+        alt: "SoraiPixel AI Product Photography",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "SoraiPixel — AI Jewelry Photography",
+    title: "SoraiPixel — AI Product Photography",
     description:
-      "Transform raw jewelry photos into studio-quality images in seconds.",
-    images: [`${SITE_URL}/images/hero-jewelry.png`],
+      "Transform any product photo into studio-quality images in seconds.",
+    images: [`${SITE_URL}/images/og-hero.png`],
   },
 };
 

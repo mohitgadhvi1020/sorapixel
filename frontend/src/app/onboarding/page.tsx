@@ -16,17 +16,17 @@ export default function OnboardingPage() {
       return;
     }
     if (!loading && user?.category_id) {
-      router.push("/jewelry");
+      router.push("/studio");
     }
   }, [loading, user, router]);
 
   async function handleStart() {
     setSaving(true);
     try {
-      await api.put("/users/me", { category_id: "jewelry" });
-      router.push("/jewelry");
+      await api.put("/users/me", { category_id: "general" });
+      router.push("/studio");
     } catch {
-      router.push("/jewelry");
+      router.push("/studio");
     }
   }
 
@@ -46,7 +46,7 @@ export default function OnboardingPage() {
         {/* Value prop */}
         <div className="space-y-3">
           <p className="text-[rgba(255,255,255,0.6)] text-sm leading-relaxed">
-            AI-powered product photography for jewelry brands.
+            AI-powered product photography for any brand.
             Upload your photo, get stunning catalogue-ready images in seconds.
           </p>
         </div>

@@ -6,14 +6,14 @@ import { usePathname } from "next/navigation";
 import { useTheme } from "@/hooks/useTheme";
 
 const QUALITY_MESSAGES = [
-  "Pro quality renders 3x sharper details on gemstones & diamonds",
-  "Upgrade to Pro — see every facet, texture & reflection in stunning clarity",
-  "Standard is good. Pro is breathtaking. Your jewelry deserves Pro.",
+  "Pro quality renders 3x sharper product details & textures",
+  "Upgrade to Pro — see every texture, finish & material in stunning clarity",
+  "Standard is good. Pro is breathtaking. Your products deserve Pro.",
   "Pro AI captures micro-details invisible in Standard mode",
   "Sell faster with Pro-quality photos — 2.7x higher click-through rate",
-  "Pro renders show true metal shine, stone brilliance & shadow depth",
+  "Pro renders show true material quality, colors & shadow depth",
   "Your competitors use professional photos. Match them with Pro quality.",
-  "Pro mode = studio-grade lighting, sharper stones, richer colors",
+  "Pro mode = studio-grade lighting, sharper details, richer colors",
 ];
 
 export default function ProQualityTicker() {

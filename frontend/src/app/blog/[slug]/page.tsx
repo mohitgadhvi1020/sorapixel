@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Logo from "@/components/ui/Logo";
 import BlogRenderer from "@/components/blog/BlogRenderer";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
@@ -177,13 +178,8 @@ export default async function BlogPostPage({
       <header className="bg-white border-b border-[#e8e5df]">
         <div className="max-w-[1200px] mx-auto px-5 md:px-8 lg:px-12">
           <div className="flex items-center justify-between py-4">
-            <Link href="/" className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-[#0a0a0a] flex items-center justify-center">
-                <span className="text-white text-xs font-bold">SP</span>
-              </div>
-              <span className="font-display font-bold text-[15px] tracking-tight text-[#0a0a0a]">
-                SoraiPixel
-              </span>
+            <Link href="/" className="flex items-center">
+              <Logo className="text-lg" />
             </Link>
             <div className="flex items-center gap-3">
               <Link

@@ -87,14 +87,14 @@ export default function ExitIntentPopup() {
             </svg>
           </div>
           <h2 className="font-display font-bold text-white text-[1.25rem] sm:text-[1.5rem] tracking-tight mb-2">
-            Wait — Try It on <span className="text-[#c4a67d]">YOUR</span> Jewelry
+            Wait — Try It on <span className="text-[#c4a67d]">YOUR</span> Product
           </h2>
           <p className="text-white/40 text-[13px] sm:text-[14px] leading-relaxed max-w-sm mx-auto mb-6">
-            Upload one jewelry photo and see the AI transformation in 30 seconds. Free — no credit card, no signup required.
+            Upload one product photo and see the AI transformation in 30 seconds. Free — no credit card, no signup required.
           </p>
 
           <Link
-            href="/jewelry"
+            href="/studio"
             onClick={handleClose}
             className="inline-flex items-center gap-2 px-8 py-3.5 bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-white text-[14px] font-bold rounded-full hover:shadow-[0_6px_24px_rgba(196,166,125,0.35)] transition-all active:scale-[0.97]"
           >

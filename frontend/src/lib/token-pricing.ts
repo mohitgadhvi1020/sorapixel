@@ -49,7 +49,7 @@ export function getStudioCost(quality: Quality = "standard"): number {
 
 export const TOKEN_COSTS_TABLE = [
   { feature: "First Generation", standard: "FREE (1x)", pro: "FREE (1x)" },
-  { feature: "Jewelry Photo (per image)", standard: `${JEWELRY_PRICING.standard.imageGen} tokens`, pro: `${JEWELRY_PRICING.pro.imageGen} tokens` },
+  { feature: "Product Photo (per image)", standard: `${JEWELRY_PRICING.standard.imageGen} tokens`, pro: `${JEWELRY_PRICING.pro.imageGen} tokens` },
   { feature: "Regenerate Shot", standard: `${JEWELRY_PRICING.standard.regenSingle} tokens`, pro: `${JEWELRY_PRICING.pro.regenSingle} tokens` },
   { feature: "UGC Model Photo (per pose)", standard: `${JEWELRY_PRICING.standard.ugcPerPose} tokens`, pro: `${JEWELRY_PRICING.pro.ugcPerPose} tokens` },
   { feature: "Recolor Metal", standard: `${JEWELRY_PRICING.standard.recolorSingle} tokens`, pro: `${JEWELRY_PRICING.pro.recolorSingle} tokens` },

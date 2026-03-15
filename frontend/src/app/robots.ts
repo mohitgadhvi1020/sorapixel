@@ -13,7 +13,7 @@ export default function robots(): MetadataRoute.Robots {
           "/profile",
           "/projects",
           "/studio",
-          "/jewelry",
+          "/studio",
           "/catalogue",
           "/batch-listing",
           "/tryon",

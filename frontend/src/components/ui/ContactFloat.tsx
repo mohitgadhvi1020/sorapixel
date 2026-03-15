@@ -8,7 +8,7 @@ export default function ContactFloat() {
   if (isIndia) {
     return (
       <a
-        href="https://wa.me/916351068776?text=Hi%20I%20want%20to%20try%20AI%20jewelry%20photography"
+        href="https://wa.me/916351068776?text=Hi%20I%20want%20to%20try%20AI%20product%20photography"
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Chat on WhatsApp"

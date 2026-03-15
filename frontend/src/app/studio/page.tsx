@@ -593,6 +593,51 @@ export default function StudioPage() {
                 )}
               </div>
             ))}
+
+            {/* Take it further */}
+            <div className="pt-6 border-t border-[rgba(255,255,255,0.08)]">
+              <p className="text-xs font-semibold text-[rgba(255,255,255,0.35)] uppercase tracking-wider mb-3">Take it further</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  onClick={() => {
+                    const img = results[0];
+                    if (!img?.base64) return;
+                    const blob = new Blob([Uint8Array.from(atob(img.base64), c => c.charCodeAt(0))], { type: "image/png" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    sessionStorage.setItem("video_image_b64", img.base64);
+                    router.push("/video");
+                  }}
+                  className="flex items-center gap-3 p-4 rounded-xl bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(196,166,125,0.3)] transition-all group text-left"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-[rgba(196,166,125,0.1)] flex items-center justify-center flex-shrink-0">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c4a67d" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                  </div>
+                  <div>
+                    <span className="text-sm font-semibold text-white block">Create Video</span>
+                    <span className="text-[11px] text-[rgba(255,255,255,0.35)]">Turn this image into a product video</span>
+                  </div>
+                </button>
+                <button
+                  onClick={() => {
+                    const img = results[0];
+                    if (!img?.base64) return;
+                    sessionStorage.setItem("ugc_image_b64", img.base64);
+                    router.push("/ugc");
+                  }}
+                  className="flex items-center gap-3 p-4 rounded-xl bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(196,166,125,0.3)] transition-all group text-left"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-[rgba(196,166,125,0.1)] flex items-center justify-center flex-shrink-0">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c4a67d" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                  </div>
+                  <div>
+                    <span className="text-sm font-semibold text-white block">Create UGC</span>
+                    <span className="text-[11px] text-[rgba(255,255,255,0.35)]">AI models showcasing your product</span>
+                  </div>
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

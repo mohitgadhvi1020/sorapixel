@@ -297,6 +297,67 @@ async def admin_generate_catalogue(body: dict, admin: dict = Depends(require_adm
     return {"success": bool(valid), "images": images}
 
 
+@router.post("/feed-items/regenerate")
+async def regenerate_feed_images(body: dict = {}, admin: dict = Depends(require_admin)):
+    """Re-generate after images for feed items using Gemini (no watermark).
+
+    Downloads each before_image_url, sends it through Gemini with a studio prompt,
+    uploads the clean result to storage, and updates the feed_item.
+    Optional body: {"item_ids": ["id1","id2"]} to limit scope, otherwise processes all.
+    """
+    import urllib.request
+    sb = get_supabase()
+
+    item_ids = body.get("item_ids") if body else None
+    query = sb.table("feed_items").select("*").eq("is_active", True).order("display_order")
+    result = query.execute()
+    items = result.data or []
+
+    if item_ids:
+        items = [it for it in items if it["id"] in item_ids]
+
+    updated = []
+    errors = []
+
+    for item in items:
+        before_url = item.get("before_image_url", "")
+        if not before_url:
+            errors.append({"id": item["id"], "title": item.get("title", ""), "error": "No before_image_url"})
+            continue
+
+        try:
+            resp = urllib.request.urlopen(before_url, timeout=30)
+            image_bytes = resp.read()
+            image_b64 = b64lib.b64encode(image_bytes).decode("utf-8")
+
+            title = item.get("title", "product")
+            prompt = (
+                f"Professional product photography of this {title}. "
+                f"Place it on a clean, elegant studio background with professional lighting. "
+                f"High resolution, commercial quality, perfectly lit with natural soft shadows. "
+                f"The product must be the EXACT same product from the input image — same shape, design, color, details. "
+                f"Do NOT redesign, modify, or reimagine the product. "
+                f"Only change the BACKGROUND and LIGHTING, never the product itself."
+            )
+
+            gen_result = generate_image(prompt, image_b64)
+            clean_b64 = gen_result["base64"]
+
+            raw_bytes = b64lib.b64decode(clean_b64)
+            storage_path = f"feed/{uuid.uuid4()}.png"
+            sb.storage.from_(BUCKET).upload(storage_path, raw_bytes, {"content-type": "image/png"})
+            new_url = f"{sb.supabase_url}/storage/v1/object/public/{BUCKET}/{storage_path}"
+
+            sb.table("feed_items").update({"after_image_url": new_url}).eq("id", item["id"]).execute()
+            updated.append({"id": item["id"], "title": item.get("title", ""), "new_url": new_url})
+            logger.info(f"Regenerated feed image for '{item.get('title', '')}' -> {new_url}")
+        except Exception as e:
+            logger.error(f"Feed regeneration error for '{item.get('title', '')}': {e}")
+            errors.append({"id": item["id"], "title": item.get("title", ""), "error": str(e)})
+
+    return {"success": len(updated) > 0, "updated": len(updated), "errors": len(errors), "details": updated, "error_details": errors}
+
+
 @router.get("/revenue")
 async def get_revenue(admin: dict = Depends(require_admin)):
     sb = get_supabase()

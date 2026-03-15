@@ -132,7 +132,7 @@ export default function PricingModal() {
               Upgrade Your <span className="bg-gradient-to-r from-[#c4a67d] via-[#e8d5b5] to-[#8b7355] bg-clip-text text-transparent">Photography</span>
             </h2>
             <p className="text-white/35 text-[13px] sm:text-[14px] mt-2 max-w-md mx-auto leading-relaxed">
-              Professional jewelry photos at a fraction of studio costs. Choose the plan that fits your business.
+              Professional product photos at a fraction of studio costs. Choose the plan that fits your business.
             </p>
           </div>
 

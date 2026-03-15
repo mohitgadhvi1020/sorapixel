@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 
-const PROTECTED_ROUTES = ["/studio", "/catalogue", "/batch-listing", "/projects", "/profile", "/admin", "/brand-settings"];
+const PROTECTED_ROUTES = ["/studio", "/catalogue", "/batch-listing", "/projects", "/profile", "/admin", "/brand-settings", "/blog-images"];
 
 const EUROPE_CODES = new Set([
   "AT","BE","BG","HR","CY","CZ","DK","EE","FI","FR","DE","GR","HU","IE",

@@ -22,33 +22,33 @@ BUCKET = "sorapixel-images"
 VIDEO_MODES = {
     "360_spin": {
         "prompt_template": (
-            "A smooth, continuous 360-degree rotating turntable shot of this {jewelry_type} jewelry piece. "
-            "The jewelry slowly rotates on a clean, elegant surface showing every angle and detail. "
-            "Professional studio lighting with soft reflections highlighting the metal and gemstones. "
-            "Seamless rotation, photorealistic, luxury product video."
+            "A smooth, continuous 360-degree rotating turntable shot of this {product_type} product. "
+            "The product slowly rotates on a clean, elegant surface showing every angle and detail. "
+            "Professional studio lighting with soft reflections highlighting textures and materials. "
+            "Seamless rotation, photorealistic, premium product video."
         ),
     },
     "hero_reveal": {
         "prompt_template": (
-            "A cinematic reveal shot of this {jewelry_type} jewelry piece. "
+            "A cinematic reveal shot of this {product_type} product. "
             "Camera slowly pushes in from a medium shot to an extreme close-up, "
-            "revealing intricate details of the craftsmanship. Professional studio lighting, "
+            "revealing intricate details and craftsmanship. Professional studio lighting, "
             "shallow depth of field, luxury product cinematography."
         ),
     },
     "lifestyle": {
         "prompt_template": (
-            "An elegant lifestyle video showcasing this {jewelry_type} jewelry piece. "
-            "Soft natural lighting, gentle camera movement, the jewelry is displayed beautifully "
-            "in a luxurious setting. Cinematic color grading, premium feel, aspirational mood."
+            "An elegant lifestyle video showcasing this {product_type} product. "
+            "Soft natural lighting, gentle camera movement, the product is displayed beautifully "
+            "in a premium setting. Cinematic color grading, aspirational mood."
         ),
     },
     "sparkle": {
         "prompt_template": (
-            "A close-up shot of this {jewelry_type} jewelry piece catching light beautifully. "
-            "The camera moves subtly as light dances across the metal and stones, creating "
-            "brilliant sparkles and reflections. Professional macro photography style, "
-            "mesmerizing light play, luxury product video."
+            "A close-up shot of this {product_type} product catching light beautifully. "
+            "The camera moves subtly as light dances across the surface, creating "
+            "brilliant highlights and reflections. Professional macro photography style, "
+            "mesmerizing light play, premium product video."
         ),
     },
     "custom": {
@@ -61,7 +61,7 @@ ASPECT_RATIOS = {"square": "16:9", "portrait": "9:16", "landscape": "16:9"}
 
 def _build_video_prompt(
     mode: str,
-    jewelry_type: str = "jewelry",
+    jewelry_type: str = "product",
     custom_prompt: str | None = None,
 ) -> str:
     """Build the video generation prompt based on mode."""
@@ -72,7 +72,7 @@ def _build_video_prompt(
         return custom_prompt
 
     return template.format(
-        jewelry_type=jewelry_type,
+        product_type=jewelry_type,
         custom_prompt=custom_prompt or "",
     )
 
@@ -80,12 +80,12 @@ def _build_video_prompt(
 async def generate_video(
     image_b64: str,
     mode: str = "360_spin",
-    jewelry_type: str = "jewelry",
+    jewelry_type: str = "product",
     aspect_ratio: str = "landscape",
     custom_prompt: str | None = None,
     client_id: str | None = None,
 ) -> dict:
-    """Generate a video from a jewelry image using Veo 2.
+    """Generate a video from a product image using Veo 2.
 
     Returns {"video_url": str, "storage_path": str, "duration": int, "model": str}
     """
@@ -209,7 +209,7 @@ async def generate_video(
 async def generate_video_first_last_frame(
     first_frame_b64: str,
     last_frame_b64: str,
-    prompt: str = "Smooth cinematic transition between these two frames of a jewelry piece.",
+    prompt: str = "Smooth cinematic transition between these two frames of a product.",
     aspect_ratio: str = "landscape",
     client_id: str | None = None,
 ) -> dict:

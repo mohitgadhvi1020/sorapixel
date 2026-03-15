@@ -22,7 +22,7 @@ def _signed_url(sb, path: str, expires: int = 3600) -> str:
 
 
 def _enrich_project(sb, project: dict) -> dict:
-    """Add signed URLs to every image stored in metadata.images."""
+    """Add signed URLs to every image and video stored in metadata."""
     meta = project.get("metadata") or {}
     images = meta.get("images") or []
     for img in images:
@@ -33,6 +33,11 @@ def _enrich_project(sb, project: dict) -> dict:
         project["thumbnail_url"] = images[0].get("url", "")
     else:
         project["thumbnail_url"] = ""
+
+    video_sp = meta.get("video_storage_path")
+    if video_sp:
+        meta["video_url"] = _signed_url(sb, video_sp)
+
     return project
 
 

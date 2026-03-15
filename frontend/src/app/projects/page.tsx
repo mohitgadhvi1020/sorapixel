@@ -51,12 +51,17 @@ interface ProjectCard {
     category?: string;
     quality?: string;
     images?: ProjectImage[];
+    video_url?: string;
+    video_storage_path?: string;
+    mode?: string;
+    duration?: number;
+    aspect_ratio?: string;
   };
   thumbnail_url: string;
   created_at: string;
 }
 
-type Tab = "all" | "jewelry" | "studio";
+type Tab = "all" | "sessions" | "studio" | "videos";
 
 export default function ProjectsPage() {
   const { user } = useAuth();
@@ -111,14 +116,19 @@ export default function ProjectsPage() {
     return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
   }
 
+  const imageProjects = projects.filter((p) => p.project_type !== "video");
+  const videoProjects = projects.filter((p) => p.project_type === "video");
+
   const tabs: { key: Tab; label: string; count: number }[] = [
     { key: "all", label: "All", count: sessions.length + projects.length },
-    { key: "jewelry", label: "Jewelry", count: sessions.length },
-    { key: "studio", label: "Product Studio", count: projects.length },
+    { key: "sessions", label: "Sessions", count: sessions.length },
+    { key: "studio", label: "Product Studio", count: imageProjects.length },
+    { key: "videos", label: "Videos", count: videoProjects.length },
   ];
 
-  const showSessions = activeTab === "all" || activeTab === "jewelry";
+  const showSessions = activeTab === "all" || activeTab === "sessions";
   const showProjects = activeTab === "all" || activeTab === "studio";
+  const showVideos = activeTab === "all" || activeTab === "videos";
 
   const totalItems = (showSessions ? sessions.length : 0) + (showProjects ? projects.length : 0);
 
@@ -145,7 +155,7 @@ export default function ProjectsPage() {
         <div className="mb-6">
           <h1 className="text-2xl md:text-3xl font-bold text-white font-display">My Creations</h1>
           <p className="text-sm text-[rgba(255,255,255,0.5)] mt-1">
-            Your generated images — jewelry sessions and product studio shots.
+            Your generated images — all sessions and product studio shots.
           </p>
         </div>
 
@@ -186,17 +196,19 @@ export default function ProjectsPage() {
             <p className="text-[rgba(255,255,255,0.4)] text-sm mb-4">
               {activeTab === "studio"
                 ? "Head to Product Studio to create your first shot."
-                : activeTab === "jewelry"
-                ? "Head to Jewelry Studio to create your first masterpiece."
-                : "Create your first image in the Jewelry or Product Studio."}
+                : activeTab === "sessions"
+                ? "Head to Product Studio to create your first image."
+                : activeTab === "videos"
+                ? "Head to Video Studio to create your first video."
+                : "Create your first image in the Product Studio."}
             </p>
             <div className="flex gap-3">
-              {(activeTab === "all" || activeTab === "jewelry") && (
+              {(activeTab === "all" || activeTab === "sessions") && (
                 <button
-                  onClick={() => router.push("/jewelry")}
+                  onClick={() => router.push("/studio")}
                   className="px-5 py-2.5 bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-white text-sm font-semibold rounded-full"
                 >
-                  Jewelry Studio
+                  Product Studio
                 </button>
               )}
               {(activeTab === "all" || activeTab === "studio") && (
@@ -213,7 +225,7 @@ export default function ProjectsPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* Studio Projects */}
             {showProjects &&
-              projects.map((p) => (
+              imageProjects.map((p) => (
                 <div
                   key={`proj-${p.id}`}
                   className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)] hover:border-[rgba(196,166,125,0.3)] transition-all duration-200 overflow-hidden group cursor-pointer"
@@ -287,7 +299,83 @@ export default function ProjectsPage() {
                 </div>
               ))}
 
-            {/* Jewelry Sessions */}
+            {/* Video Projects */}
+            {showVideos &&
+              videoProjects.map((p) => (
+                <div
+                  key={`vid-${p.id}`}
+                  className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)] hover:border-[rgba(196,166,125,0.3)] transition-all duration-200 overflow-hidden group cursor-pointer"
+                  onClick={() => openProjectPreview(p)}
+                >
+                  <div className="aspect-square bg-[rgba(0,0,0,0.3)] overflow-hidden relative flex items-center justify-center">
+                    {p.thumbnail_url ? (
+                      <img
+                        src={p.thumbnail_url}
+                        alt={p.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[rgba(196,166,125,0.1)] to-transparent">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(196,166,125,0.4)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polygon points="5 3 19 12 5 21 5 3" />
+                        </svg>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-12 h-12 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center opacity-80 group-hover:opacity-100 transition-opacity">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                      </div>
+                    </div>
+                    <div className="absolute top-2 left-2">
+                      <span className="text-[8px] font-bold bg-[rgba(196,166,125,0.85)] text-white px-2 py-0.5 rounded-full uppercase tracking-wider backdrop-blur-sm">
+                        Video
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 space-y-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-white truncate">{p.title}</h3>
+                      <div className="flex items-center gap-2 mt-1">
+                        {p.metadata?.mode && (
+                          <span className="text-[10px] text-[rgba(255,255,255,0.4)] bg-[rgba(255,255,255,0.04)] px-2 py-0.5 rounded-full capitalize">
+                            {p.metadata.mode.replace(/_/g, " ")}
+                          </span>
+                        )}
+                        {p.metadata?.duration && (
+                          <span className="text-[10px] text-[rgba(255,255,255,0.3)]">
+                            {p.metadata.duration}s
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-[rgba(255,255,255,0.3)]">{formatDate(p.created_at)}</p>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push("/video");
+                        }}
+                        className="flex-1 px-3 py-2 bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-white text-xs font-semibold rounded-xl hover:shadow-[0_4px_16px_rgba(196,166,125,0.3)] active:scale-[0.97] transition-all"
+                      >
+                        Open Video Studio
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openProjectPreview(p);
+                        }}
+                        className="px-3 py-2 bg-[rgba(255,255,255,0.06)] text-[rgba(255,255,255,0.6)] text-xs font-semibold rounded-xl hover:bg-[rgba(255,255,255,0.1)] hover:text-white transition-all border border-[rgba(255,255,255,0.08)]"
+                      >
+                        Preview
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+            {/* Sessions */}
             {showSessions &&
               sessions.map((s) => (
                 <div
@@ -312,7 +400,7 @@ export default function ProjectsPage() {
                     )}
                     <div className="absolute top-2 left-2">
                       <span className="text-[8px] font-bold bg-[rgba(196,166,125,0.85)] text-white px-2 py-0.5 rounded-full uppercase tracking-wider backdrop-blur-sm">
-                        Jewelry
+                        Session
                       </span>
                     </div>
                     <div className="absolute top-2 right-2 flex gap-1.5">
@@ -340,7 +428,7 @@ export default function ProjectsPage() {
 
                     <div className="flex gap-2">
                       <button
-                        onClick={() => router.push(`/jewelry?session=${s.id}`)}
+                        onClick={() => router.push(`/studio?session=${s.id}`)}
                         className="flex-1 px-3 py-2 bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-white text-xs font-semibold rounded-xl hover:shadow-[0_4px_16px_rgba(196,166,125,0.3)] active:scale-[0.97] transition-all"
                       >
                         Open
@@ -359,7 +447,7 @@ export default function ProjectsPage() {
         )}
       </div>
 
-      {/* Session Preview modal (Jewelry) */}
+      {/* Session Preview modal */}
       {(previewSession || previewLoading) && (
         <div
           className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
@@ -453,11 +541,11 @@ export default function ProjectsPage() {
                   <button
                     onClick={() => {
                       setPreviewSession(null);
-                      router.push(`/jewelry?session=${previewSession.id}`);
+                      router.push(`/studio?session=${previewSession.id}`);
                     }}
                     className="w-full px-4 py-3 bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-white text-sm font-semibold rounded-xl hover:shadow-[0_4px_16px_rgba(196,166,125,0.3)] active:scale-[0.97] transition-all"
                   >
-                    Open in Jewelry Studio
+                    Open in Product Studio
                   </button>
                 </div>
               </div>
@@ -480,17 +568,26 @@ export default function ProjectsPage() {
               <div>
                 <h3 className="text-lg font-bold text-white">{previewProject.title}</h3>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className="text-[8px] font-bold bg-[rgba(59,130,246,0.85)] text-white px-2 py-0.5 rounded-full uppercase tracking-wider">
-                    Studio
+                  <span className={`text-[8px] font-bold text-white px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                    previewProject.project_type === "video" ? "bg-[rgba(196,166,125,0.85)]" : "bg-[rgba(59,130,246,0.85)]"
+                  }`}>
+                    {previewProject.project_type === "video" ? "Video" : "Studio"}
                   </span>
                   {previewProject.metadata?.quality === "pro" && (
                     <span className="text-[8px] font-bold bg-gradient-to-r from-[#c4a67d] to-[#d4b88f] text-white px-1.5 py-0.5 rounded-full uppercase">
                       Pro
                     </span>
                   )}
-                  <span className="text-[10px] text-[rgba(255,255,255,0.4)] capitalize">
-                    BG: {previewProject.metadata?.background || "auto"}
-                  </span>
+                  {previewProject.project_type === "video" && previewProject.metadata?.mode && (
+                    <span className="text-[10px] text-[rgba(255,255,255,0.4)] capitalize">
+                      {previewProject.metadata.mode.replace(/_/g, " ")}
+                    </span>
+                  )}
+                  {previewProject.project_type !== "video" && (
+                    <span className="text-[10px] text-[rgba(255,255,255,0.4)] capitalize">
+                      BG: {previewProject.metadata?.background || "auto"}
+                    </span>
+                  )}
                 </div>
               </div>
               <button
@@ -504,30 +601,45 @@ export default function ProjectsPage() {
             </div>
 
             <div className="p-5">
-              <p className="text-[10px] font-semibold text-[rgba(255,255,255,0.4)] uppercase tracking-wider mb-3">Generated Images</p>
-              {(previewProject.metadata?.images || []).length === 0 ? (
-                <p className="text-sm text-[rgba(255,255,255,0.4)] text-center py-6">No images found.</p>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {(previewProject.metadata?.images || []).map((img, j) => (
-                    <div
-                      key={j}
-                      className="rounded-xl overflow-hidden border border-[rgba(255,255,255,0.08)] hover:border-[rgba(59,130,246,0.4)] cursor-pointer transition-colors relative group"
-                      onClick={() => img.url && setLightboxUrl(img.url)}
-                    >
-                      {img.url ? (
-                        <img src={img.url} alt={img.label} className="w-full aspect-square object-cover" />
-                      ) : (
-                        <div className="w-full aspect-square bg-[rgba(255,255,255,0.03)] flex items-center justify-center">
-                          <span className="text-[10px] text-[rgba(255,255,255,0.3)]">No preview</span>
-                        </div>
-                      )}
-                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-2 pt-5">
-                        <span className="text-[9px] font-semibold text-white/80 line-clamp-1">{img.label}</span>
-                      </div>
-                    </div>
-                  ))}
+              {previewProject.project_type === "video" && previewProject.metadata?.video_url ? (
+                <div>
+                  <p className="text-[10px] font-semibold text-[rgba(255,255,255,0.4)] uppercase tracking-wider mb-3">Generated Video</p>
+                  <video
+                    src={previewProject.metadata.video_url}
+                    controls
+                    autoPlay
+                    loop
+                    className="w-full rounded-xl border border-[rgba(255,255,255,0.08)]"
+                  />
                 </div>
+              ) : (
+                <>
+                  <p className="text-[10px] font-semibold text-[rgba(255,255,255,0.4)] uppercase tracking-wider mb-3">Generated Images</p>
+                  {(previewProject.metadata?.images || []).length === 0 ? (
+                    <p className="text-sm text-[rgba(255,255,255,0.4)] text-center py-6">No images found.</p>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {(previewProject.metadata?.images || []).map((img, j) => (
+                        <div
+                          key={j}
+                          className="rounded-xl overflow-hidden border border-[rgba(255,255,255,0.08)] hover:border-[rgba(59,130,246,0.4)] cursor-pointer transition-colors relative group"
+                          onClick={() => img.url && setLightboxUrl(img.url)}
+                        >
+                          {img.url ? (
+                            <img src={img.url} alt={img.label} className="w-full aspect-square object-cover" />
+                          ) : (
+                            <div className="w-full aspect-square bg-[rgba(255,255,255,0.03)] flex items-center justify-center">
+                              <span className="text-[10px] text-[rgba(255,255,255,0.3)]">No preview</span>
+                            </div>
+                          )}
+                          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-2 pt-5">
+                            <span className="text-[9px] font-semibold text-white/80 line-clamp-1">{img.label}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
@@ -542,11 +654,15 @@ export default function ProjectsPage() {
               <button
                 onClick={() => {
                   setPreviewProject(null);
-                  router.push("/studio");
+                  router.push(previewProject.project_type === "video" ? "/video" : "/studio");
                 }}
-                className="w-full px-4 py-3 bg-gradient-to-r from-[#3b82f6] to-[#6366f1] text-white text-sm font-semibold rounded-xl hover:shadow-[0_4px_16px_rgba(99,102,241,0.3)] active:scale-[0.97] transition-all"
+                className={`w-full px-4 py-3 text-white text-sm font-semibold rounded-xl active:scale-[0.97] transition-all ${
+                  previewProject.project_type === "video"
+                    ? "bg-gradient-to-r from-[#8b7355] to-[#c4a67d] hover:shadow-[0_4px_16px_rgba(196,166,125,0.3)]"
+                    : "bg-gradient-to-r from-[#3b82f6] to-[#6366f1] hover:shadow-[0_4px_16px_rgba(99,102,241,0.3)]"
+                }`}
               >
-                Open Product Studio
+                {previewProject.project_type === "video" ? "Open Video Studio" : "Open Product Studio"}
               </button>
             </div>
           </div>

@@ -52,7 +52,7 @@ function VideoPageInner() {
   const [videoAspect, setVideoAspect] = useState("landscape");
   const [videoGenerating, setVideoGenerating] = useState(false);
   const [videoResult, setVideoResult] = useState<VideoResult | null>(null);
-  const [jewelryType, setJewelryType] = useState("jewelry");
+  const [productType, setProductType] = useState("product");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [dragOver, setDragOver] = useState(false);
@@ -70,11 +70,18 @@ function VideoPageInner() {
     const type = searchParams.get("type");
     const session = searchParams.get("session");
 
-    if (type) setJewelryType(type);
+    if (type) setProductType(type);
     if (session) setSessionId(session);
 
     if (imageUrl) {
       fetchImageAsBase64(imageUrl);
+    }
+
+    const storedB64 = sessionStorage.getItem("video_image_b64");
+    if (!imageUrl && storedB64) {
+      setImageB64(storedB64);
+      setImagePreview(`data:image/png;base64,${storedB64}`);
+      sessionStorage.removeItem("video_image_b64");
     }
   }, [searchParams]);
 
@@ -130,7 +137,7 @@ function VideoPageInner() {
       const data = await api.post<VideoResult>("/video/generate", {
         image_b64: imageB64,
         mode: videoMode,
-        jewelry_type: jewelryType,
+        jewelry_type: productType,
         aspect_ratio: videoAspect,
         quality: videoQuality,
         custom_prompt: videoMode === "custom" ? videoCustomPrompt : undefined,
@@ -144,7 +151,7 @@ function VideoPageInner() {
     } finally {
       setVideoGenerating(false);
     }
-  }, [imageB64, videoGenerating, videoMode, jewelryType, videoAspect, videoQuality, videoCustomPrompt, sessionId, refreshCredits]);
+  }, [imageB64, videoGenerating, videoMode, productType, videoAspect, videoQuality, videoCustomPrompt, sessionId, refreshCredits]);
 
   function resetAll() {
     setVideoResult(null);
@@ -160,7 +167,7 @@ function VideoPageInner() {
     setVideoQuality("standard");
     setVideoCustomPrompt("");
     setVideoAspect("landscape");
-    setJewelryType("jewelry");
+    setProductType("product");
     setSessionId(null);
   }
 
@@ -199,7 +206,7 @@ function VideoPageInner() {
             Video Generation
           </h1>
           <p className={`text-sm mt-1.5 ${lt ? "text-[#0a0a0a]/50" : "text-white/50"}`}>
-            Create stunning jewelry videos
+            Create stunning product videos
           </p>
         </div>
 
@@ -242,7 +249,7 @@ function VideoPageInner() {
                 </svg>
               </div>
               <p className={`text-sm font-semibold ${lt ? "text-[#0a0a0a]" : "text-white"}`}>
-                Upload your jewelry image
+                Upload your product image
               </p>
               <p className={`text-xs mt-1.5 ${lt ? "text-[#0a0a0a]/40" : "text-white/40"}`}>
                 Drag and drop or click to browse

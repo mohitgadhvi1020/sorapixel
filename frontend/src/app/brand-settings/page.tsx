@@ -240,7 +240,7 @@ export default function BrandSettingsPage() {
           </div>
           <div>
             <label className={labelClass}>Product Type</label>
-            <input value={config.productType} onChange={(e) => updateConfig("productType", e.target.value)} placeholder="e.g. Fashion jewellery — plated, coated, alloy-based" className={inputClass} />
+            <input value={config.productType} onChange={(e) => updateConfig("productType", e.target.value)} placeholder="e.g. Fashion product — plated, coated, alloy-based" className={inputClass} />
           </div>
           <div>
             <label className={labelClass}>Target Audience</label>
@@ -270,7 +270,7 @@ export default function BrandSettingsPage() {
           <h3 className="text-sm font-bold text-white">Material Language Rules</h3>
           <div>
             <label className={labelClass}>Important Note</label>
-            <textarea value={config.materialRules.note} onChange={(e) => updateConfig("materialRules", { ...config.materialRules, note: e.target.value })} placeholder="e.g. Fashion jewellery — NEVER imply solid precious metals" className={textareaClass} />
+            <textarea value={config.materialRules.note} onChange={(e) => updateConfig("materialRules", { ...config.materialRules, note: e.target.value })} placeholder="e.g. Fashion product — NEVER imply solid precious metals" className={textareaClass} />
           </div>
           <div>
             <label className={labelClass}>Never Say → Always Say</label>

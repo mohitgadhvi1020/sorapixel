@@ -25,17 +25,17 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://soraipixel.com";
 
 export const metadata: Metadata = {
   title: {
-    default: "SoraiPixel — AI Jewelry Photography",
+    default: "SoraiPixel — AI Product Photography",
     template: "%s | SoraiPixel",
   },
   description:
-    "AI photography platform for jewelry. Transform raw product photos into studio-quality images in seconds. AI jewelry photography with hero shots, model photos, lifestyle scenes. Try free.",
+    "AI photography platform for products. Transform any product photo into studio-quality images in seconds. Hero shots, model photos, lifestyle scenes, videos & UGC. Try free.",
   metadataBase: new URL(SITE_URL),
   alternates: { canonical: "/" },
   openGraph: {
-    title: "SoraiPixel — AI Photography for Jewelry",
+    title: "SoraiPixel — AI Product Photography",
     description:
-      "AI photography that transforms raw jewelry photos into studio-quality images. Hero shots, model photos, lifestyle scenes — all from one upload.",
+      "AI photography that transforms any product photo into studio-quality images. Hero shots, model photos, lifestyle scenes — all from one upload.",
     url: SITE_URL,
     siteName: "SoraiPixel",
     type: "website",
@@ -43,9 +43,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "SoraiPixel — AI Photography for Jewelry",
+    title: "SoraiPixel — AI Product Photography",
     description:
-      "AI photography platform. Transform any jewelry photo into studio-quality images in seconds.",
+      "AI photography platform. Transform any product photo into studio-quality images in seconds.",
   },
   robots: {
     index: true,
@@ -69,7 +69,7 @@ const organizationJsonLd = {
   "@type": "Organization",
   name: "SoraiPixel",
   url: SITE_URL,
-  description: "AI photography platform for jewelry and product images. Studio-quality hero shots, model photos, and lifestyle scenes from any photo, in seconds.",
+  description: "AI photography platform for products. Studio-quality hero shots, model photos, and lifestyle scenes from any photo, in seconds.",
   sameAs: [],
 };
 
@@ -88,7 +88,7 @@ const softwareAppJsonLd = {
   operatingSystem: "Web",
   url: SITE_URL,
   description:
-    "AI photography platform for jewelry and products. Transform raw photos into studio-quality images with hero shots, close-ups, model photos, and lifestyle scenes.",
+    "AI photography platform for products. Transform any photo into studio-quality images with hero shots, close-ups, model photos, and lifestyle scenes.",
   offers: {
     "@type": "Offer",
     price: "0",

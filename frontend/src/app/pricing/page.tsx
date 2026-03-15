@@ -353,7 +353,7 @@ export default function PricingPage() {
               }`}>No card needed</span>
             </div>
             <p className={`text-sm mb-4 ${isLight ? "text-[#666]" : "text-[rgba(255,255,255,0.5)]"}`}>
-              Every new account gets free tokens to try the full jewelry photography experience.
+              Every new account gets free tokens to try the full product photography experience.
             </p>
             <div className="grid grid-cols-3 gap-3">
               {[
@@ -565,7 +565,7 @@ export default function PricingPage() {
             ))}
           </div>
           <p className={`text-[11px] text-center ${isLight ? "text-[#aaa]" : "text-[rgba(255,255,255,0.25)]"}`}>
-            Pro quality uses enhanced AI for sharper textures and precise lighting — ideal for jewelry sales.
+            Pro quality uses enhanced AI for sharper textures and precise lighting — ideal for product sales.
           </p>
         </div>
 

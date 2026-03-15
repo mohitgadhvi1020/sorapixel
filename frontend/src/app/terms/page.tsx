@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Logo from "@/components/ui/Logo";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://soraipixel.com";
 
 export const metadata: Metadata = {
   title: "Terms of Service",
-  description: "SoraiPixel terms of service. Read our terms and conditions for using our AI jewelry photography platform.",
+  description: "SoraiPixel terms of service. Read our terms and conditions for using our AI product photography platform.",
   alternates: { canonical: "/terms" },
   openGraph: {
     title: "Terms of Service — SoraiPixel",
-    description: "Terms and conditions for using SoraiPixel AI jewelry photography.",
+    description: "Terms and conditions for using SoraiPixel AI product photography.",
     url: `${SITE_URL}/terms`,
     siteName: "SoraiPixel",
     type: "website",
@@ -21,11 +22,8 @@ export default function TermsPage() {
     <div className="min-h-screen bg-[#f7f7f5]">
       <header className="bg-white border-b border-[#e8e5df]">
         <div className="max-w-[900px] mx-auto px-4 sm:px-8 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-[#0a0a0a] flex items-center justify-center">
-              <span className="text-white text-xs font-bold">SP</span>
-            </div>
-            <span className="font-display font-bold text-[15px] tracking-tight text-[#0a0a0a]">SoraiPixel</span>
+          <Link href="/" className="flex items-center">
+            <Logo className="text-lg" />
           </Link>
           <Link href="/" className="text-[13px] font-medium text-[#4a4a4a] hover:text-[#0a0a0a] transition-colors">Back to Home</Link>
         </div>
@@ -43,7 +41,7 @@ export default function TermsPage() {
 
           <section>
             <h2 className="font-display font-bold text-[#0a0a0a] text-[1.25rem] mb-3">2. Service Description</h2>
-            <p>SoraiPixel is an AI-powered jewelry photography platform that transforms product photos into studio-quality images. The Service includes image generation, enhancement, styling, and related features available through our website and API.</p>
+            <p>SoraiPixel is an AI-powered product photography platform that transforms product photos into studio-quality images. The Service includes image generation, enhancement, styling, and related features available through our website and API.</p>
           </section>
 
           <section>
@@ -103,7 +101,7 @@ export default function TermsPage() {
 
           <section>
             <h2 className="font-display font-bold text-[#0a0a0a] text-[1.25rem] mb-3">8. Design Integrity Guarantee</h2>
-            <p>SoraiPixel guarantees zero design changes to your jewelry. Our AI enhances backgrounds, lighting, and presentation while preserving every detail of your original jewelry design — including stones, prongs, engravings, and settings. If you believe the AI has altered your jewelry design, contact us for a free re-generation or refund.</p>
+            <p>SoraiPixel guarantees zero design changes to your products. Our AI enhances backgrounds, lighting, and presentation while preserving every detail of your original product design. If you believe the AI has altered your product, contact us for a free re-generation or refund.</p>
           </section>
 
           <section>

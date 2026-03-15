@@ -624,7 +624,7 @@ export default function BatchListingPage() {
       "Filename",
       "Title",
       "Description",
-      "Jewelry Material",
+      "Material",
       "Gemstone Type",
       "Collection",
       "Occasion",
@@ -785,7 +785,7 @@ export default function BatchListingPage() {
               Bulk Listing Generator
             </h1>
             <p className="text-[14px] sm:text-base text-[rgba(255,255,255,0.4)] mt-3 max-w-md mx-auto">
-              Upload up to {MAX_FILES} jewelry images — we&apos;ll auto-generate Shopify-ready titles &amp; descriptions for each
+              Upload up to {MAX_FILES} product images — we&apos;ll auto-generate Shopify-ready titles &amp; descriptions for each
             </p>
             {tokenBalance !== null && (
               <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-full">
@@ -947,8 +947,8 @@ export default function BatchListingPage() {
               </div>
               <div>
                 <p className="text-sm sm:text-base font-semibold text-white">
-                  <span className="hidden sm:inline">Drop your jewelry images here</span>
-                  <span className="sm:hidden">Tap to upload jewelry images</span>
+                  <span className="hidden sm:inline">Drop your product images here</span>
+                  <span className="sm:hidden">Tap to upload product images</span>
                 </p>
                 <p className="text-xs sm:text-sm text-[rgba(255,255,255,0.4)] mt-1">
                   Select up to {MAX_FILES} images at once — PNG, JPG, WebP
@@ -1658,7 +1658,7 @@ function DetailPanel({
             onCopy={() => {
               const a = item.attributes;
               const text = [
-                `Jewelry Material: ${a.jewelryMaterial}`,
+                `Material: ${a.jewelryMaterial}`,
                 `Gemstone Type: ${a.gemstoneType}`,
               ].join("\n");
               onCopy(text, fieldKey("cat-attrs"));
@@ -1669,7 +1669,7 @@ function DetailPanel({
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {(
             [
-              ["jewelryMaterial", "Jewelry Material"],
+              ["jewelryMaterial", "Material"],
               ["gemstoneType", "Gemstone Type"],
             ] as [keyof ListingAttributes, string][]
           ).map(([key, label]) => (
@@ -1788,7 +1788,7 @@ function DetailPanel({
             item.description,
             "",
             "Category Metafields:",
-            `  Jewelry Material: ${a.jewelryMaterial}`,
+            `  Material: ${a.jewelryMaterial}`,
             `  Gemstone Type: ${a.gemstoneType}`,
             "",
             "Product Metafields:",
@@ -2001,12 +2001,12 @@ function HistoryDetailPanel({
           <CopyButton
             field="h-cat"
             copiedField={copiedField}
-            onCopy={() => copyToClipboard(`Jewelry Material: ${a.jewelryMaterial}\nGemstone Type: ${a.gemstoneType}`, "h-cat")}
+            onCopy={() => copyToClipboard(`Material: ${a.jewelryMaterial}\nGemstone Type: ${a.gemstoneType}`, "h-cat")}
             label="Copy"
           />
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div><p className="text-[10px] font-semibold text-[rgba(255,255,255,0.4)] uppercase mb-1">Jewelry Material</p><p className="text-sm text-white">{a.jewelryMaterial || "—"}</p></div>
+          <div><p className="text-[10px] font-semibold text-[rgba(255,255,255,0.4)] uppercase mb-1">Material</p><p className="text-sm text-white">{a.jewelryMaterial || "—"}</p></div>
           <div><p className="text-[10px] font-semibold text-[rgba(255,255,255,0.4)] uppercase mb-1">Gemstone Type</p><p className="text-sm text-white">{a.gemstoneType || "—"}</p></div>
         </div>
       </div>
@@ -2056,7 +2056,7 @@ function HistoryDetailPanel({
             item.description,
             "",
             "Category Metafields:",
-            `  Jewelry Material: ${a.jewelryMaterial}`,
+            `  Material: ${a.jewelryMaterial}`,
             `  Gemstone Type: ${a.gemstoneType}`,
             "",
             "Product Metafields:",

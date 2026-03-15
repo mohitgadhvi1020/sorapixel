@@ -9,7 +9,7 @@ export default function AuthRedirectPage() {
   useEffect(() => {
     const saved = localStorage.getItem("sp_auth_redirect");
     localStorage.removeItem("sp_auth_redirect");
-    router.replace(saved || "/jewelry");
+    router.replace(saved || "/studio");
   }, [router]);
 
   return (

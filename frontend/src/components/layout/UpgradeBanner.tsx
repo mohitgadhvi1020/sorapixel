@@ -11,7 +11,7 @@ function getNudgeMessages(isIndia: boolean) {
   const price = isIndia ? "₹149" : "$4.99";
   const perImage = isIndia ? "₹15" : "$0.50";
   return [
-    { text: "Upgrade for unlimited jewelry photos", sub: `Plans start at just ${price} — only ${perImage}/image` },
+    { text: "Upgrade for unlimited product photos", sub: `Plans start at just ${price} — only ${perImage}/image` },
     { text: "Running low on tokens?", sub: "Get more and never miss a perfect shot" },
     { text: "Pro quality = 3x more sales", sub: "Upgrade to unlock sharper AI renders" },
     { text: "Your competitors use pro photos", sub: "Level up your listings today" },

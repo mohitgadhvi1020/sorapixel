@@ -28,7 +28,7 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!authLoading && !user) { router.push("/login"); return; }
+    if (!authLoading && !user) { router.push("/login?redirect=/profile"); return; }
     if (user) {
       setName(user.contact_name || "");
       setBusinessName(user.company_name || "");
@@ -86,6 +86,16 @@ export default function ProfilePage() {
       reader.readAsDataURL(file);
     } catch { /* silent */ }
   };
+
+  if (authLoading) {
+    return (
+      <ResponsiveLayout title="Profile">
+        <div className="flex items-center justify-center py-32">
+          <div className="w-6 h-6 border-2 border-[#c4a67d] border-t-transparent rounded-full animate-spin" />
+        </div>
+      </ResponsiveLayout>
+    );
+  }
 
   if (section === "main") {
     return (
