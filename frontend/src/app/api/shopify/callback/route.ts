@@ -9,7 +9,10 @@ export async function GET(req: Request) {
   const state = url.searchParams.get("state");
   const shop = url.searchParams.get("shop");
 
-  const baseRedirect = url.origin + "/batch-listing";
+  const forwardedHost = req.headers.get("x-forwarded-host");
+  const proto = req.headers.get("x-forwarded-proto") || "https";
+  const origin = forwardedHost ? `${proto}://${forwardedHost}` : url.origin;
+  const baseRedirect = origin + "/batch-listing";
 
   if (!code || !shop) {
     return NextResponse.redirect(

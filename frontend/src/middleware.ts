@@ -79,7 +79,10 @@ export async function middleware(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    const loginUrl = new URL("/login", req.url);
+    const forwardedHost = req.headers.get("x-forwarded-host");
+    const proto = req.headers.get("x-forwarded-proto") || "https";
+    const base = forwardedHost ? `${proto}://${forwardedHost}` : req.url;
+    const loginUrl = new URL("/login", base);
     loginUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(loginUrl);
   }
