@@ -609,7 +609,7 @@ function VideoPageInner() {
                       {SKIN_TONES.map((st) => (
                         <button key={st.id} onClick={() => setFlowSkinTone(st.id)} title={st.label}
                           className={`w-8 h-8 rounded-full transition-all ${flowSkinTone === st.id ? "ring-2 ring-[#c4a67d] ring-offset-2" : "hover:scale-110"}`}
-                          style={{ backgroundColor: st.hex, ringOffsetColor: lt ? "#fff" : "#1a1612" }} />
+                          style={{ backgroundColor: st.hex, "--tw-ring-offset-color": lt ? "#fff" : "#1a1612" } as React.CSSProperties} />
                       ))}
                     </div>
                   </div>
