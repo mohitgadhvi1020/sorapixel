@@ -2,45 +2,78 @@ from __future__ import annotations
 
 """Google Gemini AI service -- ported from lib/gemini.ts"""
 
+import io
 import time
 import base64
 import re
 import logging
+import httpx as _httpx
+from PIL import Image as PILImage
 from google import genai
-from google.genai.types import GenerateContentConfig, ImageConfig
+from google.genai.types import GenerateContentConfig, ImageConfig, HttpOptions, HttpRetryOptions
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-_client: genai.Client | None = None
+MODEL_FLASH_IMAGE = "gemini-2.5-flash-image"
+MODEL_PRO_IMAGE = "gemini-3-pro-image-preview"
+MODEL_TEXT = "gemini-2.5-flash"
+
+TEXT_TIMEOUT_MS = 30_000
+IMAGE_TIMEOUT_MS = 60_000
+PRO_TIMEOUT_MS = 35_000
+
+RETRYABLE_STATUS_CODES = [429, 500, 502, 503, 504]
+
+_clients: dict[str, genai.Client] = {}
 
 
-def get_client() -> genai.Client:
-    global _client
-    if _client is None:
-        settings = get_settings()
-        if not settings.gemini_api_key:
-            raise RuntimeError("GEMINI_API_KEY is not set")
-        _client = genai.Client(api_key=settings.gemini_api_key)
-    return _client
+def _make_client(timeout_ms: int, max_retries: int = 3) -> genai.Client:
+    settings = get_settings()
+    if not settings.gemini_api_key:
+        raise RuntimeError("GEMINI_API_KEY is not set")
+    timeout_s = timeout_ms / 1000.0
+    return genai.Client(
+        api_key=settings.gemini_api_key,
+        http_options=HttpOptions(
+            timeout=timeout_ms,
+            client_args={"timeout": _httpx.Timeout(timeout_s)},
+            retry_options=HttpRetryOptions(
+                attempts=max_retries,
+                initial_delay=2.0,
+                max_delay=10.0,
+                http_status_codes=RETRYABLE_STATUS_CODES,
+            ),
+        ),
+    )
 
 
-def with_retry(fn, max_retries: int = 3, base_delay: float = 2.0):
-    """Retry with exponential backoff for rate limits and transient errors."""
-    for attempt in range(max_retries + 1):
-        try:
-            return fn()
-        except Exception as e:
-            err_msg = str(e).lower()
-            is_retryable = any(
-                kw in err_msg
-                for kw in ["429", "rate limit", "resource_exhausted", "503", "500", "overloaded"]
-            )
-            if not is_retryable or attempt == max_retries:
-                raise
-            delay = base_delay * (2 ** attempt)
-            logger.warning(f"Retryable error (attempt {attempt + 1}/{max_retries}): {e}. Waiting {delay}s...")
-            time.sleep(delay)
+def get_client(timeout_ms: int = IMAGE_TIMEOUT_MS, max_retries: int = 3) -> genai.Client:
+    global _clients
+    key = f"{timeout_ms}_{max_retries}"
+    if key not in _clients:
+        _clients[key] = _make_client(timeout_ms, max_retries)
+    return _clients[key]
+
+
+def get_text_client() -> genai.Client:
+    return get_client(timeout_ms=TEXT_TIMEOUT_MS, max_retries=3)
+
+
+def get_image_client() -> genai.Client:
+    return get_client(timeout_ms=IMAGE_TIMEOUT_MS, max_retries=3)
+
+
+def get_pro_client() -> genai.Client:
+    return get_client(timeout_ms=PRO_TIMEOUT_MS, max_retries=1)
+
+
+def _is_transient_error(e: Exception) -> bool:
+    err_msg = str(e).lower()
+    return any(kw in err_msg for kw in [
+        "503", "504", "500", "502", "high demand", "overloaded", "deadline",
+        "unavailable", "timeout", "timed out", "read timeout", "connect",
+    ])
 
 
 RATIO_ID_TO_API = {
@@ -51,39 +84,105 @@ RATIO_ID_TO_API = {
     "widescreen": "16:9",
 }
 
+MAX_IMAGE_DIMENSION = 1024
+JPEG_QUALITY = 85
+
+
+def _prepare_image_b64(raw_b64: str, mime_type: str = "image/png") -> tuple[str, str]:
+    """Resize & compress a base64 image so Gemini gets a lightweight payload.
+
+    Returns (clean_b64, output_mime_type).  Images larger than
+    MAX_IMAGE_DIMENSION on either side are down-scaled proportionally.
+    The result is always JPEG (smaller wire size) unless the source is PNG
+    with transparency that matters — but for product photos JPEG is fine.
+    """
+    clean = re.sub(r"^data:image/\w+;base64,", "", raw_b64)
+    raw_bytes = base64.b64decode(clean)
+    original_kb = len(raw_bytes) / 1024
+
+    try:
+        img = PILImage.open(io.BytesIO(raw_bytes))
+    except Exception:
+        logger.debug("Could not decode image for resizing, sending as-is")
+        return clean, mime_type
+
+    w, h = img.size
+    needs_resize = max(w, h) > MAX_IMAGE_DIMENSION
+
+    if not needs_resize and original_kb < 500:
+        return clean, mime_type
+
+    if needs_resize:
+        scale = MAX_IMAGE_DIMENSION / max(w, h)
+        new_w, new_h = int(w * scale), int(h * scale)
+        img = img.resize((new_w, new_h), PILImage.LANCZOS)
+
+    if img.mode in ("RGBA", "LA", "P"):
+        img = img.convert("RGB")
+
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=JPEG_QUALITY, optimize=True)
+    compressed = buf.getvalue()
+    out_b64 = base64.b64encode(compressed).decode("utf-8")
+
+    logger.info(
+        "Image prep: %dx%d (%.0fKB) -> %dx%d (%.0fKB) — %.0f%% smaller",
+        w, h, original_kb,
+        img.size[0], img.size[1], len(compressed) / 1024,
+        (1 - len(compressed) / len(raw_bytes)) * 100,
+    )
+    return out_b64, "image/jpeg"
+
 
 def generate_image(prompt: str, image_b64: str, mime_type: str = "image/png", aspect_ratio_id: str | None = None) -> dict:
-    """Generate an image using Gemini 2.5 Flash Image model (fast drafts).
-    Returns {"base64": str, "mime_type": str, "usage": dict, "model": str}
-    """
-    return _generate_image_with_model("gemini-2.5-flash-image", prompt, image_b64, mime_type, aspect_ratio_id)
+    """Generate an image using Flash. Retries once at app level on transient failure."""
+    client = get_image_client()
+    try:
+        return _generate_image_with_client(client, MODEL_FLASH_IMAGE, prompt, image_b64, mime_type, aspect_ratio_id)
+    except Exception as e:
+        if _is_transient_error(e):
+            logger.warning("Flash gen failed (%s), retrying once after 3s...", str(e)[:80])
+            time.sleep(3)
+            return _generate_image_with_client(client, MODEL_FLASH_IMAGE, prompt, image_b64, mime_type, aspect_ratio_id)
+        raise
 
 
 def generate_image_pro(prompt: str, image_b64: str, mime_type: str = "image/png", aspect_ratio_id: str | None = None) -> dict:
-    """Generate an image using Nano Banana Pro (Gemini 3 Pro Image) for studio-quality output.
-    Returns {"base64": str, "mime_type": str, "usage": dict, "model": str}
-    """
-    return _generate_image_with_model("gemini-3-pro-image-preview", prompt, image_b64, mime_type, aspect_ratio_id)
+    """Generate using Pro model. If Pro is overloaded/unavailable, automatically falls back to Flash."""
+    try:
+        client = get_pro_client()
+        return _generate_image_with_client(client, MODEL_PRO_IMAGE, prompt, image_b64, mime_type, aspect_ratio_id)
+    except Exception as e:
+        if _is_transient_error(e):
+            logger.warning("Pro model unavailable (%s: %s), falling back to Flash", type(e).__name__, str(e)[:80])
+            client = get_image_client()
+            result = _generate_image_with_client(client, MODEL_FLASH_IMAGE, prompt, image_b64, mime_type, aspect_ratio_id)
+            result["model"] = f"{MODEL_FLASH_IMAGE} (fallback from pro)"
+            result["fallback"] = True
+            return result
+        raise
 
 
-def _generate_image_with_model(model: str, prompt: str, image_b64: str, mime_type: str = "image/png", aspect_ratio_id: str | None = None) -> dict:
-    """Internal: generate image with a specified model."""
-    client = get_client()
-    clean_b64 = re.sub(r"^data:image/\w+;base64,", "", image_b64)
+def _generate_image_with_client(client: genai.Client, model: str, prompt: str, image_b64: str, mime_type: str = "image/png", aspect_ratio_id: str | None = None) -> dict:
+    """Internal: generate image with a pre-configured client."""
+    clean_b64, mime_type = _prepare_image_b64(image_b64, mime_type)
 
     config_kwargs: dict = {"response_modalities": ["IMAGE"]}
     api_ratio = RATIO_ID_TO_API.get(aspect_ratio_id or "")
     if api_ratio:
         config_kwargs["image_config"] = ImageConfig(aspect_ratio=api_ratio)
 
-    response = with_retry(lambda: client.models.generate_content(
+    t0 = time.time()
+    response = client.models.generate_content(
         model=model,
         contents=[
             {"text": prompt},
             {"inline_data": {"mime_type": mime_type, "data": clean_b64}},
         ],
         config=GenerateContentConfig(**config_kwargs),
-    ))
+    )
+    elapsed = time.time() - t0
+    logger.info("Image gen [%s] completed in %.1fs", model, elapsed)
 
     parts = response.candidates[0].content.parts if response.candidates else []
     if not parts:
@@ -117,37 +216,54 @@ def _generate_image_with_model(model: str, prompt: str, image_b64: str, mime_typ
 
 
 def generate_image_multi(prompt: str, images: list[dict], aspect_ratio_id: str | None = None) -> dict:
-    """Generate with multiple input images using Flash (fast).
-    images: list of {"base64": str, "mime_type": str}
-    """
-    return _generate_image_multi_with_model("gemini-2.5-flash-image", prompt, images, aspect_ratio_id)
+    """Generate with multiple input images using Flash. Retries once on transient failure."""
+    client = get_image_client()
+    try:
+        return _generate_image_multi_with_client(client, MODEL_FLASH_IMAGE, prompt, images, aspect_ratio_id)
+    except Exception as e:
+        if _is_transient_error(e):
+            logger.warning("Flash multi-image failed (%s), retrying once after 3s...", str(e)[:80])
+            time.sleep(3)
+            return _generate_image_multi_with_client(client, MODEL_FLASH_IMAGE, prompt, images, aspect_ratio_id)
+        raise
 
 
 def generate_image_pro_multi(prompt: str, images: list[dict], aspect_ratio_id: str | None = None) -> dict:
-    """Generate with multiple input images using Nano Banana Pro (studio quality).
-    images: list of {"base64": str, "mime_type": str}
-    """
-    return _generate_image_multi_with_model("gemini-3-pro-image-preview", prompt, images, aspect_ratio_id)
+    """Generate with multiple input images using Pro, with automatic fallback to Flash."""
+    try:
+        client = get_pro_client()
+        return _generate_image_multi_with_client(client, MODEL_PRO_IMAGE, prompt, images, aspect_ratio_id)
+    except Exception as e:
+        if _is_transient_error(e):
+            logger.warning("Pro multi-image unavailable (%s), falling back to Flash", type(e).__name__)
+            client = get_image_client()
+            result = _generate_image_multi_with_client(client, MODEL_FLASH_IMAGE, prompt, images, aspect_ratio_id)
+            result["model"] = f"{MODEL_FLASH_IMAGE} (fallback from pro)"
+            result["fallback"] = True
+            return result
+        raise
 
 
-def _generate_image_multi_with_model(model: str, prompt: str, images: list[dict], aspect_ratio_id: str | None = None) -> dict:
-    """Internal: multi-image generation with a specified model."""
-    client = get_client()
+def _generate_image_multi_with_client(client: genai.Client, model: str, prompt: str, images: list[dict], aspect_ratio_id: str | None = None) -> dict:
+    """Internal: multi-image generation with a pre-configured client."""
     contents = [{"text": prompt}]
     for img in images:
-        clean = re.sub(r"^data:image/\w+;base64,", "", img["base64"])
-        contents.append({"inline_data": {"mime_type": img.get("mime_type", "image/png"), "data": clean}})
+        clean_b64, out_mime = _prepare_image_b64(img["base64"], img.get("mime_type", "image/png"))
+        contents.append({"inline_data": {"mime_type": out_mime, "data": clean_b64}})
 
     config_kwargs: dict = {"response_modalities": ["IMAGE"]}
     api_ratio = RATIO_ID_TO_API.get(aspect_ratio_id or "")
     if api_ratio:
         config_kwargs["image_config"] = ImageConfig(aspect_ratio=api_ratio)
 
-    response = with_retry(lambda: client.models.generate_content(
+    t0 = time.time()
+    response = client.models.generate_content(
         model=model,
         contents=contents,
         config=GenerateContentConfig(**config_kwargs),
-    ))
+    )
+    elapsed = time.time() - t0
+    logger.info("Multi-image gen [%s] completed in %.1fs", model, elapsed)
 
     parts = response.candidates[0].content.parts if response.candidates else []
     if not parts:
@@ -184,21 +300,33 @@ def generate_text(prompt: str, image_b64: str | None = None, mime_type: str = "i
     When json_mode=True, instructs Gemini to return valid JSON.
     Returns {"text": str, "usage": dict}
     """
-    client = get_client()
+    client = get_text_client()
     contents = [{"text": prompt}]
     if image_b64:
-        clean = re.sub(r"^data:image/\w+;base64,", "", image_b64)
-        contents.append({"inline_data": {"mime_type": mime_type, "data": clean}})
+        clean, out_mime = _prepare_image_b64(image_b64, mime_type)
+        contents.append({"inline_data": {"mime_type": out_mime, "data": clean}})
 
     config_kwargs: dict = {}
     if json_mode:
         config_kwargs["response_mime_type"] = "application/json"
 
-    response = with_retry(lambda: client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=contents,
-        **({"config": GenerateContentConfig(**config_kwargs)} if config_kwargs else {}),
-    ))
+    try:
+        response = client.models.generate_content(
+            model=MODEL_TEXT,
+            contents=contents,
+            **({"config": GenerateContentConfig(**config_kwargs)} if config_kwargs else {}),
+        )
+    except Exception as e:
+        if _is_transient_error(e):
+            logger.warning("Text gen failed (%s), retrying once after 2s...", str(e)[:80])
+            time.sleep(2)
+            response = client.models.generate_content(
+                model=MODEL_TEXT,
+                contents=contents,
+                **({"config": GenerateContentConfig(**config_kwargs)} if config_kwargs else {}),
+            )
+        else:
+            raise
 
     parts = response.candidates[0].content.parts if response.candidates else []
     text = " ".join(p.text for p in parts if hasattr(p, "text") and p.text)

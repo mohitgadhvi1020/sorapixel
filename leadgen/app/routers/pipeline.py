@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 """Lead generation pipeline API — admin-only endpoints for discovery,
-enrichment, scraping, AI generation, email outreach, and tracking.
+enrichment, scraping, AI generation, email outreach, social discovery,
+lead scoring, and email verification.
 """
 
 import logging
@@ -13,11 +14,13 @@ from pydantic import BaseModel
 from app.config import get_settings
 from app.database import get_supabase
 from app.services.discovery import run_discovery
-from app.services.enrichment import run_enrichment
+from app.services.enrichment import run_enrichment, verify_email_zerobounce
 from app.services.scraper import run_scraping
 from app.services.generator import run_generation, generate_for_lead
 from app.services.email import run_email_outreach, send_outreach_email, handle_resend_webhook
 from app.services.instagram import run_instagram_finder, find_instagram_for_lead
+from app.services.social import run_social_discovery, find_socials_for_lead
+from app.services.scoring import run_scoring, score_lead, compute_score_sync, score_label
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
@@ -33,7 +36,6 @@ def _verify_cron_secret(x_cron_secret: str | None):
 
 
 def _verify_admin(x_admin_email: str | None = None, x_cron_secret: str | None = None):
-    """Allow access via cron secret OR admin email header."""
     settings = get_settings()
     if x_cron_secret and settings.cron_secret and x_cron_secret == settings.cron_secret:
         return
@@ -54,6 +56,15 @@ class BatchRequest(BaseModel):
     batch_size: int = 50
 
 
+class ScoreRequest(BaseModel):
+    batch_size: int = 100
+    check_website: bool = False
+
+
+class VerifyEmailRequest(BaseModel):
+    email: str
+
+
 # ── Discovery ─────────────────────────────────────────────────────────────────
 
 @router.post("/discover")
@@ -65,9 +76,7 @@ async def discover_leads(
     """Trigger lead discovery for a platform and region."""
     _verify_admin(x_admin_email, x_cron_secret)
     results = await run_discovery(
-        platform=req.platform,
-        region=req.region,
-        max_results=req.max_results,
+        platform=req.platform, region=req.region, max_results=req.max_results,
     )
     return {"status": "ok", "results": results}
 
@@ -80,7 +89,7 @@ async def enrich_leads(
     x_admin_email: str | None = Header(None),
     x_cron_secret: str | None = Header(None),
 ):
-    """Run email enrichment on discovered leads."""
+    """Run email enrichment on discovered leads (Apollo → Hunter → Scrape → Pattern Guess)."""
     _verify_admin(x_admin_email, x_cron_secret)
     batch_size = req.batch_size if req else 50
     stats = await run_enrichment(batch_size=batch_size)
@@ -146,7 +155,115 @@ async def send_single_email(
     return {"status": "ok", "sent": True}
 
 
-# ── Update lead (manual email, name, etc.) ────────────────────────────────────
+# ── Email verification ────────────────────────────────────────────────────────
+
+@router.post("/verify-email")
+async def verify_email(
+    req: VerifyEmailRequest,
+    x_admin_email: str | None = Header(None),
+    x_cron_secret: str | None = Header(None),
+):
+    """Verify a single email address using ZeroBounce."""
+    _verify_admin(x_admin_email, x_cron_secret)
+    is_valid = await verify_email_zerobounce(req.email)
+    return {"status": "ok", "email": req.email, "valid": is_valid}
+
+
+# ── Social media discovery ────────────────────────────────────────────────────
+
+@router.post("/find-socials")
+async def find_socials_batch(
+    req: BatchRequest | None = None,
+    x_admin_email: str | None = Header(None),
+    x_cron_secret: str | None = Header(None),
+):
+    """Find all social media profiles (IG, FB, Twitter, LinkedIn, etc.) for leads."""
+    _verify_admin(x_admin_email, x_cron_secret)
+    batch_size = req.batch_size if req else 50
+    stats = await run_social_discovery(batch_size=batch_size)
+    return {"status": "ok", "stats": stats}
+
+
+@router.post("/leads/{lead_id}/find-socials")
+async def find_socials_single(
+    lead_id: str,
+    x_admin_email: str | None = Header(None),
+    x_cron_secret: str | None = Header(None),
+):
+    """Find all social media profiles for a single lead."""
+    _verify_admin(x_admin_email, x_cron_secret)
+    sb = get_supabase()
+    lead = sb.table("leads").select("id, store_name, store_url, domain").eq("id", lead_id).single().execute()
+    if not lead.data:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    socials = await find_socials_for_lead(
+        lead.data["id"], lead.data["store_name"], lead.data["store_url"], lead.data["domain"],
+    )
+    return {"status": "ok", "socials": socials}
+
+
+# ── Instagram finder (backward compatible) ────────────────────────────────────
+
+@router.post("/find-instagram")
+async def find_instagram_batch(
+    req: BatchRequest | None = None,
+    x_admin_email: str | None = Header(None),
+    x_cron_secret: str | None = Header(None),
+):
+    """Find Instagram handles for leads (delegates to full social discovery)."""
+    _verify_admin(x_admin_email, x_cron_secret)
+    batch_size = req.batch_size if req else 50
+    stats = await run_instagram_finder(batch_size=batch_size)
+    return {"status": "ok", "stats": stats}
+
+
+@router.post("/leads/{lead_id}/find-instagram")
+async def find_instagram_single(
+    lead_id: str,
+    x_admin_email: str | None = Header(None),
+    x_cron_secret: str | None = Header(None),
+):
+    """Find Instagram for a single lead."""
+    _verify_admin(x_admin_email, x_cron_secret)
+    sb = get_supabase()
+    lead = sb.table("leads").select("id, store_name, store_url, domain").eq("id", lead_id).single().execute()
+    if not lead.data:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    handle = await find_instagram_for_lead(lead.data["id"], lead.data["store_name"], lead.data["store_url"], lead.data["domain"])
+    return {"status": "ok", "instagram_handle": handle, "instagram_url": f"https://www.instagram.com/{handle}/" if handle else None}
+
+
+# ── Lead scoring ──────────────────────────────────────────────────────────────
+
+@router.post("/score")
+async def score_leads(
+    req: ScoreRequest | None = None,
+    x_admin_email: str | None = Header(None),
+    x_cron_secret: str | None = Header(None),
+):
+    """Score all unscored leads based on quality signals."""
+    _verify_admin(x_admin_email, x_cron_secret)
+    batch_size = req.batch_size if req else 100
+    check_website = req.check_website if req else False
+    stats = await run_scoring(batch_size=batch_size, check_website=check_website)
+    return {"status": "ok", "stats": stats}
+
+
+@router.post("/leads/{lead_id}/score")
+async def score_single_lead(
+    lead_id: str,
+    x_admin_email: str | None = Header(None),
+    x_cron_secret: str | None = Header(None),
+):
+    """Score a single lead."""
+    _verify_admin(x_admin_email, x_cron_secret)
+    result = await score_lead(lead_id, check_website=True)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return {"status": "ok", **result}
+
+
+# ── Update lead ───────────────────────────────────────────────────────────────
 
 class UpdateLeadRequest(BaseModel):
     contact_email: str | None = None
@@ -166,7 +283,7 @@ async def update_lead(
     _verify_admin(x_admin_email, x_cron_secret)
     sb = get_supabase()
 
-    lead = sb.table("leads").select("id, status").eq("id", lead_id).single().execute()
+    lead = sb.table("leads").select("id, status, metadata").eq("id", lead_id).single().execute()
     if not lead.data:
         raise HTTPException(status_code=404, detail="Lead not found")
 
@@ -185,6 +302,9 @@ async def update_lead(
         handle = req.instagram_handle.strip().lstrip("@").split("/")[-1].rstrip("/")
         current_meta["instagram_handle"] = handle
         current_meta["instagram_url"] = f"https://www.instagram.com/{handle}/"
+        socials = current_meta.get("socials", {})
+        socials["instagram"] = {"handle": handle, "url": f"https://www.instagram.com/{handle}/"}
+        current_meta["socials"] = socials
         update["metadata"] = current_meta
 
     if not update:
@@ -243,7 +363,6 @@ async def upload_lead_image(
     }).execute()
 
     if lead.data["status"] in ("discovered", "enriched", "no_email", "scrape_failed"):
-        new_status = "enriched" if lead.data["status"] in ("discovered", "no_email", "scrape_failed") else lead.data["status"]
         sb.table("leads").update({"status": "scraped"}).eq("id", lead_id).execute()
 
     return {"status": "ok", "product": product.data[0] if product.data else None, "image_url": storage_url}
@@ -257,7 +376,7 @@ async def regenerate_lead(
     x_admin_email: str | None = Header(None),
     x_cron_secret: str | None = Header(None),
 ):
-    """Re-run AI generation for a lead. Resets products to pending first."""
+    """Re-run AI generation for a lead."""
     _verify_admin(x_admin_email, x_cron_secret)
     sb = get_supabase()
 
@@ -270,37 +389,6 @@ async def regenerate_lead(
 
     count = await generate_for_lead(lead_id)
     return {"status": "ok", "generated_products": count}
-
-
-# ── Instagram finder ──────────────────────────────────────────────────────────
-
-@router.post("/find-instagram")
-async def find_instagram_batch(
-    req: BatchRequest | None = None,
-    x_admin_email: str | None = Header(None),
-    x_cron_secret: str | None = Header(None),
-):
-    """Find Instagram handles for leads that don't have one."""
-    _verify_admin(x_admin_email, x_cron_secret)
-    batch_size = req.batch_size if req else 50
-    stats = await run_instagram_finder(batch_size=batch_size)
-    return {"status": "ok", "stats": stats}
-
-
-@router.post("/leads/{lead_id}/find-instagram")
-async def find_instagram_single(
-    lead_id: str,
-    x_admin_email: str | None = Header(None),
-    x_cron_secret: str | None = Header(None),
-):
-    """Find Instagram for a single lead."""
-    _verify_admin(x_admin_email, x_cron_secret)
-    sb = get_supabase()
-    lead = sb.table("leads").select("id, store_name, store_url, domain").eq("id", lead_id).single().execute()
-    if not lead.data:
-        raise HTTPException(status_code=404, detail="Lead not found")
-    handle = await find_instagram_for_lead(lead.data["id"], lead.data["store_name"], lead.data["store_url"], lead.data["domain"])
-    return {"status": "ok", "instagram_handle": handle, "instagram_url": f"https://www.instagram.com/{handle}/" if handle else None}
 
 
 # ── Full pipeline ─────────────────────────────────────────────────────────────
@@ -318,14 +406,15 @@ async def run_full_pipeline(
     x_admin_email: str | None = Header(None),
     x_cron_secret: str | None = Header(None),
 ):
-    """Run the entire pipeline: discover -> enrich -> scrape -> generate -> email."""
+    """Run the entire pipeline: discover → enrich → socials → score → scrape → generate → email."""
     _verify_admin(x_admin_email, x_cron_secret)
 
     discovery_results = await run_discovery(
         platform=req.platform, region=req.region, max_results=req.max_discover,
     )
     enrichment_stats = await run_enrichment(batch_size=req.batch_size)
-    instagram_stats = await run_instagram_finder(batch_size=req.batch_size)
+    social_stats = await run_social_discovery(batch_size=req.batch_size)
+    scoring_stats = await run_scoring(batch_size=req.batch_size)
     scraping_stats = await run_scraping(batch_size=req.batch_size)
     generation_stats = await run_generation(batch_size=min(req.batch_size, 20))
     email_stats = await run_email_outreach(batch_size=req.batch_size)
@@ -334,7 +423,8 @@ async def run_full_pipeline(
         "status": "ok",
         "discovery": discovery_results,
         "enrichment": enrichment_stats,
-        "instagram": instagram_stats,
+        "socials": social_stats,
+        "scoring": scoring_stats,
         "scraping": scraping_stats,
         "generation": generation_stats,
         "email": email_stats,
@@ -345,9 +435,7 @@ async def run_full_pipeline(
 
 @router.post("/cron")
 async def cron_run(x_cron_secret: str | None = Header(None)):
-    """Automated daily pipeline run. Secured by cron secret.
-    Runs all 3 primary sources in parallel, rotates region by day.
-    """
+    """Automated daily pipeline run. Rotates region by day."""
     _verify_cron_secret(x_cron_secret)
 
     from datetime import datetime, timezone
@@ -359,7 +447,8 @@ async def cron_run(x_cron_secret: str | None = Header(None)):
 
     discovery_results = await run_discovery(platform=None, region=region, max_results=50)
     enrichment_stats = await run_enrichment(batch_size=100)
-    instagram_stats = await run_instagram_finder(batch_size=100)
+    social_stats = await run_social_discovery(batch_size=100)
+    scoring_stats = await run_scoring(batch_size=200)
     scraping_stats = await run_scraping(batch_size=50)
     generation_stats = await run_generation(batch_size=20)
     email_stats = await run_email_outreach(batch_size=100)
@@ -369,7 +458,8 @@ async def cron_run(x_cron_secret: str | None = Header(None)):
         "region": region,
         "discovery": discovery_results,
         "enrichment": enrichment_stats,
-        "instagram": instagram_stats,
+        "socials": social_stats,
+        "scoring": scoring_stats,
         "scraping": scraping_stats,
         "generation": generation_stats,
         "email": email_stats,
@@ -383,12 +473,13 @@ async def list_leads(
     status: str | None = Query(None),
     platform: str | None = Query(None),
     region: str | None = Query(None),
+    min_score: int | None = Query(None),
     limit: int = Query(50, le=200),
     offset: int = Query(0),
     x_admin_email: str | None = Header(None),
     x_cron_secret: str | None = Header(None),
 ):
-    """List leads with optional filters."""
+    """List leads with optional filters including score threshold."""
     _verify_admin(x_admin_email, x_cron_secret)
     sb = get_supabase()
 
@@ -401,7 +492,26 @@ async def list_leads(
         query = query.eq("region", region)
 
     result = query.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
-    return {"leads": result.data or [], "total": result.count or 0}
+
+    leads = result.data or []
+
+    # Client-side score filter (metadata is JSONB, hard to filter server-side)
+    if min_score is not None:
+        leads = [
+            l for l in leads
+            if (l.get("metadata") or {}).get("lead_score", 0) >= min_score
+        ]
+
+    # Attach computed scores for leads that don't have one yet
+    for lead in leads:
+        metadata = lead.get("metadata") or {}
+        if "lead_score" not in metadata:
+            score = compute_score_sync(lead)
+            metadata["lead_score"] = score
+            metadata["lead_score_label"] = score_label(score)
+            lead["metadata"] = metadata
+
+    return {"leads": leads, "total": result.count or 0}
 
 
 @router.get("/leads/{lead_id}")
@@ -410,7 +520,7 @@ async def get_lead(
     x_admin_email: str | None = Header(None),
     x_cron_secret: str | None = Header(None),
 ):
-    """Get lead detail with products and email history."""
+    """Get lead detail with products, email history, and score."""
     _verify_admin(x_admin_email, x_cron_secret)
     sb = get_supabase()
 
@@ -418,8 +528,17 @@ async def get_lead(
     products = sb.table("lead_products").select("*").eq("lead_id", lead_id).execute()
     emails = sb.table("lead_emails").select("*").eq("lead_id", lead_id).order("created_at", desc=True).execute()
 
+    lead_data = lead.data
+    if lead_data:
+        metadata = lead_data.get("metadata") or {}
+        if "lead_score" not in metadata:
+            score = compute_score_sync(lead_data)
+            metadata["lead_score"] = score
+            metadata["lead_score_label"] = score_label(score)
+            lead_data["metadata"] = metadata
+
     return {
-        "lead": lead.data,
+        "lead": lead_data,
         "products": products.data or [],
         "emails": emails.data or [],
     }
@@ -445,57 +564,87 @@ async def get_stats(
     x_admin_email: str | None = Header(None),
     x_cron_secret: str | None = Header(None),
 ):
-    """Get pipeline funnel stats."""
+    """Get comprehensive pipeline funnel stats."""
     _verify_admin(x_admin_email, x_cron_secret)
     sb = get_supabase()
 
-    # Count by status
-    all_leads = sb.table("leads").select("status", count="exact").execute()
+    all_leads = sb.table("leads").select("status, platform, region, metadata", count="exact").execute()
     total = all_leads.count or 0
+    leads_data = all_leads.data or []
 
+    # Count by status
     status_counts: dict[str, int] = {}
-    for status in [
-        "discovered", "enriched", "no_email",
-        "scraped", "scrape_failed",
-        "generating", "generated", "gen_failed",
-        "queued", "sent", "delivered", "opened", "clicked", "converted",
-        "bounced", "skipped",
-    ]:
-        result = sb.table("leads").select("id", count="exact").eq("status", status).execute()
-        count = result.count or 0
-        if count > 0:
-            status_counts[status] = count
+    for lead in leads_data:
+        s = lead.get("status", "unknown")
+        status_counts[s] = status_counts.get(s, 0) + 1
 
     # Count by platform
     platform_counts: dict[str, int] = {}
-    for platform in ["etsy", "google_places", "shopify", "ai_search", "manual"]:
-        result = sb.table("leads").select("id", count="exact").eq("platform", platform).execute()
-        count = result.count or 0
-        if count > 0:
-            platform_counts[platform] = count
+    for lead in leads_data:
+        p = lead.get("platform", "unknown")
+        platform_counts[p] = platform_counts.get(p, 0) + 1
 
     # Count by region
     region_counts: dict[str, int] = {}
-    for region in ["us", "eu", "dubai", "other"]:
-        result = sb.table("leads").select("id", count="exact").eq("region", region).execute()
-        count = result.count or 0
-        if count > 0:
-            region_counts[region] = count
+    for lead in leads_data:
+        r = lead.get("region", "unknown")
+        region_counts[r] = region_counts.get(r, 0) + 1
+
+    # Score distribution
+    score_distribution = {"excellent": 0, "good": 0, "medium": 0, "low": 0, "unscored": 0}
+    for lead in leads_data:
+        metadata = lead.get("metadata") or {}
+        label = metadata.get("lead_score_label")
+        if label and label in score_distribution:
+            score_distribution[label] += 1
+        else:
+            score_distribution["unscored"] += 1
+
+    # Social media coverage
+    social_counts: dict[str, int] = {}
+    leads_with_socials = 0
+    for lead in leads_data:
+        metadata = lead.get("metadata") or {}
+        socials = metadata.get("socials", {})
+        if socials:
+            leads_with_socials += 1
+        for platform in socials:
+            social_counts[platform] = social_counts.get(platform, 0) + 1
+
+    # Enrichment funnel
+    has_email = sum(1 for l in leads_data if l.get("status") not in ("discovered", "no_email"))
+    has_name = sum(1 for l in leads_data if any(
+        l.get(f) for f in ["contact_name"]
+    ))
 
     # Email stats
     email_total = sb.table("lead_emails").select("id", count="exact").execute()
     email_opened = sb.table("lead_emails").select("id", count="exact").eq("status", "opened").execute()
     email_clicked = sb.table("lead_emails").select("id", count="exact").eq("status", "clicked").execute()
+    email_bounced = sb.table("lead_emails").select("id", count="exact").eq("status", "bounced").execute()
 
     return {
         "total_leads": total,
         "by_status": status_counts,
         "by_platform": platform_counts,
         "by_region": region_counts,
+        "scoring": score_distribution,
+        "enrichment": {
+            "has_email": has_email,
+            "has_name": has_name,
+            "no_email": status_counts.get("no_email", 0),
+        },
+        "socials": {
+            "leads_with_profiles": leads_with_socials,
+            "by_platform": social_counts,
+        },
         "emails": {
-            "total": email_total.count or 0,
+            "total_sent": email_total.count or 0,
             "opened": email_opened.count or 0,
             "clicked": email_clicked.count or 0,
+            "bounced": email_bounced.count or 0,
+            "open_rate": round((email_opened.count or 0) / max(email_total.count or 1, 1) * 100, 1),
+            "click_rate": round((email_clicked.count or 0) / max(email_total.count or 1, 1) * 100, 1),
         },
     }
 

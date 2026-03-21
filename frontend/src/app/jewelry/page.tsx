@@ -1981,7 +1981,11 @@ function JewelryPage() {
                     const img = resultImages[0];
                     const src = img?.url || (img?.base64 ? `data:image/png;base64,${img.base64}` : "");
                     const params = new URLSearchParams();
-                    if (src && src.startsWith("http")) params.set("image", src);
+                    if (src && src.startsWith("http")) {
+                      params.set("image", src);
+                    } else if (img?.base64) {
+                      try { sessionStorage.setItem("video_image_b64", img.base64); } catch {}
+                    }
                     if (jewelryType) params.set("type", jewelryType);
                     if (sessionId) params.set("session", sessionId);
                     router.push(`/video?${params.toString()}`);

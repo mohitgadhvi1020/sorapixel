@@ -36,6 +36,18 @@ def _enrich_project(sb, project: dict) -> dict:
     return project
 
 
+def _enrich_project_thumbnail(sb, project: dict) -> dict:
+    """Lightweight enrichment for list views — only generates one signed URL for the thumbnail."""
+    meta = project.get("metadata") or {}
+    images = meta.get("images") or []
+    if images:
+        sp = images[0].get("storage_path")
+        project["thumbnail_url"] = _signed_url(sb, sp) if sp else ""
+    else:
+        project["thumbnail_url"] = ""
+    return project
+
+
 @router.get("")
 async def list_projects(
     project_type: str | None = None,
@@ -57,7 +69,7 @@ async def list_projects(
 
     projects = result.data or []
     for p in projects:
-        _enrich_project(sb, p)
+        _enrich_project_thumbnail(sb, p)
 
     return {"projects": projects, "page": page, "limit": limit}
 

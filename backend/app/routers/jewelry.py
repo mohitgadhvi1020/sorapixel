@@ -307,6 +307,8 @@ async def _generate_all(req: GenerateJewelryRequest, user: dict, ratio: dict):
         save_images = [{"base64": req.image_base64, "label": "Original Upload"}]
         save_images += [{"base64": img.base64, "label": img.label} for img in images if img.base64]
         meta = {"jewelry_type": req.jewelry_type, "detection": detection_dict}
+        if req.session_id:
+            meta["session_id"] = req.session_id
         if use_theme:
             meta["theme_id"] = req.theme_id
             meta["shots"] = req.shots

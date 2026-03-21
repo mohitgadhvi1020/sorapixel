@@ -12,7 +12,7 @@ from io import BytesIO
 import httpx
 from google.genai.types import GenerateVideosConfig, Image
 
-from app.services.gemini_service import get_client
+from app.services.gemini_service import get_client, IMAGE_TIMEOUT_MS
 from app.database import get_supabase
 
 logger = logging.getLogger(__name__)
@@ -212,6 +212,7 @@ async def generate_video_first_last_frame(
     prompt: str = "Smooth cinematic transition between these two frames of a jewelry piece.",
     aspect_ratio: str = "landscape",
     client_id: str | None = None,
+    allow_person: bool = True,
 ) -> dict:
     """Generate a video interpolating between first and last frame using Veo 2.
 
@@ -233,6 +234,8 @@ async def generate_video_first_last_frame(
 
     logger.info("Starting first-last frame video: prompt=%s...", full_prompt[:80])
 
+    person_gen = "allow_adult" if allow_person else "dont_allow"
+
     operation = await asyncio.to_thread(
         client.models.generate_videos,
         model="veo-2.0-generate-001",
@@ -241,7 +244,7 @@ async def generate_video_first_last_frame(
         config=GenerateVideosConfig(
             aspect_ratio=api_ratio,
             number_of_videos=1,
-            person_generation="dont_allow",
+            person_generation=person_gen,
         ),
     )
 

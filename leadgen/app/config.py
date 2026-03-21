@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     # Discovery — Perplexity Sonar (AI search, primary)
     perplexity_api_key: str = ""
 
-    # Discovery — Google Places (fallback)
+    # Discovery — Google Places
     google_places_api_key: str = ""
 
     # Discovery — Etsy
@@ -33,10 +33,19 @@ class Settings(BaseSettings):
     # Enrichment — Apollo.io
     apollo_api_key: str = ""
 
+    # Enrichment — Hunter.io
+    hunter_api_key: str = ""
+
+    # Email verification — ZeroBounce
+    zerobounce_api_key: str = ""
+
     # Pipeline limits
     lead_daily_limit: int = 200
     products_per_lead: int = 3
-    email_daily_limit: int = 100  # start low for warm-up
+    email_daily_limit: int = 100
+
+    # Lead scoring thresholds
+    score_min_for_outreach: int = 40
 
     # Security
     cron_secret: str = ""

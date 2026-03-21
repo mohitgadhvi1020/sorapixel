@@ -105,13 +105,22 @@ def list_sessions(client_id: str, limit: int = 20, offset: int = 0) -> list[dict
         ).order("created_at", desc=True).range(offset, offset + limit - 1).execute()
 
         sessions = result.data or []
+        if not sessions:
+            return []
+
+        session_ids = [s["id"] for s in sessions]
+        counts_result = sb.table("session_actions").select(
+            "session_id", count="exact"
+        ).in_("session_id", session_ids).execute()
+
+        count_map: dict[str, int] = {}
+        for row in (counts_result.data or []):
+            sid = row.get("session_id", "")
+            count_map[sid] = count_map.get(sid, 0) + 1
+
         for s in sessions:
             s["original_image_url"] = _signed_url(sb, s["original_image_path"])
-
-            count_result = sb.table("session_actions").select(
-                "id", count="exact"
-            ).eq("session_id", s["id"]).execute()
-            s["action_count"] = count_result.count if hasattr(count_result, "count") and count_result.count else len(count_result.data or [])
+            s["action_count"] = count_map.get(s["id"], 0)
 
         return sessions
     except Exception as e:

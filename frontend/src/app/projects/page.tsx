@@ -50,6 +50,7 @@ interface ProjectCard {
     background?: string;
     category?: string;
     quality?: string;
+    session_id?: string;
     images?: ProjectImage[];
   };
   thumbnail_url: string;
@@ -59,7 +60,7 @@ interface ProjectCard {
 type Tab = "all" | "jewelry" | "studio";
 
 export default function ProjectsPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [sessions, setSessions] = useState<SessionCard[]>([]);
   const [projects, setProjects] = useState<ProjectCard[]>([]);
@@ -111,16 +112,30 @@ export default function ProjectsPage() {
     return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
   }
 
+  const jewelryProjects = projects.filter((p) => p.project_type?.startsWith("jewelry"));
+  const studioProjects = projects.filter((p) => !p.project_type?.startsWith("jewelry"));
+
   const tabs: { key: Tab; label: string; count: number }[] = [
     { key: "all", label: "All", count: sessions.length + projects.length },
-    { key: "jewelry", label: "Jewelry", count: sessions.length },
-    { key: "studio", label: "Product Studio", count: projects.length },
+    { key: "jewelry", label: "Jewelry", count: sessions.length + jewelryProjects.length },
+    { key: "studio", label: "Product Studio", count: studioProjects.length },
   ];
 
   const showSessions = activeTab === "all" || activeTab === "jewelry";
-  const showProjects = activeTab === "all" || activeTab === "studio";
+  const showProjects = activeTab === "all" || activeTab === "studio" || activeTab === "jewelry";
 
-  const totalItems = (showSessions ? sessions.length : 0) + (showProjects ? projects.length : 0);
+  const filteredProjects = activeTab === "jewelry" ? jewelryProjects : activeTab === "studio" ? studioProjects : projects;
+  const totalItems = (showSessions ? sessions.length : 0) + (showProjects ? filteredProjects.length : 0);
+
+  if (authLoading) {
+    return (
+      <ResponsiveLayout title="My Creations">
+        <div className="flex items-center justify-center py-20">
+          <div className="w-8 h-8 border-2 border-[#c4a67d] border-t-transparent rounded-full animate-spin" />
+        </div>
+      </ResponsiveLayout>
+    );
+  }
 
   if (!user) {
     return (
@@ -211,13 +226,15 @@ export default function ProjectsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Studio Projects */}
+            {/* Projects (Studio + Jewelry) */}
             {showProjects &&
-              projects.map((p) => (
+              filteredProjects.map((p) => {
+                const isJewelry = p.project_type?.startsWith("jewelry");
+                return (
                 <div
                   key={`proj-${p.id}`}
                   className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)] hover:border-[rgba(196,166,125,0.3)] transition-all duration-200 overflow-hidden group cursor-pointer"
-                  onClick={() => openProjectPreview(p)}
+                  onClick={() => isJewelry ? router.push(p.metadata?.session_id ? `/jewelry?session=${p.metadata.session_id}` : "/jewelry") : openProjectPreview(p)}
                 >
                   <div className="aspect-square bg-[rgba(0,0,0,0.3)] overflow-hidden relative">
                     {p.thumbnail_url ? (
@@ -236,8 +253,8 @@ export default function ProjectsPage() {
                       </div>
                     )}
                     <div className="absolute top-2 left-2">
-                      <span className="text-[8px] font-bold bg-[rgba(59,130,246,0.85)] text-white px-2 py-0.5 rounded-full uppercase tracking-wider backdrop-blur-sm">
-                        Studio
+                      <span className={`text-[8px] font-bold text-white px-2 py-0.5 rounded-full uppercase tracking-wider backdrop-blur-sm ${isJewelry ? "bg-[rgba(196,166,125,0.85)]" : "bg-[rgba(59,130,246,0.85)]"}`}>
+                        {isJewelry ? "Jewelry" : "Studio"}
                       </span>
                     </div>
                     <div className="absolute top-2 right-2 flex gap-1.5">
@@ -254,7 +271,7 @@ export default function ProjectsPage() {
                       <h3 className="text-sm font-semibold text-white truncate">{p.title}</h3>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-[10px] text-[rgba(255,255,255,0.4)] bg-[rgba(255,255,255,0.04)] px-2 py-0.5 rounded-full capitalize">
-                          {p.metadata?.background || "auto"}
+                          {p.metadata?.background || p.metadata?.category || "auto"}
                         </span>
                         <span className="text-[10px] text-[rgba(255,255,255,0.3)]">
                           {(p.metadata?.images || []).length} image{(p.metadata?.images || []).length !== 1 ? "s" : ""}
@@ -267,25 +284,28 @@ export default function ProjectsPage() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          router.push("/studio");
+                          router.push(isJewelry ? (p.metadata?.session_id ? `/jewelry?session=${p.metadata.session_id}` : "/jewelry") : "/studio");
                         }}
-                        className="flex-1 px-3 py-2 bg-gradient-to-r from-[#3b82f6] to-[#6366f1] text-white text-xs font-semibold rounded-xl hover:shadow-[0_4px_16px_rgba(99,102,241,0.3)] active:scale-[0.97] transition-all"
+                        className={`flex-1 px-3 py-2 text-white text-xs font-semibold rounded-xl active:scale-[0.97] transition-all ${isJewelry ? "bg-gradient-to-r from-[#8b7355] to-[#c4a67d] hover:shadow-[0_4px_16px_rgba(196,166,125,0.3)]" : "bg-gradient-to-r from-[#3b82f6] to-[#6366f1] hover:shadow-[0_4px_16px_rgba(99,102,241,0.3)]"}`}
                       >
-                        Open Studio
+                        {isJewelry ? "Open Jewelry" : "Open Studio"}
                       </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openProjectPreview(p);
-                        }}
-                        className="px-3 py-2 bg-[rgba(255,255,255,0.06)] text-[rgba(255,255,255,0.6)] text-xs font-semibold rounded-xl hover:bg-[rgba(255,255,255,0.1)] hover:text-white transition-all border border-[rgba(255,255,255,0.08)]"
-                      >
-                        Preview
-                      </button>
+                      {!isJewelry && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openProjectPreview(p);
+                          }}
+                          className="px-3 py-2 bg-[rgba(255,255,255,0.06)] text-[rgba(255,255,255,0.6)] text-xs font-semibold rounded-xl hover:bg-[rgba(255,255,255,0.1)] hover:text-white transition-all border border-[rgba(255,255,255,0.08)]"
+                        >
+                          Preview
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
 
             {/* Jewelry Sessions */}
             {showSessions &&

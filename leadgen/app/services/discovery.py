@@ -2,13 +2,12 @@ from __future__ import annotations
 
 """Lead discovery — multi-source parallel pipeline.
 
-Primary sources (run in parallel):
+Sources (run in parallel):
   1. Etsy API v3 — search for jewelry sellers
-  2. Google Places API — find physical jewelry stores with websites
-  3. Shopify scraping — find Shopify stores via known directories + validation
-
-Backup (only if primaries find too few):
-  4. Perplexity Sonar — AI-powered web search as a last resort
+  2. Google Places API — systematic city-by-city search with multiple queries,
+     pagination, and full field extraction (reviews, hours, photos)
+  3. Shopify detection — Perplexity finds URLs, then /products.json validates
+  4. Perplexity Sonar backup — AI-powered web search as last resort
 """
 
 import asyncio
@@ -61,6 +60,8 @@ REGION_CITIES = {
         "Nashville", "Portland", "Las Vegas", "Charlotte", "Minneapolis",
         "Detroit", "Tampa", "St Louis", "Pittsburgh", "Baltimore",
         "Salt Lake City", "Kansas City", "Columbus", "Indianapolis", "Milwaukee",
+        "Scottsdale", "Savannah", "Charleston", "Santa Fe", "Aspen",
+        "Palm Beach", "Napa", "Sedona", "Carmel", "Greenwich",
     ],
     "eu": [
         "London", "Paris", "Berlin", "Milan", "Madrid",
@@ -68,6 +69,7 @@ REGION_CITIES = {
         "Copenhagen", "Dublin", "Lisbon", "Munich", "Barcelona",
         "Rome", "Hamburg", "Prague", "Warsaw", "Budapest",
         "Edinburgh", "Manchester", "Lyon", "Florence", "Antwerp",
+        "Geneva", "Nice", "Bruges", "Salzburg", "Porto",
     ],
     "dubai": [
         "Dubai", "Abu Dhabi", "Sharjah", "Doha", "Riyadh",
@@ -94,6 +96,7 @@ BIG_BRAND_DOMAINS = {
     "mejuri.com", "gorjana.com", "kendrascott.com",
     "baublebar.com", "stelladot.com", "missoma.com",
     "monicavinader.com", "astridandmiyu.com",
+    "yelp.com", "tripadvisor.com", "google.com", "apple.com",
 }
 
 JEWELRY_KEYWORDS = [
@@ -103,8 +106,6 @@ JEWELRY_KEYWORDS = [
     "engagement ring", "wedding band", "custom jewelry",
 ]
 
-# Shopify seed URLs are intentionally empty — Perplexity finds URLs dynamically.
-# Add known small Shopify jewelry stores here if you discover them manually.
 SHOPIFY_SEED_URLS: dict[str, list[str]] = {
     "us": [],
     "eu": [],
@@ -162,7 +163,7 @@ async def _http_get(client: httpx.AsyncClient, url: str, **kwargs) -> httpx.Resp
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# SOURCE 1: Etsy API v3 (PRIMARY)
+# SOURCE 1: Etsy API v3
 # ═══════════════════════════════════════════════════════════════════════════════
 
 ETSY_SEARCH_TERMS = [
@@ -220,9 +221,7 @@ async def discover_etsy(region: str = "us", max_results: int = 50) -> int:
                     continue
 
                 listing_count = shop.get("listing_active_count", 0)
-                if listing_count > 500:
-                    continue
-                if listing_count < 5:
+                if listing_count > 500 or listing_count < 5:
                     continue
 
                 shop_url = f"https://www.etsy.com/shop/{shop_name}"
@@ -251,7 +250,7 @@ async def discover_etsy(region: str = "us", max_results: int = 50) -> int:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# SOURCE 2: Google Places API (PRIMARY)
+# SOURCE 2: Google Places API — Systematic Multi-Query Discovery
 # ═══════════════════════════════════════════════════════════════════════════════
 
 PLACES_SEARCH_QUERIES = [
@@ -260,7 +259,79 @@ PLACES_SEARCH_QUERIES = [
     "handmade jewelry boutique",
     "fine jewelry store",
     "artisan jeweler",
+    "jewelry designer studio",
+    "engagement ring shop",
+    "gold jewelry store",
+    "diamond jewelry store",
+    "vintage jewelry shop",
+    "jewelry repair and custom design",
+    "local jeweler",
 ]
+
+PLACES_FULL_FIELD_MASK = (
+    "places.displayName,places.websiteUri,places.formattedAddress,"
+    "places.nationalPhoneNumber,places.rating,places.userRatingCount,"
+    "places.id,places.googleMapsUri,places.regularOpeningHours,"
+    "places.businessStatus,places.types,places.reviews"
+)
+
+
+async def _places_search_page(
+    client: httpx.AsyncClient,
+    api_key: str,
+    query: str,
+    city: str,
+    page_token: str | None = None,
+) -> tuple[list[dict], str | None]:
+    """Execute a single Google Places text search request, return (places, next_page_token)."""
+    headers = {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": api_key,
+        "X-Goog-FieldMask": PLACES_FULL_FIELD_MASK + ",nextPageToken",
+    }
+    body: dict = {
+        "textQuery": f"{query} in {city}",
+        "maxResultCount": 20,
+    }
+    if page_token:
+        body["pageToken"] = page_token
+
+    try:
+        resp = await client.post(
+            "https://places.googleapis.com/v1/places:searchText",
+            json=body, headers=headers, timeout=15.0,
+        )
+        if resp.status_code != 200:
+            logger.warning("Google Places %s/%s returned %s", city, query, resp.status_code)
+            return [], None
+        data = resp.json()
+        return data.get("places", []), data.get("nextPageToken")
+    except Exception as exc:
+        logger.error("Google Places failed for %s/%s: %s", city, query, exc)
+        return [], None
+
+
+def _extract_review_snippets(place: dict) -> list[dict]:
+    """Extract useful review data for lead scoring."""
+    reviews = place.get("reviews", [])
+    snippets = []
+    for r in reviews[:5]:
+        snippets.append({
+            "rating": r.get("rating"),
+            "text": (r.get("text", {}).get("text", "") or "")[:200],
+            "time": r.get("publishTime"),
+        })
+    return snippets
+
+
+def _extract_opening_hours(place: dict) -> dict | None:
+    hours = place.get("regularOpeningHours")
+    if not hours:
+        return None
+    return {
+        "open_now": hours.get("openNow"),
+        "weekday_descriptions": hours.get("weekdayDescriptions", []),
+    }
 
 
 async def discover_google_places(region: str, max_results: int = 50) -> int:
@@ -271,76 +342,76 @@ async def discover_google_places(region: str, max_results: int = 50) -> int:
         return 0
 
     cities = REGION_CITIES.get(region, REGION_CITIES["us"])
-    selected_cities = random.sample(cities, min(5, len(cities)))
+    selected_cities = random.sample(cities, min(8, len(cities)))
+    queries = random.sample(PLACES_SEARCH_QUERIES, min(3, len(PLACES_SEARCH_QUERIES)))
+
     candidates: list[LeadCandidate] = []
     seen_domains: set[str] = set()
-
-    query = random.choice(PLACES_SEARCH_QUERIES)
 
     async with httpx.AsyncClient() as client:
         for city in selected_cities:
             if len(candidates) >= max_results:
                 break
 
-            headers = {
-                "Content-Type": "application/json",
-                "X-Goog-Api-Key": api_key,
-                "X-Goog-FieldMask": (
-                    "places.displayName,places.websiteUri,places.formattedAddress,"
-                    "places.nationalPhoneNumber,places.rating,places.userRatingCount,places.id"
-                ),
-            }
-            body = {
-                "textQuery": f"{query} in {city}",
-                "maxResultCount": 20,
-            }
+            for query in queries:
+                if len(candidates) >= max_results:
+                    break
 
-            try:
-                resp = await client.post(
-                    "https://places.googleapis.com/v1/places:searchText",
-                    json=body, headers=headers, timeout=15.0,
-                )
-                if resp.status_code != 200:
-                    logger.warning("Google Places %s returned %s", city, resp.status_code)
-                    continue
-                data = resp.json()
-            except Exception as exc:
-                logger.error("Google Places failed for %s: %s", city, exc)
-                continue
+                places, next_token = await _places_search_page(client, api_key, query, city)
 
-            for place in data.get("places", []):
-                website = place.get("websiteUri")
-                if not website:
-                    continue
-                domain = _extract_domain(website)
-                if not domain or _is_blocked_domain(domain) or domain in seen_domains:
-                    continue
-                seen_domains.add(domain)
+                all_places = list(places)
+                pages_fetched = 1
+                while next_token and pages_fetched < 3 and len(candidates) < max_results:
+                    await asyncio.sleep(0.3)
+                    more_places, next_token = await _places_search_page(
+                        client, api_key, query, city, next_token,
+                    )
+                    all_places.extend(more_places)
+                    pages_fetched += 1
 
-                rating_count = place.get("userRatingCount", 0)
-                if rating_count > 5000:
-                    logger.debug("Skipping %s — too many reviews (%d)", domain, rating_count)
-                    continue
+                for place in all_places:
+                    website = place.get("websiteUri")
+                    if not website:
+                        continue
+                    domain = _extract_domain(website)
+                    if not domain or _is_blocked_domain(domain) or domain in seen_domains:
+                        continue
+                    seen_domains.add(domain)
 
-                name = place.get("displayName", {}).get("text", domain)
-                candidates.append(LeadCandidate(
-                    store_name=name,
-                    platform="google_places",
-                    region=region,
-                    store_url=website,
-                    domain=domain,
-                    phone=place.get("nationalPhoneNumber"),
-                    address=place.get("formattedAddress"),
-                    metadata={
-                        "google_place_id": place.get("id"),
-                        "rating": place.get("rating"),
-                        "rating_count": rating_count,
-                        "city": city,
-                        "search_query": query,
-                    },
-                ))
+                    rating_count = place.get("userRatingCount", 0)
+                    if rating_count > 5000:
+                        continue
 
-            await asyncio.sleep(0.5)
+                    biz_status = place.get("businessStatus")
+                    if biz_status and biz_status != "OPERATIONAL":
+                        continue
+
+                    name = place.get("displayName", {}).get("text", domain)
+                    review_snippets = _extract_review_snippets(place)
+                    opening_hours = _extract_opening_hours(place)
+
+                    candidates.append(LeadCandidate(
+                        store_name=name,
+                        platform="google_places",
+                        region=region,
+                        store_url=website,
+                        domain=domain,
+                        phone=place.get("nationalPhoneNumber"),
+                        address=place.get("formattedAddress"),
+                        metadata={
+                            "google_place_id": place.get("id"),
+                            "google_maps_url": place.get("googleMapsUri"),
+                            "rating": place.get("rating"),
+                            "rating_count": rating_count,
+                            "business_types": place.get("types", []),
+                            "opening_hours": opening_hours,
+                            "review_snippets": review_snippets,
+                            "city": city,
+                            "search_query": query,
+                        },
+                    ))
+
+                await asyncio.sleep(0.3)
 
     saved = _save_leads(candidates)
     logger.info("Google Places: found %d candidates, saved %d", len(candidates), saved)
@@ -348,8 +419,7 @@ async def discover_google_places(region: str, max_results: int = 50) -> int:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# SOURCE 3: Shopify Store Discovery (PRIMARY)
-# Uses Perplexity to find Shopify store URLs, then validates via /products.json
+# SOURCE 3: Shopify Store Discovery
 # ═══════════════════════════════════════════════════════════════════════════════
 
 async def _check_shopify_store(client: httpx.AsyncClient, url: str) -> dict | None:
@@ -364,9 +434,7 @@ async def _check_shopify_store(client: httpx.AsyncClient, url: str) -> dict | No
     try:
         data = resp.json()
         products = data.get("products", [])
-        if not products:
-            return None
-        if len(products) > 200:
+        if not products or len(products) > 200:
             return None
         has_jewelry = any(
             any(kw in f"{p.get('title', '')} {p.get('product_type', '')} {' '.join(p.get('tags', []))}".lower()
@@ -396,14 +464,13 @@ No markdown, no explanation, just the JSON array."""
 
 
 async def _find_shopify_urls_via_perplexity(region: str, max_urls: int = 30) -> list[str]:
-    """Use Perplexity to find Shopify jewelry store URLs to validate."""
     settings = get_settings()
     api_key = settings.perplexity_api_key
     if not api_key:
         return []
 
     cities = REGION_CITIES.get(region, REGION_CITIES["us"])
-    selected_cities = random.sample(cities, min(2, len(cities)))
+    selected_cities = random.sample(cities, min(3, len(cities)))
     urls: list[str] = []
 
     async with httpx.AsyncClient() as client:
@@ -446,10 +513,29 @@ async def _find_shopify_urls_via_perplexity(region: str, max_urls: int = 30) -> 
     return urls[:max_urls]
 
 
-async def discover_shopify(region: str = "us", max_results: int = 50) -> int:
-    """Find Shopify jewelry stores: get URLs from seeds + Perplexity, validate via /products.json."""
-    seed_urls = list(SHOPIFY_SEED_URLS.get(region, []))
+async def _detect_shopify_from_website(client: httpx.AsyncClient, url: str) -> bool:
+    """Check if a website runs on Shopify by looking for telltale signs."""
+    try:
+        resp = await client.get(url, timeout=10.0, follow_redirects=True, headers={
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+        })
+        if resp.status_code != 200:
+            return False
+        html = resp.text.lower()
+        shopify_signals = [
+            "cdn.shopify.com",
+            "shopify.com/s/files",
+            "myshopify.com",
+            "Shopify.theme",
+            "shopify-section",
+        ]
+        return any(sig.lower() in html for sig in shopify_signals)
+    except Exception:
+        return False
 
+
+async def discover_shopify(region: str = "us", max_results: int = 50) -> int:
+    seed_urls = list(SHOPIFY_SEED_URLS.get(region, []))
     perplexity_urls = await _find_shopify_urls_via_perplexity(region, max_urls=max_results * 2)
     all_urls = list(set(seed_urls + perplexity_urls))
     random.shuffle(all_urls)
@@ -481,7 +567,10 @@ async def discover_shopify(region: str = "us", max_results: int = 50) -> int:
                     region=region,
                     store_url=f"https://{domain}",
                     domain=domain,
-                    metadata={"product_count": len(info["products"])},
+                    metadata={
+                        "product_count": len(info["products"]),
+                        "is_shopify": True,
+                    },
                 ))
                 await asyncio.sleep(0.3)
 
@@ -494,7 +583,7 @@ async def discover_shopify(region: str = "us", max_results: int = 50) -> int:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# BACKUP: Perplexity Sonar AI Search (only if primaries find too few)
+# BACKUP: Perplexity Sonar AI Search
 # ═══════════════════════════════════════════════════════════════════════════════
 
 PERPLEXITY_BACKUP_PROMPT = """Find {count} small-to-medium INDEPENDENT jewelry stores in {city} that sell online.
@@ -518,7 +607,6 @@ Use null for unknown fields. Do NOT make up information."""
 
 
 async def discover_perplexity_backup(region: str, max_results: int = 20) -> int:
-    """Backup discovery via Perplexity — only called when primary sources find too few leads."""
     settings = get_settings()
     api_key = settings.perplexity_api_key
     if not api_key:
@@ -615,7 +703,7 @@ async def discover_perplexity_backup(region: str, max_results: int = 20) -> int:
 # Unified discovery entry point
 # ═══════════════════════════════════════════════════════════════════════════════
 
-MIN_PRIMARY_LEADS = 10  # if primaries find fewer than this, trigger backup
+MIN_PRIMARY_LEADS = 10
 
 
 async def run_discovery(
@@ -623,11 +711,6 @@ async def run_discovery(
     region: str = "us",
     max_results: int = 50,
 ) -> dict[str, int]:
-    """Run discovery across all sources.
-
-    If a specific platform is given, only that source runs.
-    If platform is None, all 3 primaries run in parallel, then backup if needed.
-    """
     results: dict[str, int] = {}
 
     if platform:
@@ -642,7 +725,6 @@ async def run_discovery(
         else:
             logger.warning("Unknown platform: %s", platform)
     else:
-        # Run all 3 primary sources in parallel
         etsy_task = asyncio.create_task(discover_etsy(region, max_results))
         places_task = asyncio.create_task(discover_google_places(region, max_results))
         shopify_task = asyncio.create_task(discover_shopify(region, max_results))

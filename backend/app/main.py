@@ -57,7 +57,7 @@ prefix = settings.api_v1_prefix
 _ROUTER_MODULES = [
     "auth", "users", "studio", "jewelry", "catalogue", "credits",
     "payments", "admin", "projects", "sessions", "feed", "media",
-    "blog", "brands", "themes", "feedback", "video",
+    "blog", "brands", "themes", "feedback", "video", "flow_video",
 ]
 for _mod_name in _ROUTER_MODULES:
     _mod = import_module(f"app.routers.{_mod_name}")
