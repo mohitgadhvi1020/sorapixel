@@ -76,23 +76,23 @@ SHOT_TYPES = {
         ),
     },
     # Angle-variety shots (use carefully; more likely to hallucinate if input is a single photo).
-    "angle_3_4": {
-        "id": "angle_3_4",
-        "name": "Angle Study — 3/4 View",
-        "short_name": "3/4 Angle",
-        "description": "Slight 3/4 camera rotation for more viewpoint variety",
-        "type": "product",
-        "allowed_jewelry_types": [
-            "ring", "bracelet", "bangle", "earring", "pendant", "brooch", "anklet", "chain", "necklace", "set",
-        ],
-        "prompt_suffix": (
-            "SHOT BRIEF: 3/4 angle product view.\n\n"
-            "VIEWPOINT (VARIANT): Rotate the camera slightly to a 3/4 view (approx. 20–35°) while preserving the true design. "
-            "Do NOT warp, stretch, or change proportions.\n\n"
-            "FRAMING: Full jewelry visible, no cropping of any structural parts. Center with even padding.\n\n"
-            "LIGHTING: Soft studio light with gentle gradients; controlled highlights only."
-        ),
-    },
+    # "angle_3_4": {
+    #     "id": "angle_3_4",
+    #     "name": "Angle Study — 3/4 View",
+    #     "short_name": "3/4 Angle",
+    #     "description": "Slight 3/4 camera rotation for more viewpoint variety",
+    #     "type": "product",
+    #     "allowed_jewelry_types": [
+    #         "ring", "bracelet", "bangle", "earring", "pendant", "brooch", "anklet", "chain", "necklace", "set",
+    #     ],
+    #     "prompt_suffix": (
+    #         "SHOT BRIEF: 3/4 angle product view.\n\n"
+    #         "VIEWPOINT (VARIANT): Rotate the camera slightly to a 3/4 view (approx. 20–35°) while preserving the true design. "
+    #         "Do NOT warp, stretch, or change proportions.\n\n"
+    #         "FRAMING: Full jewelry visible, no cropping of any structural parts. Center with even padding.\n\n"
+    #         "LIGHTING: Soft studio light with gentle gradients; controlled highlights only."
+    #     ),
+    # },
     "angle_side": {
         "id": "angle_side",
         "name": "Angle Study — Side Profile",
@@ -146,7 +146,7 @@ THEMES: list[dict] = [
         "status": "available",
         "jewelry_types": ALL_JEWELRY_TYPES,
         "scene_prompt": "on a rich, deep black velvet surface with subtle fabric texture visible. Dramatic studio lighting from above-left creating elegant shadows. Single focused spotlight highlighting the jewelry with a soft secondary fill light. Premium luxury jewelry photography aesthetic.",
-        "shots": ["hero", "dramatic", "closeup", "lifestyle", "angle_3_4"],
+        "shots": ["hero", "dramatic", "closeup"],
         "default_shots": ["hero"],
     },
     {
@@ -160,7 +160,7 @@ THEMES: list[dict] = [
         "status": "available",
         "jewelry_types": ALL_JEWELRY_TYPES,
         "scene_prompt": "on a deep burgundy wine velvet surface with rich texture, warm golden lighting casting soft highlights. Royal aesthetic with dramatic shadow play. Classic fine jewelry photography.",
-        "shots": ["hero", "dramatic", "closeup", "lifestyle", "angle_3_4"],
+        "shots": ["hero", "dramatic", "closeup"],
         "default_shots": ["hero"],
     },
     {
@@ -203,7 +203,7 @@ THEMES: list[dict] = [
         "status": "available",
         "jewelry_types": ["ring", "earring", "pendant", "bracelet", "bangle", "necklace", "set", "brooch"],
         "scene_prompt": "on a polished white Carrara marble surface with subtle grey veining. Bright, even studio lighting with soft shadows. Clean and luxurious lifestyle feel. The marble texture adds sophistication without distraction.",
-        "shots": ["hero", "dramatic", "lifestyle", "closeup", "top_down", "angle_3_4"],
+        "shots": ["hero", "dramatic", "closeup", "top_down"],
         "default_shots": ["hero"],
     },
     {
@@ -217,7 +217,7 @@ THEMES: list[dict] = [
         "status": "available",
         "jewelry_types": ["ring", "earring", "bracelet", "bangle", "pendant", "necklace", "chain"],
         "scene_prompt": "on a dark charcoal textured slate stone surface, moody directional lighting from the side casting dramatic long shadows. The rough natural stone texture contrasts with the polished jewelry. Editorial magazine quality.",
-        "shots": ["hero", "dramatic", "closeup", "lifestyle"],
+        "shots": ["hero", "dramatic", "closeup"],
         "default_shots": ["hero"],
     },
     {
@@ -230,7 +230,7 @@ THEMES: list[dict] = [
         "status": "available",
         "jewelry_types": ["ring", "bracelet", "bangle", "anklet", "pendant", "necklace"],
         "scene_prompt": "on a warm golden sandstone surface bathed in natural sunlight. Soft warm shadows, desert-inspired golden hour aesthetic. The natural stone grain adds organic texture. Warm, inviting product photography.",
-        "shots": ["hero", "lifestyle", "closeup"],
+        "shots": ["hero", "closeup"],
         "default_shots": ["hero"],
     },
     {
@@ -243,7 +243,7 @@ THEMES: list[dict] = [
         "status": "available",
         "jewelry_types": ["ring", "bracelet", "bangle", "anklet", "pendant", "earring"],
         "scene_prompt": "on a warm terracotta clay surface with earthy natural texture. Soft natural lighting with warm tones. Rustic elegance, artisanal feel. The clay's warmth complements gold and rose gold metals beautifully.",
-        "shots": ["hero", "lifestyle", "closeup"],
+        "shots": ["hero", "closeup"],
         "default_shots": ["hero"],
     },
 
@@ -258,7 +258,7 @@ THEMES: list[dict] = [
         "status": "available",
         "jewelry_types": ["bracelet", "bangle", "ring", "anklet", "pendant"],
         "scene_prompt": "on smooth polished zen spa stones with a small sprig of fresh eucalyptus or green leaves nearby. Soft, diffused natural light. Minimal, serene, spa-like atmosphere. Clean composition with breathing room. The jewelry rests naturally on the smooth stone.",
-        "shots": ["hero", "lifestyle", "closeup", "dramatic"],
+        "shots": ["hero", "closeup", "dramatic"],
         "default_shots": ["hero"],
     },
     {
@@ -271,8 +271,8 @@ THEMES: list[dict] = [
         "status": "available",
         "jewelry_types": ["necklace", "set", "earring", "bangle", "pendant", "chain"],
         "scene_prompt": "on a warm wooden surface decorated with fresh marigold flowers and a traditional brass lantern nearby. Rich, warm golden-hour lighting. Indian festive aesthetic — Diwali or wedding feel. The jewelry sits among scattered marigold petals. Warm, celebratory, opulent mood.",
-        "shots": ["hero", "lifestyle", "dramatic", "closeup"],
-        "default_shots": ["hero", "lifestyle"],
+        "shots": ["hero", "dramatic", "closeup"],
+        "default_shots": ["hero"],
     },
     {
         "id": "rose-petal-soft",
@@ -284,7 +284,7 @@ THEMES: list[dict] = [
         "status": "available",
         "jewelry_types": ["necklace", "earring", "pendant", "set", "ring", "bracelet"],
         "scene_prompt": "on soft cream or blush fabric with scattered fresh rose petals in soft pink and blush tones. Romantic, soft diffused lighting. Feminine and elegant. The jewelry nestles among the petals. Bridal and romantic jewelry photography.",
-        "shots": ["hero", "lifestyle", "closeup"],
+        "shots": ["hero", "closeup"],
         "default_shots": ["hero"],
     },
     {
@@ -297,7 +297,7 @@ THEMES: list[dict] = [
         "status": "available",
         "jewelry_types": ["necklace", "earring", "bracelet", "bangle", "set", "anklet"],
         "scene_prompt": "on a clean white or light surface with large tropical monstera and palm leaves creating a lush frame. Bright natural light filtering through leaves casting green-tinted shadows. Fresh, modern, tropical vibes. The jewelry pops against the green botanicals.",
-        "shots": ["hero", "lifestyle", "closeup"],
+        "shots": ["hero", "closeup"],
         "default_shots": ["hero"],
     },
     {
@@ -310,7 +310,7 @@ THEMES: list[dict] = [
         "status": "available",
         "jewelry_types": ["earring", "necklace", "bracelet", "anklet", "ring", "pendant"],
         "scene_prompt": "on a neutral linen or cotton fabric surface with dried pampas grass, dried wildflowers, and natural dried elements artfully arranged nearby. Warm, soft natural light. Bohemian chic, earthy aesthetic. Muted warm tones throughout.",
-        "shots": ["hero", "lifestyle", "closeup"],
+        "shots": ["hero", "closeup"],
         "default_shots": ["hero"],
     },
 
@@ -325,7 +325,7 @@ THEMES: list[dict] = [
         "status": "available",
         "jewelry_types": ["necklace", "set", "earring", "pendant", "bracelet", "bangle", "brooch", "chain"],
         "scene_prompt": "on luxurious cream silk satin fabric with gentle flowing folds catching warm golden light. Elegant, soft, bridal aesthetic. The silk's sheen creates beautiful reflections complementing the jewelry. Warm studio lighting.",
-        "shots": ["hero", "dramatic", "closeup", "lifestyle"],
+        "shots": ["hero", "dramatic", "closeup"],
         "default_shots": ["hero"],
     },
     {
@@ -338,7 +338,7 @@ THEMES: list[dict] = [
         "status": "available",
         "jewelry_types": ["ring", "earring", "pendant", "bracelet", "anklet", "brooch"],
         "scene_prompt": "on a clean natural linen fabric surface with visible weave texture. Bright, even natural daylight. Minimal Scandinavian-inspired aesthetic. Clean composition, no distractions. The linen texture adds warmth and authenticity.",
-        "shots": ["hero", "closeup", "lifestyle"],
+        "shots": ["hero", "closeup"],
         "default_shots": ["hero"],
     },
     {
@@ -366,7 +366,7 @@ THEMES: list[dict] = [
         "status": "available",
         "jewelry_types": ALL_JEWELRY_TYPES,
         "scene_prompt": "on a pure white seamless background with bright, even studio lighting. No shadows or minimal soft shadow underneath. E-commerce marketplace ready — Amazon, Flipkart, Etsy style. Clean, distraction-free product photography.",
-        "shots": ["hero", "closeup", "top_down", "angle_3_4"],
+        "shots": ["hero", "closeup", "top_down"],
         "default_shots": ["hero"],
     },
     {
@@ -379,7 +379,7 @@ THEMES: list[dict] = [
         "status": "available",
         "jewelry_types": ALL_JEWELRY_TYPES,
         "scene_prompt": "on a smooth neutral grey seamless studio background with balanced, professional studio lighting. Soft gradient from slightly lighter at center to darker at edges. Classic jewelry catalog photography aesthetic.",
-        "shots": ["hero", "closeup", "dramatic", "top_down", "angle_3_4", "angle_side"],
+        "shots": ["hero", "closeup", "dramatic", "top_down", "angle_side"],
         "default_shots": ["hero"],
     },
     {
@@ -407,7 +407,7 @@ THEMES: list[dict] = [
         "status": "available",
         "jewelry_types": ["bracelet", "bangle", "ring", "anklet", "pendant", "earring", "necklace"],
         "scene_prompt": "on a warm rustic wooden surface with rich natural wood grain visible. Warm natural lighting from a window. Earthy, inviting, artisanal feel. The organic wood texture complements handcrafted and traditional jewelry beautifully.",
-        "shots": ["hero", "lifestyle", "closeup"],
+        "shots": ["hero", "closeup"],
         "default_shots": ["hero"],
     },
     {
@@ -420,7 +420,7 @@ THEMES: list[dict] = [
         "status": "available",
         "jewelry_types": ["bracelet", "anklet", "ring", "earring", "necklace", "pendant"],
         "scene_prompt": "on weathered driftwood or pale beach wood with soft sandy tones. Bright, airy coastal light with soft shadows. Relaxed beachy vibe. A few small shells or sea glass pieces scattered nearby. Perfect for bohemian or beach-inspired jewelry.",
-        "shots": ["hero", "lifestyle", "closeup"],
+        "shots": ["hero", "closeup"],
         "default_shots": ["hero"],
     },
 
@@ -435,8 +435,8 @@ THEMES: list[dict] = [
         "status": "available",
         "jewelry_types": ["necklace", "set", "earring", "bangle", "pendant", "chain", "brooch"],
         "scene_prompt": "on a deep burgundy or maroon silk fabric with a traditional brass diya (oil lamp) and scattered flower petals nearby. Warm golden candlelight-like lighting. Rich Indian heritage aesthetic — pooja room or mandap feel. Traditional wedding jewelry photography.",
-        "shots": ["hero", "lifestyle", "dramatic", "closeup"],
-        "default_shots": ["hero", "lifestyle"],
+        "shots": ["hero", "dramatic", "closeup"],
+        "default_shots": ["hero"],
     },
     {
         "id": "mughal-miniature",
@@ -448,7 +448,7 @@ THEMES: list[dict] = [
         "status": "available",
         "jewelry_types": ["necklace", "set", "earring", "bangle", "pendant", "chain", "brooch"],
         "scene_prompt": "on a rich jewel-toned brocade or zari fabric with intricate gold weaving, placed near a small ornate Mughal-style mirror or picture frame. Warm, regal golden lighting. Opulent Mughal heritage aesthetic. Royal Indian jewelry photography evoking nawabi grandeur.",
-        "shots": ["hero", "lifestyle", "dramatic", "closeup"],
+        "shots": ["hero", "dramatic", "closeup"],
         "default_shots": ["hero"],
     },
 

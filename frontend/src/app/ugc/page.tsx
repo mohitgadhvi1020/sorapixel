@@ -52,13 +52,13 @@ const UGC_ALL_POSES = [
 ] as const;
 
 const UGC_BACKGROUNDS = [
-  { id: "best_match", label: "Best Match", swatch: "linear-gradient(135deg, #c4a67d, #8b7355)" },
-  { id: "outdoor", label: "Outdoor", swatch: "#6B8E6B" },
-  { id: "studio", label: "Studio", swatch: "#2A2A2A" },
-  { id: "flora", label: "Flora", swatch: "#8FBC8F" },
-  { id: "wooden", label: "Wooden", swatch: "#8B6914" },
-  { id: "indoor", label: "Indoor", swatch: "#D2B48C" },
-  { id: "livingroom", label: "Living Room", swatch: "#BC8F8F" },
+  { id: "best_match", label: "Best Match", swatch: "linear-gradient(135deg, #c4a67d, #8b7355)", image: "/images/backgrounds/best_match.png" },
+  { id: "outdoor", label: "Outdoor", swatch: "#6B8E6B", image: "/images/backgrounds/outdoor.png" },
+  { id: "studio", label: "Studio", swatch: "#2A2A2A", image: "/images/backgrounds/studio.png" },
+  { id: "flora", label: "Flora", swatch: "#8FBC8F", image: "/images/backgrounds/flora.png" },
+  { id: "wooden", label: "Wooden", swatch: "#8B6914", image: "/images/backgrounds/wooden.png" },
+  { id: "indoor", label: "Indoor", swatch: "#D2B48C", image: "/images/backgrounds/indoor.png" },
+  { id: "livingroom", label: "Living Room", swatch: "#BC8F8F", image: "/images/backgrounds/livingroom.png" },
 ] as const;
 
 const JEWELRY_POSE_MAP: Record<string, string[]> = {
@@ -92,6 +92,35 @@ interface UgcResult {
   generation_id: string;
   pose: string;
   tokens_used: number;
+}
+
+/** Catalogue `/generate` returns `images: { base64, mime_type, label }[]`, not `results`. */
+function catalogueResponseToUgcResults(data: Record<string, unknown>): UgcResult[] {
+  const raw = data.images as Array<{ base64?: string; mime_type?: string; label?: string }> | undefined;
+  const genIds = (data.generation_ids as string[] | undefined) ?? [];
+  if (!raw?.length) return [];
+
+  let poseIdx = 0;
+  return raw
+    .filter((img) => img.base64)
+    .map((img, i) => {
+      const label = img.label || `pose_${i}`;
+      const isZoom = /·\s*zoom/i.test(label) || /\bzoom\b/i.test(label);
+      const gid = isZoom
+        ? genIds[Math.max(0, poseIdx - 1)] ?? `ugc-${i}`
+        : genIds[poseIdx++] ?? `ugc-${i}`;
+      const pose = label
+        .replace(/\s*·\s*zoom\s*$/i, "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, "_");
+      return {
+        image_url: `data:${img.mime_type || "image/png"};base64,${img.base64}`,
+        generation_id: String(gid),
+        pose,
+        tokens_used: 0,
+      };
+    });
 }
 
 // ─── Page ───
@@ -240,7 +269,7 @@ function UgcPageInner() {
     setError("");
 
     try {
-      const data = await api.post<{ results: UgcResult[] }>("/catalogue/generate", {
+      const data = await api.post<Record<string, unknown>>("/catalogue/generate", {
         image_base64: imageB64,
         gender,
         nationality,
@@ -255,9 +284,29 @@ function UgcPageInner() {
         special_instructions: undefined,
       });
 
-      setResults((prev) => [...prev, ...data.results]);
-      setGenerationIds((prev) => [...prev, ...data.results.map((r) => r.generation_id)]);
-      setGenCount((c) => c + 1);
+      // Catalogue API returns `images` + `generation_ids`; legacy/other may use `results`.
+      const fromCatalogue = catalogueResponseToUgcResults(data);
+      const resultsArray: UgcResult[] =
+        fromCatalogue.length > 0
+          ? fromCatalogue
+          : Array.isArray(data.results)
+            ? (data.results as UgcResult[])
+            : Array.isArray(data)
+              ? (data as unknown as UgcResult[])
+              : data.result
+                ? [data.result as UgcResult]
+                : [];
+
+      if (resultsArray.length === 0) {
+        const msg = (data as { error?: string; detail?: string }).error
+          || (data as { error?: string; detail?: string }).detail
+          || "No results returned. Please try again.";
+        setError(typeof msg === "string" ? msg : "Generation failed. Please try again.");
+      } else {
+        setResults((prev) => [...prev, ...resultsArray]);
+        setGenerationIds((prev) => [...prev, ...resultsArray.map((r) => r.generation_id)]);
+        setGenCount((c) => c + 1);
+      }
       await refreshCredits();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Generation failed";
@@ -545,27 +594,39 @@ function UgcPageInner() {
 
               {/* Background */}
               <ConfigSection title="Background" lt={lt}>
-                <div className="flex flex-wrap gap-2.5">
+                <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
                   {UGC_BACKGROUNDS.map((bg) => {
                     const selected = background === bg.id;
                     return (
                       <button
                         key={bg.id}
                         onClick={() => setBackground(bg.id)}
-                        className="flex flex-col items-center gap-1.5 group"
+                        className={`group relative aspect-square rounded-xl overflow-hidden transition-all duration-200 hover:-translate-y-0.5 ${
+                          selected
+                            ? `ring-2 ring-[#c4a67d] ring-offset-1 shadow-[0_0_12px_rgba(196,166,125,0.25)] ${lt ? "ring-offset-white" : "ring-offset-[#0a0a0a]"}`
+                            : lt
+                              ? "ring-1 ring-[rgba(0,0,0,0.08)] hover:ring-[rgba(0,0,0,0.2)]"
+                              : "ring-1 ring-[rgba(255,255,255,0.08)] hover:ring-[rgba(255,255,255,0.2)]"
+                        }`}
                         title={bg.label}
                       >
-                        <div
-                          className={`w-10 h-10 rounded-xl transition-all duration-200 ${
-                            selected
-                              ? `ring-2 ring-[#c4a67d] ring-offset-2 scale-110 ${lt ? "ring-offset-white" : "ring-offset-[#0a0a0a]"}`
-                              : "hover:scale-105"
-                          }`}
-                          style={{ background: bg.swatch }}
+                        <img
+                          src={bg.image}
+                          alt={bg.label}
+                          className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                          loading="lazy"
                         />
-                        <span className={`text-[10px] font-medium ${selected ? "text-[#c4a67d]" : lt ? "text-[#0a0a0a]/50" : "text-white/40"}`}>
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+                        <span className="absolute bottom-1 left-0 right-0 text-center text-[9px] font-semibold text-white drop-shadow-lg">
                           {bg.label}
                         </span>
+                        {selected && (
+                          <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-[#c4a67d] flex items-center justify-center">
+                            <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          </div>
+                        )}
                       </button>
                     );
                   })}

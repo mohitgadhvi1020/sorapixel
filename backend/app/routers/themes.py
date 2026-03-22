@@ -20,12 +20,12 @@ async def list_themes(jewelry_type: Optional[str] = Query(None)):
     themes = get_all_themes(jewelry_type=jewelry_type)
     categories = get_theme_categories()
     
-    # Add cache headers since themes are static data
+    # Avoid long browser/CDN caching: theme shot lists change with app updates.
     response = JSONResponse(
         content={"themes": themes, "categories": categories},
         headers={
-            "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
-        }
+            "Cache-Control": "no-store",
+        },
     )
     return response
 

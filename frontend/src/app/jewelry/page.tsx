@@ -96,12 +96,12 @@ const UGC_ALL_POSES = [
 ];
 
 const UGC_BACKGROUNDS = [
-  { id: "best_match", label: "Best Match", swatch: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" },
-  { id: "studio", label: "Studio", swatch: "#e0e0e0" },
-  { id: "flora", label: "Flora", swatch: "#4caf50" },
-  { id: "wooden", label: "Wooden", swatch: "#8d6e63" },
-  { id: "indoor", label: "Indoor", swatch: "#bcaaa4" },
-  { id: "livingroom", label: "Living Room", swatch: "#d7ccc8" },
+  { id: "best_match", label: "Best Match", swatch: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", image: "/images/backgrounds/best_match.png" },
+  { id: "studio", label: "Studio", swatch: "#e0e0e0", image: "/images/backgrounds/studio.png" },
+  { id: "flora", label: "Flora", swatch: "#4caf50", image: "/images/backgrounds/flora.png" },
+  { id: "wooden", label: "Wooden", swatch: "#8d6e63", image: "/images/backgrounds/wooden.png" },
+  { id: "indoor", label: "Indoor", swatch: "#bcaaa4", image: "/images/backgrounds/indoor.png" },
+  { id: "livingroom", label: "Living Room", swatch: "#d7ccc8", image: "/images/backgrounds/livingroom.png" },
 ];
 
 const JEWELRY_POSE_MAP: Record<string, string[]> = {
@@ -341,7 +341,7 @@ function JewelryPage() {
 
   async function loadThemes(typeOverride?: string) {
     const jType = typeOverride || jewelryType;
-    const cacheKey = `themes_${jType || "__all__"}`;
+    const cacheKey = `themes_v3_${jType || "__all__"}`;
 
     if (themes.length > 0 && lastThemeTypeRef.current === jType) return;
 
@@ -369,7 +369,7 @@ function JewelryPage() {
 
   // Preload all themes in background (skip if already cached)
   useEffect(() => {
-    const allKey = "themes___all__";
+    const allKey = "themes_v3___all__";
     if (cacheGet(allKey, THEME_CACHE_TTL)) return;
     fetchThemesNoAuth()
       .then((data) => cacheSet(allKey, data))
@@ -1225,17 +1225,17 @@ function JewelryPage() {
               return (
                 <div key={s.key} className="flex items-center">
                   {i > 0 && (
-                    <div className={`w-6 md:w-10 h-px mx-1 transition-colors ${isDone ? "bg-[#c4a67d]" : isLight ? "bg-[#e0dcd6]" : "bg-[rgba(255,255,255,0.08)]"}`} />
+                    <div className={`w-8 md:w-12 mx-1 transition-all ${isDone ? "step-connector" : isLight ? "step-connector-inactive bg-[#e0dcd6]" : "step-connector-inactive bg-[rgba(255,255,255,0.08)]"}`} />
                   )}
                   <div className="flex items-center gap-1.5">
-                    <div className={`w-6 h-6 rounded-full text-[10px] font-bold flex items-center justify-center transition-all ${
+                    <div className={`w-7 h-7 rounded-full text-[11px] font-bold flex items-center justify-center transition-all duration-300 ${
                       isActive
-                        ? "bg-[#c4a67d] text-black"
+                        ? "bg-[#c4a67d] text-black shadow-[0_0_16px_rgba(196,166,125,0.5)]"
                         : isDone
                           ? "bg-[rgba(196,166,125,0.2)] text-[#c4a67d]"
                           : isLight
                             ? "bg-[#e8e5df] text-[#999]"
-                            : "bg-[rgba(255,255,255,0.06)] text-[rgba(255,255,255,0.3)]"
+                            : "bg-[rgba(255,255,255,0.06)] text-[rgba(255,255,255,0.45)]"
                     }`}>
                       {isDone ? (
                         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
@@ -1244,7 +1244,7 @@ function JewelryPage() {
                       ) : s.num}
                     </div>
                     <span className={`text-[11px] font-medium hidden md:inline transition-colors ${
-                      isActive ? (isLight ? "text-[#0a0a0a]" : "text-white") : isDone ? "text-[#c4a67d]" : isLight ? "text-[#999]" : "text-[rgba(255,255,255,0.3)]"
+                      isActive ? (isLight ? "text-[#0a0a0a]" : "text-white") : isDone ? "text-[#c4a67d]" : isLight ? "text-[#999]" : "text-[rgba(255,255,255,0.45)]"
                     }`}>
                       {s.label}
                     </span>
@@ -1282,7 +1282,7 @@ function JewelryPage() {
               {step === "upload" ? "Jewelry Studio" : "Choose Category"}
             </h1>
             <p className={`text-[15px] mt-2 leading-relaxed ${
-              isLight ? "text-[#6b6b6b]" : "text-[rgba(255,255,255,0.55)]"
+              isLight ? "text-[#6b6b6b]" : "text-[rgba(255,255,255,0.7)]"
             }`}>
               {step === "upload"
                 ? "Upload your jewelry photos and generate studio-quality product shots."
@@ -1307,7 +1307,7 @@ function JewelryPage() {
                   <p className={`text-[13px] font-semibold ${isLight ? "text-[#5a4a36]" : "text-[#e8d5b5]"}`}>
                     Upgrade to Pro for crystal-clear, studio-grade images
                   </p>
-                  <p className={`text-[11px] mt-0.5 ${isLight ? "text-[#8b7355]" : "text-[#c4a67d]/60"}`}>
+                  <p className={`text-[11px] mt-0.5 ${isLight ? "text-[#8b7355]" : "text-[#c4a67d]/70"}`}>
                     3x sharper details · True metal shine · Plans from {isIndia ? "₹149" : "$4.99"}
                   </p>
                 </div>
@@ -1328,10 +1328,10 @@ function JewelryPage() {
             <div
               onDragOver={(e) => e.preventDefault()}
               onDrop={handleMainDrop}
-              className={`relative border-2 border-dashed rounded-2xl p-10 md:p-16 text-center transition-all duration-300 cursor-pointer ${
+              className={`relative border-[2.5px] border-dashed rounded-2xl p-10 md:p-16 text-center transition-all duration-300 cursor-pointer group ${
                 isLight
-                  ? "border-[#c4a67d]/40 bg-gradient-to-b from-[#faf6f0] to-[#f5ede2] hover:border-[#c4a67d]/70 shadow-[0_2px_20px_rgba(196,166,125,0.1)] hover:shadow-[0_8px_40px_rgba(196,166,125,0.18)]"
-                  : "border-[rgba(196,166,125,0.3)] bg-[rgba(196,166,125,0.03)] hover:border-[rgba(196,166,125,0.5)] shadow-[0_2px_16px_rgba(0,0,0,0.06),0_8px_40px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_24px_rgba(0,0,0,0.1),0_12px_48px_rgba(0,0,0,0.06)]"
+                  ? "border-[#c4a67d]/50 bg-gradient-to-b from-[#faf6f0] to-[#f5ede2] hover:border-[#c4a67d]/80 shadow-[0_2px_20px_rgba(196,166,125,0.1)] hover:shadow-[0_8px_40px_rgba(196,166,125,0.18)]"
+                  : "border-[rgba(196,166,125,0.35)] bg-[rgba(196,166,125,0.03)] hover:border-[rgba(196,166,125,0.6)] shadow-[0_2px_16px_rgba(0,0,0,0.06),0_8px_40px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_24px_rgba(0,0,0,0.1),0_12px_48px_rgba(0,0,0,0.06)]"
               }`}
             >
               <input
@@ -1381,29 +1381,35 @@ function JewelryPage() {
                 </div>
               ) : (
                 <div className="flex flex-col items-center gap-4">
-                  <div className={`w-20 h-20 rounded-2xl flex items-center justify-center ${
-                    isLight
-                      ? "bg-gradient-to-br from-[#c4a67d] to-[#8b7355] shadow-lg shadow-[#c4a67d]/25"
-                      : "bg-gradient-to-br from-[#c4a67d] to-[#8b7355] shadow-lg shadow-[#c4a67d]/15"
-                  }`}>
-                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                      <polyline points="17 8 12 3 7 8" />
-                      <line x1="12" y1="3" x2="12" y2="15" />
-                    </svg>
+                  {/* Radial glow behind the icon */}
+                  <div className="relative">
+                    <div className={`absolute inset-0 w-20 h-20 rounded-2xl blur-xl opacity-30 ${
+                      isLight ? "bg-[#c4a67d]" : "bg-[#c4a67d]"
+                    }`} />
+                    <div className={`animate-upload-pulse relative w-20 h-20 rounded-2xl flex items-center justify-center ${
+                      isLight
+                        ? "bg-gradient-to-br from-[#c4a67d] to-[#8b7355] shadow-lg shadow-[#c4a67d]/25"
+                        : "bg-gradient-to-br from-[#c4a67d] to-[#8b7355] shadow-lg shadow-[#c4a67d]/15"
+                    }`}>
+                      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                        <polyline points="17 8 12 3 7 8" />
+                        <line x1="12" y1="3" x2="12" y2="15" />
+                      </svg>
+                    </div>
                   </div>
                   <div>
                     <p className={`font-bold text-xl ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>Upload your jewelry photo</p>
-                    <p className={`text-sm mt-1.5 ${isLight ? "text-[#888]" : "text-[rgba(255,255,255,0.4)]"}`}>Tap to upload or drag and drop</p>
+                    <p className={`text-sm mt-1.5 ${isLight ? "text-[#777]" : "text-[rgba(255,255,255,0.6)]"}`}>Tap to upload or drag and drop</p>
                   </div>
-                  <p className={`text-xs ${isLight ? "text-[#aaa]" : "text-[rgba(255,255,255,0.3)]"}`}>PNG, JPG, JPEG, HEIC, WebP — Max 10MB</p>
+                  <p className={`text-xs ${isLight ? "text-[#aaa]" : "text-[rgba(255,255,255,0.45)]"}`}>PNG, JPG, JPEG, HEIC, WebP — Max 10MB</p>
                   <button
                     type="button"
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); cameraInputRef.current?.click(); }}
-                    className={`mt-2 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all z-10 relative ${
+                    className={`mt-2 inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all z-10 relative hover:-translate-y-0.5 active:scale-[0.97] ${
                       isLight
-                        ? "text-[#8b7355] bg-[#f0ebe3] hover:bg-[#e8dfd2] border border-[#d9cdb8]"
-                        : "text-[#c4a67d] bg-[rgba(196,166,125,0.1)] hover:bg-[rgba(196,166,125,0.2)] border border-[rgba(196,166,125,0.2)]"
+                        ? "text-white bg-gradient-to-r from-[#8b7355] to-[#c4a67d] shadow-md shadow-[#c4a67d]/20 hover:shadow-lg hover:shadow-[#c4a67d]/30"
+                        : "text-white bg-gradient-to-r from-[#8b7355] to-[#c4a67d] shadow-md shadow-[#c4a67d]/15 hover:shadow-lg hover:shadow-[#c4a67d]/25"
                     }`}
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1480,8 +1486,8 @@ function JewelryPage() {
             {/* Category selection */}
             <div>
               <h3 className="text-base font-semibold text-white mb-1">Choose a category to continue</h3>
-              <p className="text-xs text-[rgba(255,255,255,0.4)] mb-4">Select the type of jewelry in your photo</p>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <p className="text-xs text-[rgba(255,255,255,0.5)] mb-4">Select the type of jewelry in your photo</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                 {JEWELRY_TYPES.map((type) => (
                   <button
                     key={type.id}
@@ -1490,17 +1496,33 @@ function JewelryPage() {
                       loadThemes(type.id);
                       setStep("theme_browse");
                     }}
-                    className={`flex flex-col items-center gap-2.5 p-5 rounded-2xl border transition-all duration-200 text-center hover:-translate-y-0.5 ${
+                    className={`group relative aspect-[4/5] rounded-2xl overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(0,0,0,0.4)] ${
                       jewelryType === type.id
-                        ? "bg-[rgba(196,166,125,0.08)] border-[rgba(196,166,125,0.25)] shadow-[0_0_15px_rgba(196,166,125,0.08)]"
-                        : "bg-[rgba(255,255,255,0.02)] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)] hover:bg-[rgba(255,255,255,0.04)]"
+                        ? "ring-2 ring-[#c4a67d] ring-offset-2 ring-offset-[#0E0F14] shadow-[0_0_20px_rgba(196,166,125,0.2)]"
+                        : "ring-1 ring-[rgba(255,255,255,0.08)] hover:ring-[rgba(255,255,255,0.2)]"
                     }`}
                   >
-                    <div className="w-12 h-12 rounded-xl bg-[rgba(255,255,255,0.04)] flex items-center justify-center text-2xl">
-                      {type.icon}
+                    {/* Image */}
+                    <img
+                      src={type.image}
+                      alt={type.label}
+                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                      loading="lazy"
+                    />
+                    {/* Gradient overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                    {/* Label */}
+                    <div className="absolute bottom-0 left-0 right-0 p-3">
+                      <span className="text-sm font-bold text-white uppercase tracking-wider drop-shadow-lg">{type.label}</span>
                     </div>
-                    <span className="text-sm font-semibold text-white uppercase tracking-wide">{type.label}</span>
-                    <span className="text-[10px] font-semibold text-[#7dcf5a]">Available</span>
+                    {/* Selected indicator */}
+                    {jewelryType === type.id && (
+                      <div className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full bg-[#c4a67d] flex items-center justify-center shadow-lg">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      </div>
+                    )}
                   </button>
                 ))}
               </div>
@@ -2617,22 +2639,34 @@ function JewelryPage() {
               {/* Background */}
               <div>
                 <label className="block text-[10px] font-semibold text-[rgba(255,255,255,0.45)] uppercase tracking-[0.1em] mb-2.5">Background</label>
-                <div className="flex flex-wrap gap-2">
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                   {UGC_BACKGROUNDS.map((bg) => (
                     <button
                       key={bg.id}
                       onClick={() => setUgcBackground(bg.id)}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-medium transition-all duration-200 ${
+                      className={`group relative aspect-square rounded-xl overflow-hidden transition-all duration-200 hover:-translate-y-0.5 ${
                         ugcBackground === bg.id
-                          ? "bg-[rgba(196,166,125,0.12)] text-[#c4a67d] border border-[rgba(196,166,125,0.3)]"
-                          : "bg-[rgba(255,255,255,0.04)] text-[rgba(255,255,255,0.5)] border border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)]"
+                          ? "ring-2 ring-[#c4a67d] ring-offset-1 ring-offset-[#1a1b20] shadow-[0_0_12px_rgba(196,166,125,0.25)]"
+                          : "ring-1 ring-[rgba(255,255,255,0.08)] hover:ring-[rgba(255,255,255,0.2)]"
                       }`}
                     >
-                      <span
-                        className={`w-4.5 h-4.5 rounded-full flex-shrink-0 border ${ugcBackground === bg.id ? "border-[rgba(196,166,125,0.3)]" : "border-[rgba(255,255,255,0.1)]"}`}
-                        style={{ background: bg.swatch, width: 18, height: 18 }}
+                      <img
+                        src={bg.image}
+                        alt={bg.label}
+                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                        loading="lazy"
                       />
-                      {bg.label}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+                      <span className="absolute bottom-1.5 left-0 right-0 text-center text-[10px] font-semibold text-white drop-shadow-lg">
+                        {bg.label}
+                      </span>
+                      {ugcBackground === bg.id && (
+                        <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-[#c4a67d] flex items-center justify-center">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        </div>
+                      )}
                     </button>
                   ))}
                 </div>

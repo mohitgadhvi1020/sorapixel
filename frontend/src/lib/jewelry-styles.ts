@@ -2,19 +2,20 @@ export interface JewelryTypeOption {
   id: string;
   label: string;
   icon: string;
+  image: string;
 }
 
 export const JEWELRY_TYPES: JewelryTypeOption[] = [
-  { id: "ring", label: "Ring", icon: "💍" },
-  { id: "necklace", label: "Necklace", icon: "📿" },
-  { id: "earring", label: "Earring", icon: "✨" },
-  { id: "bracelet", label: "Bracelet", icon: "⭕" },
-  { id: "bangle", label: "Bangle", icon: "🔵" },
-  { id: "pendant", label: "Pendant", icon: "💎" },
-  { id: "brooch", label: "Brooch", icon: "🌸" },
-  { id: "anklet", label: "Anklet", icon: "🦶" },
-  { id: "chain", label: "Chain", icon: "🔗" },
-  { id: "set", label: "Set", icon: "👑" },
+  { id: "ring", label: "Ring", icon: "💍", image: "/shot-previews/ring/hero.jpg" },
+  { id: "necklace", label: "Necklace", icon: "📿", image: "/shot-previews/necklace/hero.jpg" },
+  { id: "earring", label: "Earring", icon: "✨", image: "/shot-previews/earring/hero.jpg" },
+  { id: "bracelet", label: "Bracelet", icon: "⭕", image: "/shot-previews/bracelet/hero.jpg" },
+  { id: "bangle", label: "Bangle", icon: "🔵", image: "/shot-previews/bangle/hero.jpg" },
+  { id: "pendant", label: "Pendant", icon: "💎", image: "/shot-previews/pendant/hero.jpg" },
+  { id: "brooch", label: "Brooch", icon: "🌸", image: "/shot-previews/brooch/hero.jpg" },
+  { id: "anklet", label: "Anklet", icon: "🦶", image: "/shot-previews/anklet/hero.jpg" },
+  { id: "chain", label: "Chain", icon: "🔗", image: "/shot-previews/chain/hero.jpg" },
+  { id: "set", label: "Set", icon: "👑", image: "/shot-previews/set/hero.jpg" },
 ];
 
 export interface JewelryBackground {

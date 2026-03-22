@@ -25,8 +25,8 @@
   --surface-hover: rgba(255, 255, 255, 0.06);
   --surface-elevated: rgba(255, 255, 255, 0.08);
   --foreground: #FFFFFF;
-  --text-secondary: rgba(255, 255, 255, 0.7);
-  --text-tertiary: rgba(255, 255, 255, 0.4);
+  --text-secondary: rgba(255, 255, 255, 0.85);
+  --text-tertiary: rgba(255, 255, 255, 0.6);
   --border: rgba(255, 255, 255, 0.08);
   --border-hover: rgba(255, 255, 255, 0.14);
 
@@ -404,6 +404,37 @@ h1, h2, h3 {
 
 .animate-pulse-glow {
   animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes upload-pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(196, 166, 125, 0.4); }
+  50% { transform: scale(1.04); box-shadow: 0 0 24px 8px rgba(196, 166, 125, 0.15); }
+}
+
+.animate-upload-pulse {
+  animation: upload-pulse 2.5s ease-in-out infinite;
+}
+
+.step-connector {
+  height: 2px;
+  border-radius: 1px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+  position: relative;
+  overflow: hidden;
+}
+
+.step-connector::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.4) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2.5s infinite;
+}
+
+.step-connector-inactive {
+  height: 2px;
+  border-radius: 1px;
 }
 
 .animate-glow-ring {

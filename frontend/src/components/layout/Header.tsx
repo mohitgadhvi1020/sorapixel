@@ -74,7 +74,7 @@ export default function Header({ onMenuToggle, showMenu = false }: HeaderProps) 
                         : "text-white bg-[rgba(255,255,255,0.08)]"
                     : isLight
                       ? "text-[#4a4a4a] hover:text-[#0a0a0a] hover:bg-[rgba(0,0,0,0.04)]"
-                      : "text-[rgba(255,255,255,0.5)] hover:text-white hover:bg-[rgba(255,255,255,0.06)]"
+                      : "text-[rgba(255,255,255,0.7)] hover:text-white hover:bg-[rgba(255,255,255,0.06)]"
                 }`}
               >
                 {link.label}
