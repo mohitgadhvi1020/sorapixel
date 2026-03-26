@@ -85,9 +85,7 @@ export default function BottomTabBar() {
     >
       <div className="flex items-stretch justify-around h-[60px] max-w-md mx-auto">
         {TABS.map((tab) => {
-          const isActive = tab.href === "/"
-            ? pathname === "/"
-            : pathname.startsWith(tab.href);
+          const isActive = pathname.startsWith(tab.href);
 
           const showBalance = "showBalance" in tab && tab.showBalance && credits;
 
