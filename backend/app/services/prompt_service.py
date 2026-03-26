@@ -193,7 +193,8 @@ JEWELRY_SIZE_HINTS = {
 
 JEWELRY_UGC_POSES = {
     "ring": {
-        "poses": ["finger_macro", "hand_closeup", "standing", "side_view"],
+        # Ring UGC should be hand-only closeups (no full-body by default)
+        "poses": ["finger_macro", "hand_closeup"],
         "interaction": "wearing the ring on the finger — the ring must be realistically sized, fitting snugly around the finger as a real ring would, NOT oversized or miniaturized. The ring's design, stone size, and band width must exactly match the reference image",
     },
     "necklace": {
@@ -301,7 +302,12 @@ POSE_DESCRIPTIONS = {
     "sitting": "sitting elegantly on a chair or stool. Frame from well above the head to the knees. Head positioned in upper 20% of image with clear space above",
     "close_up": "a close-up portrait from chest/shoulders up. Face centered and fully visible (forehead to chin) with clear space above the head. Beauty shot — face sharp, well-lit, primary focus",
     "walking": "in a natural walking pose, full-body mid-stride. Zoom out to fit entire body with the head at roughly 15% from the top edge of the frame",
-    "hand_closeup": "a close-up of the hand and wrist area, elegantly posed to showcase jewelry on the fingers or wrist. Shallow depth of field, hand sharp and well-lit",
+    "hand_closeup": (
+        "a close-up of the hand (wrist to fingertips) showcasing jewelry on the fingers or wrist as the HERO. "
+        "Hand posed naturally in a lifestyle way (e.g., resting on a book, gently touching the face/lips, holding a cup). "
+        "Shallow depth of field — jewelry tack-sharp, skin/background softly blurred. "
+        "This is NOT a full-body shot; do NOT prioritize showing the full face."
+    ),
     "feet_closeup": "a close-up of the feet and ankle area, elegantly posed to showcase ankle jewelry. Clean background, feet and ankles sharp and well-lit",
     # Macro close-ups for small jewelry — extreme tight framing
     "finger_macro": (
@@ -345,7 +351,8 @@ POSE_DESCRIPTIONS = {
     ),
 }
 
-MACRO_POSE_TYPES = {"finger_macro", "ear_macro", "neck_macro", "wrist_macro", "ankle_macro", "lapel_macro"}
+# Poses that must be treated as tight close-ups (no portrait/full-body framing rules)
+MACRO_POSE_TYPES = {"finger_macro", "ear_macro", "neck_macro", "wrist_macro", "ankle_macro", "lapel_macro", "hand_closeup", "feet_closeup"}
 
 CATALOGUE_BACKGROUNDS = [
     {"id": "best_match", "label": "Best Match", "thumb": "https://images.unsplash.com/photo-1557682250-33bd709cbe85?w=200&h=200&fit=crop&q=80", "prompt": "a plain solid light-grey (#E0E0E0) seamless studio backdrop with soft diffused lighting from above — no patterns, no gradients, no props, no windows, no outdoor elements"},

@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api-client";
 import { useAuth, useCredits } from "@/providers/AppProvider";
 import { useTheme } from "@/hooks/useTheme";
 import { VIDEO_PRICING, FLOW_VIDEO_PRICING } from "@/lib/token-pricing";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
+import QualityToggle from "@/components/ui/QualityToggle";
 
 /* ── Quick Video constants ── */
 const VIDEO_MODES = [
@@ -112,6 +113,7 @@ export default function VideoPage() {
 
 function VideoPageInner() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const { credits, refreshCredits } = useCredits();
   const { theme } = useTheme();
@@ -476,21 +478,13 @@ function VideoPageInner() {
               </Card>
 
               <Card lt={lt} title="Quality">
-                <div className="flex gap-2">
-                  {(["standard", "pro"] as const).map((q) => {
-                    const sel = videoQuality === q;
-                    return (
-                      <button key={q} onClick={() => setVideoQuality(q)} className="flex-1 py-3 rounded-xl text-center transition-all duration-200" style={{
-                        border: sel ? "1.5px solid #c4a67d" : `1.5px solid ${lt ? "rgba(0,0,0,0.06)" : "rgba(255,255,255,0.06)"}`,
-                        background: sel ? (lt ? "rgba(196,166,125,0.08)" : "rgba(196,166,125,0.1)") : (lt ? "rgba(0,0,0,0.02)" : "rgba(255,255,255,0.02)"),
-                        boxShadow: sel ? "0 0 0 3px rgba(196,166,125,0.1)" : "none",
-                      }}>
-                        <div className={`text-xs font-semibold capitalize ${sel ? "text-[#c4a67d]" : lt ? "text-[#0a0a0a]" : "text-white"}`}>{q}</div>
-                        <div className={`text-[10px] mt-0.5 ${lt ? "text-[#0a0a0a]/40" : "text-white/40"}`}>{VIDEO_PRICING[q]} tokens</div>
-                      </button>
-                    );
-                  })}
-                </div>
+                <QualityToggle
+                  value={videoQuality}
+                  onChange={setVideoQuality}
+                  standardCost={VIDEO_PRICING.standard}
+                  proCost={VIDEO_PRICING.pro}
+                  lt={lt}
+                />
               </Card>
 
               <button onClick={handleQuickGenerate} disabled={!imageB64 || (videoMode === "custom" && !videoCustomPrompt.trim())}
@@ -635,20 +629,13 @@ function VideoPageInner() {
               </Card>
 
               <Card lt={lt} title="Quality">
-                <div className="flex gap-2">
-                  {(["standard", "pro"] as const).map((q) => {
-                    const sel = flowQuality === q;
-                    return (
-                      <button key={q} onClick={() => setFlowQuality(q)} className="flex-1 py-3 rounded-xl text-center transition-all" style={{
-                        border: sel ? "1.5px solid #c4a67d" : `1.5px solid ${lt ? "rgba(0,0,0,0.06)" : "rgba(255,255,255,0.06)"}`,
-                        background: sel ? (lt ? "rgba(196,166,125,0.08)" : "rgba(196,166,125,0.1)") : (lt ? "rgba(0,0,0,0.02)" : "rgba(255,255,255,0.02)"),
-                      }}>
-                        <div className={`text-xs font-semibold capitalize ${sel ? "text-[#c4a67d]" : lt ? "text-[#0a0a0a]" : "text-white"}`}>{q}</div>
-                        <div className={`text-[10px] mt-0.5 ${lt ? "text-[#0a0a0a]/40" : "text-white/40"}`}>{FLOW_VIDEO_PRICING[q]} tokens</div>
-                      </button>
-                    );
-                  })}
-                </div>
+                <QualityToggle
+                  value={flowQuality}
+                  onChange={setFlowQuality}
+                  standardCost={FLOW_VIDEO_PRICING.standard}
+                  proCost={FLOW_VIDEO_PRICING.pro}
+                  lt={lt}
+                />
               </Card>
 
               <Card lt={lt} title="Custom Direction (optional)">
@@ -726,6 +713,30 @@ function VideoPageInner() {
                 Generate Another
               </button>
             </div>
+            {/* Take it further: UGC CTA */}
+            <div className="rounded-2xl p-4" style={{ border: `1px solid ${lt ? "rgba(196,166,125,0.15)" : "rgba(196,166,125,0.18)"}`, background: lt ? "rgba(196,166,125,0.03)" : "rgba(196,166,125,0.05)" }}>
+              <p className={`text-xs font-semibold mb-2.5 ${lt ? "text-[#6b6b6b]" : "text-white/50"}`}>Take it further</p>
+              <button
+                onClick={() => {
+                  const params = new URLSearchParams();
+                  if (imagePreview && imagePreview.startsWith("http")) {
+                    params.set("image", imagePreview);
+                  } else if (imageB64) {
+                    try { sessionStorage.setItem("ugc_image_b64", imageB64); } catch {}
+                  }
+                  if (jewelryType) params.set("type", jewelryType);
+                  if (sessionId) params.set("session", sessionId);
+                  router.push(`/ugc?${params.toString()}`);
+                }}
+                className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 flex items-center justify-center gap-2"
+                style={{ background: "linear-gradient(135deg, #8b7355, #c4a67d)", boxShadow: "0 4px 16px rgba(196,166,125,0.25)" }}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+                </svg>
+                Create Model / UGC Photos
+              </button>
+            </div>
           </div>
         )}
 
@@ -766,6 +777,29 @@ function VideoPageInner() {
               </a>
               <button onClick={resetResult} className={`flex-1 py-3 rounded-xl text-sm font-medium transition-all ${lt ? "bg-[rgba(0,0,0,0.04)] text-[#0a0a0a]/70 hover:bg-[rgba(0,0,0,0.08)]" : "bg-[rgba(255,255,255,0.06)] text-white/70 hover:bg-[rgba(255,255,255,0.1)]"}`}>
                 Generate Another
+              </button>
+            </div>
+            {/* Take it further: UGC CTA */}
+            <div className="rounded-2xl p-4" style={{ border: `1px solid ${lt ? "rgba(196,166,125,0.15)" : "rgba(196,166,125,0.18)"}`, background: lt ? "rgba(196,166,125,0.03)" : "rgba(196,166,125,0.05)" }}>
+              <p className={`text-xs font-semibold mb-2.5 ${lt ? "text-[#6b6b6b]" : "text-white/50"}`}>Take it further</p>
+              <button
+                onClick={() => {
+                  const params = new URLSearchParams();
+                  if (imagePreview && imagePreview.startsWith("http")) {
+                    params.set("image", imagePreview);
+                  } else if (imageB64) {
+                    try { sessionStorage.setItem("ugc_image_b64", imageB64); } catch {}
+                  }
+                  if (sessionId) params.set("session", sessionId);
+                  router.push(`/ugc?${params.toString()}`);
+                }}
+                className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 flex items-center justify-center gap-2"
+                style={{ background: "linear-gradient(135deg, #8b7355, #c4a67d)", boxShadow: "0 4px 16px rgba(196,166,125,0.25)" }}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+                </svg>
+                Create Model / UGC Photos
               </button>
             </div>
           </div>

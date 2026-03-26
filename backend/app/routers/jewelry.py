@@ -348,15 +348,26 @@ async def _generate_all(req: GenerateJewelryRequest, user: dict, ratio: dict):
 
 
 async def _regenerate_single(req: GenerateJewelryRequest, user: dict, ratio: dict):
-    """Regenerate a hero shot — fresh or with tweaks. Focused regen prompt."""
+    """Regenerate a single shot — uses theme prompt when theme_id is present."""
     regen_cost = get_operation_cost("regenSingle", req.quality)
     credits = get_jewelry_credits(user["id"])
     if not credits or credits["token_balance"] < regen_cost:
         raise HTTPException(status_code=403, detail=f"Need {regen_cost} tokens to regenerate")
 
-    prompt = build_jewelry_regen_prompt(
-        req.jewelry_type, req.background, req.special_instructions,
-    )
+    shot_id = (req.shots[0].get("shot_id") if req.shots else None) or "hero"
+
+    if req.theme_id:
+        prompt = build_jewelry_theme_prompt(
+            jewelry_type=req.jewelry_type,
+            theme_id=req.theme_id,
+            shot_id=shot_id,
+            special_instructions=req.special_instructions,
+            ratio_id=req.aspect_ratio_id,
+        )
+    else:
+        prompt = build_jewelry_regen_prompt(
+            req.jewelry_type, req.background, req.special_instructions,
+        )
     try:
         result = _gen_image(req.quality, prompt, req.image_base64, aspect_ratio_id=req.aspect_ratio_id)
         img_b64 = result["base64"]
@@ -365,9 +376,10 @@ async def _regenerate_single(req: GenerateJewelryRequest, user: dict, ratio: dic
         except Exception:
             pass
         usage = result.get("usage", {})
+        shot_label = shot_id.replace("_", " ").title() if shot_id != "hero" else "Studio Shot"
         regen_gen_id = track_generation(
             client_id=user["id"],
-            generation_type="regen_hero",
+            generation_type=f"regen_{shot_id}",
             input_tokens=usage.get("input_tokens", 0),
             output_tokens=usage.get("output_tokens", 0),
             model_used=result.get("model", "gemini-2.5-flash-image"),
@@ -376,9 +388,9 @@ async def _regenerate_single(req: GenerateJewelryRequest, user: dict, ratio: dic
             save_project(
                 client_id=user["id"],
                 project_type="jewelry_regen",
-                title="Jewelry Regen – Studio Shot",
-                images=[{"base64": img_b64, "label": "Studio Shot"}],
-                metadata={"jewelry_type": req.jewelry_type, "background": req.background},
+                title=f"Jewelry Regen – {shot_label}",
+                images=[{"base64": img_b64, "label": shot_label}],
+                metadata={"jewelry_type": req.jewelry_type, "background": req.background, "theme_id": req.theme_id, "shot_id": shot_id},
             )
         except Exception as save_err:
             logger.warning(f"Project save failed (non-blocking): {save_err}")
@@ -390,8 +402,8 @@ async def _regenerate_single(req: GenerateJewelryRequest, user: dict, ratio: dic
                     action_type="regen",
                     quality=req.quality,
                     tokens_used=regen_cost,
-                    input_data={"special_instructions": req.special_instructions},
-                    output_images_b64=[{"base64": img_b64, "label": "Studio Shot"}],
+                    input_data={"special_instructions": req.special_instructions, "theme_id": req.theme_id, "shot_id": shot_id},
+                    output_images_b64=[{"base64": img_b64, "label": shot_label}],
                 )
             except Exception as e:
                 logger.warning(f"Session action save failed: {e}")
@@ -399,7 +411,7 @@ async def _regenerate_single(req: GenerateJewelryRequest, user: dict, ratio: dic
         deduct_jewelry_tokens(user["id"], regen_cost, operation="regenSingle", quality=req.quality, session_id=req.session_id)
         return {
             "success": True,
-            "images": [{"base64": img_b64, "label": "Studio Shot"}],
+            "images": [{"base64": img_b64, "label": shot_label}],
             "generation_ids": [regen_gen_id] if regen_gen_id else [],
         }
     except Exception as e:

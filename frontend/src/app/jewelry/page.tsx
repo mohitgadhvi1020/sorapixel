@@ -16,12 +16,16 @@ import ShotConfigurator, { type ShotConfig } from "@/components/jewelry/ShotConf
 import InsufficientCreditsModal from "@/components/jewelry/InsufficientCreditsModal";
 import FeedbackWidget from "@/components/jewelry/FeedbackWidget";
 import EmailGateModal from "@/components/ui/EmailGateModal";
+import TokenIcon from "@/components/ui/TokenIcon";
+import QualityToggle from "@/components/ui/QualityToggle";
 type Step = "upload" | "select_type" | "theme_browse" | "shot_config" | "generating" | "done";
 
 interface ResultImage {
   label: string;
   base64: string;
   url?: string;
+  shot_id?: string;
+  theme_id?: string;
 }
 
 interface GenerateResponse {
@@ -468,7 +472,12 @@ function JewelryPage() {
         : await api.post<GenerateResponse>("/jewelry/generate", body);
 
       if (data.success && data.images.length > 0) {
-        setResultImages(data.images);
+        const taggedImages = data.images.map((img, idx) => ({
+          ...img,
+          theme_id: selectedTheme.id,
+          shot_id: selectedShots[idx]?.shot_id ?? "hero",
+        }));
+        setResultImages(taggedImages);
         setGenerationIds(data.generation_ids || []);
         setStep("done");
         setGenStatus(null);
@@ -763,13 +772,17 @@ function JewelryPage() {
         ...(await basePayload()),
         step: "regen_hero",
         session_id: sessionId,
+        ...(currentImage.theme_id ? { theme_id: currentImage.theme_id } : {}),
+        ...(currentImage.shot_id ? { shots: [{ shot_id: currentImage.shot_id }] } : {}),
         ...(hasTweak && regenB64 ? { image_base64: regenB64 } : {}),
       });
       if (data.success && data.images.length > 0) {
         const tryNum = resultImages.length + 1;
         const newImage = {
           ...data.images[0],
-          label: `Hero Shot — Try ${tryNum}`,
+          label: `${currentImage.label || "Shot"} — Try ${tryNum}`,
+          theme_id: currentImage.theme_id,
+          shot_id: currentImage.shot_id,
         };
 
         setResultImages((prev) => [newImage, ...prev]);
@@ -1272,7 +1285,7 @@ function JewelryPage() {
                     ? "text-[#6b6b6b] bg-[#f0ede8] border border-[#e0dcd6]"
                     : "text-[rgba(255,255,255,0.5)] bg-[rgba(255,255,255,0.04)]"
                 }`}>
-                  🪙 {credits.token_balance} tokens
+                  <TokenIcon size={11} className="inline-block mr-0.5 -mt-0.5" /> {credits.token_balance} tokens
                 </span>
               )}
             </div>
@@ -1830,9 +1843,17 @@ function JewelryPage() {
               ))}
             </div>
 
-            {/* Feedback widget */}
-            {generationIds.length > 0 && (
-              <FeedbackWidget generationIds={generationIds} />
+            {/* Feedback widget — per-image */}
+            {resultImages.length > 0 && (
+              <FeedbackWidget
+                images={resultImages.map((img, idx) => ({
+                  generationId: generationIds[idx] || `gen-${idx}`,
+                  imageUrl: img.url || undefined,
+                  label: img.label,
+                }))}
+                flowType="jewelry"
+                promptUsed={specialInstructions || undefined}
+              />
             )}
 
             {/* Original upload -- opens in modal */}
@@ -1902,31 +1923,13 @@ function JewelryPage() {
             {/* Tweak + regenerate bar */}
             {!isLocked && !anonGeneration && (
               <div className="flex items-center gap-2">
-                <div className="inline-flex rounded-lg bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] p-0.5 flex-shrink-0">
-                  <button
-                    onClick={() => setQuality("standard")}
-                    className={`px-3 py-2 rounded-md text-[11px] font-bold uppercase tracking-wider transition-all ${
-                      quality === "standard"
-                        ? isLight ? "bg-[#0a0a0a]/10 text-[#0a0a0a]" : "bg-[rgba(255,255,255,0.12)] text-white"
-                        : isLight ? "text-[#8c8c8c] hover:text-[#0a0a0a]" : "text-[rgba(255,255,255,0.5)] hover:text-[rgba(255,255,255,0.7)]"
-                    }`}
-                  >
-                    Std
-                  </button>
-                  <button
-                    onClick={() => setQuality("pro")}
-                    className={`px-3 py-2 rounded-md text-[11px] font-bold uppercase tracking-wider transition-all flex items-center gap-1 ${
-                      quality === "pro"
-                        ? isLight ? "bg-[#8b7355]/15 text-[#8b7355] border border-[#8b7355]/25" : "bg-gradient-to-r from-[rgba(196,166,125,0.2)] to-[rgba(196,166,125,0.1)] text-[#c4a67d] border border-[rgba(196,166,125,0.25)]"
-                        : isLight ? "text-[#8c8c8c] hover:text-[#0a0a0a]" : "text-[rgba(255,255,255,0.5)] hover:text-[rgba(255,255,255,0.7)]"
-                    }`}
-                  >
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                    </svg>
-                    Pro
-                  </button>
-                </div>
+                <QualityToggle
+                  value={quality}
+                  onChange={setQuality}
+                  standardCost={0}
+                  proCost={0}
+                  compact
+                />
                 <div className="flex-1 relative">
                   <input
                     type="text"
@@ -1972,7 +1975,11 @@ function JewelryPage() {
                     const img = resultImages[0];
                     const src = img?.url || (img?.base64 ? `data:image/png;base64,${img.base64}` : "");
                     const params = new URLSearchParams();
-                    if (src && src.startsWith("http")) params.set("image", src);
+                    if (src && src.startsWith("http")) {
+                      params.set("image", src);
+                    } else if (img?.base64) {
+                      try { sessionStorage.setItem("ugc_image_b64", img.base64); } catch {}
+                    }
                     if (jewelryType) params.set("type", jewelryType);
                     if (sessionId) params.set("session", sessionId);
                     router.push(`/ugc?${params.toString()}`);
@@ -2311,28 +2318,14 @@ function JewelryPage() {
 
                     {/* Quality + generate */}
                     <div className="flex items-center gap-3 flex-shrink-0">
-                      <div className={`flex rounded-lg border overflow-hidden ${isLight ? "border-[#e5e2dc]" : "border-[rgba(255,255,255,0.1)]"}`}>
-                        <button
-                          onClick={() => setRecolorQuality("standard")}
-                          className={`px-3.5 py-2 text-[12px] font-bold transition-all ${
-                            recolorQuality === "standard"
-                              ? isLight ? "bg-[#8b7355]/15 text-[#8b7355]" : "bg-[rgba(196,166,125,0.15)] text-[#c4a67d]"
-                              : isLight ? "text-[#8c8c8c] hover:text-[#0a0a0a]" : "text-[rgba(255,255,255,0.6)] hover:text-white"
-                          }`}
-                        >
-                          Standard
-                        </button>
-                        <button
-                          onClick={() => setRecolorQuality("pro")}
-                          className={`px-3.5 py-2 text-[12px] font-bold transition-all ${
-                            recolorQuality === "pro"
-                              ? isLight ? "bg-[#8b7355]/15 text-[#8b7355]" : "bg-[rgba(196,166,125,0.15)] text-[#c4a67d]"
-                              : isLight ? "text-[#8c8c8c] hover:text-[#0a0a0a]" : "text-[rgba(255,255,255,0.6)] hover:text-white"
-                          }`}
-                        >
-                          Pro
-                        </button>
-                      </div>
+                      <QualityToggle
+                        value={recolorQuality}
+                        onChange={setRecolorQuality}
+                        standardCost={0}
+                        proCost={0}
+                        lt={isLight}
+                        compact
+                      />
                       <button
                         onClick={recolorImage}
                         disabled={!recolorMetal || recolorLoading || (recolorMetal === "custom" && !recolorCustom.trim())}
@@ -2783,31 +2776,13 @@ function JewelryPage() {
               {/* Quality Toggle */}
               <div>
                 <label className="block text-[10px] font-semibold text-[rgba(255,255,255,0.45)] uppercase tracking-[0.1em] mb-2.5">Quality</label>
-                <div className="inline-flex rounded-xl bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] p-1 w-full">
-                  <button
-                    onClick={() => setUgcQuality("standard")}
-                    className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
-                      ugcQuality === "standard"
-                        ? "bg-[rgba(255,255,255,0.08)] text-white shadow-sm"
-                        : "text-[rgba(255,255,255,0.45)] hover:text-[rgba(255,255,255,0.65)]"
-                    }`}
-                  >
-                    Standard — {JEWELRY_PRICING.standard.ugcPerPose * ugcPoses.length} tokens
-                  </button>
-                  <button
-                    onClick={() => setUgcQuality("pro")}
-                    className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-1.5 ${
-                      ugcQuality === "pro"
-                        ? "bg-gradient-to-r from-[rgba(196,166,125,0.15)] to-[rgba(196,166,125,0.08)] text-[#c4a67d] shadow-sm border border-[rgba(196,166,125,0.2)]"
-                        : "text-[rgba(255,255,255,0.45)] hover:text-[rgba(255,255,255,0.65)]"
-                    }`}
-                  >
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                    </svg>
-                    Pro — {JEWELRY_PRICING.pro.ugcPerPose * ugcPoses.length} tokens
-                  </button>
-                </div>
+                <QualityToggle
+                  value={ugcQuality as "standard" | "pro"}
+                  onChange={setUgcQuality}
+                  standardCost={JEWELRY_PRICING.standard.ugcPerPose}
+                  proCost={JEWELRY_PRICING.pro.ugcPerPose}
+                  costUnit="/ pose"
+                />
               </div>
             </div>
 

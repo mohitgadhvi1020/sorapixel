@@ -5,6 +5,7 @@ import { useAuth } from "@/providers/AppProvider";
 import { useTheme } from "@/hooks/useTheme";
 import Header from "./Header";
 import MobileNav from "./MobileNav";
+import BottomTabBar from "./BottomTabBar";
 import UpgradeBanner from "./UpgradeBanner";
 import ProQualityTicker from "./ProQualityTicker";
 import DailyRewardModal from "@/components/shared/DailyRewardModal";
@@ -37,12 +38,13 @@ export default function ResponsiveLayout({ children, title }: ResponsiveLayoutPr
         showMenu
       />
 
-      <main className="px-5 md:px-8 lg:px-12 py-6 md:py-8 lg:py-12 pb-24">
+      <main className="px-5 md:px-8 lg:px-12 py-6 md:py-8 lg:py-12 pb-24 lg:pb-12">
         <div className="max-w-[1400px] mx-auto">
           {children}
         </div>
       </main>
 
+      <BottomTabBar />
       <UpgradeBanner />
       <DailyRewardModal />
     </div>

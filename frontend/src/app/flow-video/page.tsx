@@ -6,6 +6,7 @@ import { useAuth, useCredits } from "@/providers/AppProvider";
 import { useTheme } from "@/hooks/useTheme";
 import { FLOW_VIDEO_PRICING } from "@/lib/token-pricing";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
+import QualityToggle from "@/components/ui/QualityToggle";
 
 const JEWELRY_CATEGORIES = [
   { id: "ring", label: "Ring", icon: "💍" },
@@ -439,21 +440,13 @@ function FlowVideoInner() {
 
               {/* Quality */}
               <Card lt={lt} title="Quality">
-                <div className="flex gap-2">
-                  {(["standard", "pro"] as const).map((q) => {
-                    const sel = quality === q;
-                    const cost = FLOW_VIDEO_PRICING[q];
-                    return (
-                      <button key={q} onClick={() => setQuality(q)} className="flex-1 py-3 rounded-xl text-center transition-all" style={{
-                        border: sel ? "1.5px solid #c4a67d" : `1.5px solid ${lt ? "rgba(0,0,0,0.06)" : "rgba(255,255,255,0.06)"}`,
-                        background: sel ? (lt ? "rgba(196,166,125,0.08)" : "rgba(196,166,125,0.1)") : (lt ? "rgba(0,0,0,0.02)" : "rgba(255,255,255,0.02)"),
-                      }}>
-                        <div className={`text-xs font-semibold capitalize ${sel ? "text-[#c4a67d]" : lt ? "text-[#0a0a0a]" : "text-white"}`}>{q}</div>
-                        <div className={`text-[10px] mt-0.5 ${lt ? "text-[#0a0a0a]/40" : "text-white/40"}`}>{cost} tokens</div>
-                      </button>
-                    );
-                  })}
-                </div>
+                <QualityToggle
+                  value={quality}
+                  onChange={setQuality}
+                  standardCost={FLOW_VIDEO_PRICING.standard}
+                  proCost={FLOW_VIDEO_PRICING.pro}
+                  lt={lt}
+                />
               </Card>
 
               {/* Custom Prompt */}

@@ -5,6 +5,7 @@ import { useTheme } from "@/hooks/useTheme";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Logo from "@/components/ui/Logo";
+import TokenIcon from "@/components/ui/TokenIcon";
 
 interface HeaderProps {
   title?: string;
@@ -127,10 +128,7 @@ export default function Header({ onMenuToggle, showMenu = false }: HeaderProps) 
               prefetch={false}
               className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[rgba(196,166,125,0.1)] border border-[rgba(196,166,125,0.2)] hover:border-[rgba(196,166,125,0.35)] transition-all duration-200 group"
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c4a67d" strokeWidth="2" strokeLinecap="round">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M12 6v12M8 10h8" />
-              </svg>
+              <TokenIcon size={16} />
               <span className="text-xs font-bold text-[#c4a67d]">
                 {credits.token_balance}
               </span>

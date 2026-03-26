@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-"""Google Gemini AI service -- ported from lib/gemini.ts"""
+"""Google Gemini AI service -- supports both AI Studio (api_key) and Vertex AI (service account)."""
 
 import io
+import os
 import time
 import base64
 import re
@@ -26,26 +27,71 @@ PRO_TIMEOUT_MS = 35_000
 RETRYABLE_STATUS_CODES = [429, 500, 502, 503, 504]
 
 _clients: dict[str, genai.Client] = {}
+_using_vertex: bool = False
+
+
+def _build_http_opts(timeout_ms: int, max_retries: int) -> HttpOptions:
+    return HttpOptions(
+        timeout=timeout_ms,
+        client_args={"timeout": _httpx.Timeout(timeout_ms / 1000.0)},
+        retry_options=HttpRetryOptions(
+            attempts=max_retries,
+            initial_delay=2.0,
+            max_delay=10.0,
+            http_status_codes=RETRYABLE_STATUS_CODES,
+        ),
+    )
+
+
+def _make_vertex_client(settings, http_opts: HttpOptions) -> genai.Client:
+    if settings.google_application_credentials:
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = settings.google_application_credentials
+    return genai.Client(
+        vertexai=True,
+        project=settings.google_cloud_project,
+        location=settings.google_cloud_location,
+        http_options=http_opts,
+    )
+
+
+def _make_apikey_client(settings, http_opts: HttpOptions) -> genai.Client:
+    return genai.Client(
+        api_key=settings.gemini_api_key,
+        http_options=http_opts,
+    )
 
 
 def _make_client(timeout_ms: int, max_retries: int = 3) -> genai.Client:
+    global _using_vertex
     settings = get_settings()
+    http_opts = _build_http_opts(timeout_ms, max_retries)
+
+    if settings.use_vertex_ai and settings.google_cloud_project:
+        try:
+            client = _make_vertex_client(settings, http_opts)
+            client.models.generate_content(
+                model=MODEL_TEXT,
+                contents=[{"text": "ping"}],
+            )
+            _using_vertex = True
+            logger.info(
+                "Vertex AI client OK (project=%s, location=%s) — using Google Cloud billing",
+                settings.google_cloud_project, settings.google_cloud_location,
+            )
+            return client
+        except Exception as e:
+            logger.warning(
+                "Vertex AI client failed (%s). Falling back to AI Studio api_key mode.",
+                str(e)[:120],
+            )
+
     if not settings.gemini_api_key:
-        raise RuntimeError("GEMINI_API_KEY is not set")
-    timeout_s = timeout_ms / 1000.0
-    return genai.Client(
-        api_key=settings.gemini_api_key,
-        http_options=HttpOptions(
-            timeout=timeout_ms,
-            client_args={"timeout": _httpx.Timeout(timeout_s)},
-            retry_options=HttpRetryOptions(
-                attempts=max_retries,
-                initial_delay=2.0,
-                max_delay=10.0,
-                http_status_codes=RETRYABLE_STATUS_CODES,
-            ),
-        ),
-    )
+        raise RuntimeError(
+            "No working AI backend: Vertex AI failed and GEMINI_API_KEY is not set"
+        )
+    _using_vertex = False
+    logger.info("Using AI Studio client (api_key mode)")
+    return _make_apikey_client(settings, http_opts)
 
 
 def get_client(timeout_ms: int = IMAGE_TIMEOUT_MS, max_retries: int = 3) -> genai.Client:

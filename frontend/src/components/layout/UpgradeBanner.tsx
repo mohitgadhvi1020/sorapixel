@@ -63,7 +63,7 @@ export default function UpgradeBanner() {
   }
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 pointer-events-none px-4 pb-4 md:pb-5">
+    <div className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] lg:bottom-0 left-0 right-0 z-50 pointer-events-none px-4 pb-2 lg:pb-5">
       <div
         className={`pointer-events-auto max-w-2xl mx-auto rounded-2xl px-4 py-3 md:px-5 md:py-3.5 flex items-center gap-3 md:gap-4 shadow-2xl animate-slide-up transition-colors duration-300 ${
           isCritical

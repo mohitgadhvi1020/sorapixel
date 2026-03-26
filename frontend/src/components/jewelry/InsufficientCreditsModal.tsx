@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import TokenIcon from "@/components/ui/TokenIcon";
 
 interface InsufficientCreditsModalProps {
   isOpen: boolean;
@@ -55,14 +56,14 @@ export default function InsufficientCreditsModal({
             <div className="flex items-center justify-between">
               <span className="text-sm text-[rgba(255,255,255,0.6)]">Required Credits</span>
               <span className="flex items-center gap-1.5 text-sm font-semibold text-white">
-                <span className="text-xs">🪙</span>
+                <TokenIcon size={13} />
                 {requiredCredits}
               </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-[rgba(255,255,255,0.6)]">Your Balance</span>
               <span className="flex items-center gap-1.5 text-sm font-semibold text-white">
-                <span className="text-xs">🪙</span>
+                <TokenIcon size={13} />
                 {currentBalance}
               </span>
             </div>

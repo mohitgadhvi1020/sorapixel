@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api-client";
 import { useAuth, useCredits } from "@/providers/AppProvider";
 import { useTheme } from "@/hooks/useTheme";
 import { JEWELRY_PRICING } from "@/lib/token-pricing";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 import FeedbackWidget from "@/components/jewelry/FeedbackWidget";
+import QualityToggle from "@/components/ui/QualityToggle";
 
 // ─── Constants ───
 
@@ -67,7 +68,8 @@ const JEWELRY_POSE_MAP: Record<string, string[]> = {
   chain: ["standing", "close_up", "neck_macro"],
   mangalsutra: ["standing", "close_up", "neck_macro"],
   earring: ["close_up", "side_view", "ear_macro"],
-  ring: ["close_up", "finger_macro", "hand_closeup", "mirror_selfie"],
+  // Ring UGC should be hand-only closeups (avoid full-body / portrait poses)
+  ring: ["finger_macro", "hand_closeup"],
   bracelet: ["close_up", "wrist_macro", "hand_closeup"],
   bangle: ["close_up", "wrist_macro", "hand_closeup"],
   anklet: ["standing", "ankle_macro", "feet_closeup"],
@@ -135,6 +137,7 @@ export default function UgcPage() {
 
 function UgcPageInner() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const { credits, refreshCredits } = useCredits();
   const { theme } = useTheme();
@@ -143,6 +146,7 @@ function UgcPageInner() {
   // Source image
   const [imageB64, setImageB64] = useState("");
   const [imagePreview, setImagePreview] = useState("");
+  const [imageWasPrefilled, setImageWasPrefilled] = useState(false);
   const [jewelryType, setJewelryType] = useState("jewelry");
   const [sessionId, setSessionId] = useState<string | null>(null);
 
@@ -158,8 +162,13 @@ function UgcPageInner() {
   const [outfitCustom, setOutfitCustom] = useState("");
   const [quality, setQuality] = useState<"standard" | "pro">("standard");
 
+  // Accordion open states (model settings + scene closed by default)
+  const [modelOpen, setModelOpen] = useState(false);
+  const [sceneOpen, setSceneOpen] = useState(false);
+
   // Generation
   const [loading, setLoading] = useState(false);
+  const [skeletonPoses, setSkeletonPoses] = useState<string[]>([]);
   const [results, setResults] = useState<UgcResult[]>([]);
   const [generationIds, setGenerationIds] = useState<string[]>([]);
   const [genCount, setGenCount] = useState(0);
@@ -173,11 +182,19 @@ function UgcPageInner() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const initRef = useRef(false);
   const natRef = useRef<HTMLDivElement>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
 
   const recommendedPoses = JEWELRY_POSE_MAP[jewelryType] || JEWELRY_POSE_MAP.default;
+  const poseOptions =
+    jewelryType === "ring"
+      ? UGC_ALL_POSES.filter((p) => recommendedPoses.includes(p.id))
+      : UGC_ALL_POSES;
   const tokenCost = poses.length * JEWELRY_PRICING[quality].ugcPerPose;
 
-  // ─── Init from query params ───
+  const skinToneObj = UGC_SKIN_TONES.find((t) => t.id === skinTone);
+  const bgObj = UGC_BACKGROUNDS.find((b) => b.id === background);
+
+  // ─── Init from query params / sessionStorage ───
   useEffect(() => {
     if (initRef.current) return;
     initRef.current = true;
@@ -191,6 +208,17 @@ function UgcPageInner() {
 
     if (imageUrl) {
       fetchImageAsBase64(imageUrl);
+      setImageWasPrefilled(true);
+    } else {
+      try {
+        const stored = sessionStorage.getItem("ugc_image_b64");
+        if (stored) {
+          setImageB64(stored);
+          setImagePreview(`data:image/png;base64,${stored}`);
+          setImageWasPrefilled(true);
+          sessionStorage.removeItem("ugc_image_b64");
+        }
+      } catch { /* quota or SSR */ }
     }
   }, [searchParams]);
 
@@ -266,7 +294,13 @@ function UgcPageInner() {
   const handleGenerate = useCallback(async () => {
     if (!imageB64 || loading || poses.length === 0) return;
     setLoading(true);
+    setSkeletonPoses([...poses]);
     setError("");
+
+    // Scroll to results area
+    setTimeout(() => {
+      resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
 
     try {
       const data = await api.post<Record<string, unknown>>("/catalogue/generate", {
@@ -284,7 +318,6 @@ function UgcPageInner() {
         special_instructions: undefined,
       });
 
-      // Catalogue API returns `images` + `generation_ids`; legacy/other may use `results`.
       const fromCatalogue = catalogueResponseToUgcResults(data);
       const resultsArray: UgcResult[] =
         fromCatalogue.length > 0
@@ -303,7 +336,7 @@ function UgcPageInner() {
           || "No results returned. Please try again.";
         setError(typeof msg === "string" ? msg : "Generation failed. Please try again.");
       } else {
-        setResults((prev) => [...prev, ...resultsArray]);
+        setResults((prev) => [...resultsArray, ...prev]);
         setGenerationIds((prev) => [...prev, ...resultsArray.map((r) => r.generation_id)]);
         setGenCount((c) => c + 1);
       }
@@ -313,16 +346,19 @@ function UgcPageInner() {
       setError(message);
     } finally {
       setLoading(false);
+      setSkeletonPoses([]);
     }
   }, [imageB64, loading, poses, gender, nationality, skinTone, jewelryType, quality, background, outfitStyle, outfitCustom, sessionId, refreshCredits]);
 
   function resetFull() {
     setImageB64("");
     setImagePreview("");
+    setImageWasPrefilled(false);
     setResults([]);
     setGenerationIds([]);
     setGenCount(0);
     setLoading(false);
+    setSkeletonPoses([]);
     setError("");
     setPoses([]);
     setLightboxIndex(null);
@@ -376,13 +412,14 @@ function UgcPageInner() {
   // ─── Render ───
   return (
     <ResponsiveLayout title="UGC Photos">
-      <div className="max-w-6xl mx-auto space-y-8">
+      <div className="max-w-6xl mx-auto space-y-6">
+
         {/* Header */}
         <div>
           <h1 className={`text-2xl md:text-3xl font-bold tracking-tight ${lt ? "text-[#0a0a0a]" : "text-white"}`}>
             Model / UGC Photos
           </h1>
-          <p className={`text-sm mt-1.5 ${lt ? "text-[#0a0a0a]/50" : "text-white/50"}`}>
+          <p className={`text-sm mt-1 ${lt ? "text-[#0a0a0a]/50" : "text-white/50"}`}>
             Generate AI model photos wearing your jewelry
           </p>
         </div>
@@ -400,7 +437,7 @@ function UgcPageInner() {
         )}
 
         {/* ─── Upload Area ─── */}
-        {!imageB64 && !loading && results.length === 0 && (
+        {!imageB64 && (
           <div
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
@@ -445,62 +482,82 @@ function UgcPageInner() {
           </div>
         )}
 
-        {/* ─── Config Panel ─── */}
-        {imageB64 && !loading && (
-          <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6">
-            {/* Left: Image preview */}
-            <div
-              className="rounded-2xl overflow-hidden relative self-start lg:sticky lg:top-24"
-              style={{
-                border: `1px solid ${lt ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.08)"}`,
-                background: lt ? "#fff" : "rgba(255,255,255,0.02)",
-              }}
-            >
-              <img
-                src={imagePreview}
-                alt="Source jewelry"
-                className="w-full h-auto max-h-[400px] object-contain p-4"
-              />
-              <button
-                onClick={resetFull}
-                className="absolute top-3 right-3 w-8 h-8 bg-black/60 backdrop-blur-sm text-white rounded-lg flex items-center justify-center hover:bg-black/80 transition-colors"
+        {/* ─── Config + Skeleton/Results panel ─── */}
+        {imageB64 && (
+          <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-5">
+
+            {/* ── Left: sticky image + compact config ── */}
+            <div className="self-start lg:sticky lg:top-24 space-y-3">
+
+              {/* Image card */}
+              <div
+                className="rounded-2xl overflow-hidden relative"
+                style={{
+                  border: `1px solid ${lt ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.08)"}`,
+                  background: lt ? "#fff" : "rgba(255,255,255,0.02)",
+                }}
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
-              {jewelryType !== "jewelry" && (
-                <div className="px-4 pb-3">
-                  <span className={`text-[10px] font-medium uppercase tracking-wider px-2 py-1 rounded-full ${lt ? "bg-[#f0ebe3] text-[#8b7355]" : "bg-[rgba(196,166,125,0.12)] text-[#c4a67d]"}`}>
-                    {jewelryType}
-                  </span>
-                </div>
-              )}
-            </div>
+                <img
+                  src={imagePreview}
+                  alt="Source jewelry"
+                  className="w-full h-auto max-h-[320px] object-contain p-4"
+                />
+                {!imageWasPrefilled && !loading && (
+                  <button
+                    onClick={resetFull}
+                    className="absolute top-3 right-3 w-8 h-8 bg-black/60 backdrop-blur-sm text-white rounded-lg flex items-center justify-center hover:bg-black/80 transition-colors"
+                    title="Remove image"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                      <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                )}
+                {jewelryType !== "jewelry" && (
+                  <div className="px-4 pb-3">
+                    <span className={`text-[10px] font-medium uppercase tracking-wider px-2 py-1 rounded-full ${lt ? "bg-[#f0ebe3] text-[#8b7355]" : "bg-[rgba(196,166,125,0.12)] text-[#c4a67d]"}`}>
+                      {jewelryType}
+                    </span>
+                  </div>
+                )}
+              </div>
 
-            {/* Right: Configuration */}
-            <div className="space-y-5">
-              {/* Gender */}
-              <ConfigSection title="Gender" lt={lt}>
-                <div className="flex flex-wrap gap-2">
-                  {UGC_GENDERS.map((g) => (
-                    <PillButton
-                      key={g}
-                      label={g.charAt(0).toUpperCase() + g.slice(1)}
-                      selected={gender === g}
-                      onClick={() => setGender(g)}
-                      lt={lt}
-                    />
-                  ))}
+              {/* ── Accordion: Model Settings ── */}
+              <AccordionSection
+                title="Model"
+                summary={`${nationality} ${gender}, ${skinToneObj?.label ?? skinTone}`}
+                open={modelOpen}
+                onToggle={() => setModelOpen((o) => !o)}
+                lt={lt}
+              >
+                {/* Gender */}
+                <div>
+                  <p className={`text-[10px] font-semibold uppercase tracking-wider mb-2 ${lt ? "text-[#0a0a0a]/40" : "text-white/35"}`}>Gender</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {UGC_GENDERS.map((g) => (
+                      <button
+                        key={g}
+                        onClick={() => setGender(g)}
+                        className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                          gender === g
+                            ? "bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-white shadow-[0_1px_6px_rgba(196,166,125,0.3)]"
+                            : lt
+                              ? "bg-[rgba(0,0,0,0.04)] text-[#0a0a0a]/60 hover:bg-[rgba(0,0,0,0.08)]"
+                              : "bg-[rgba(255,255,255,0.06)] text-white/60 hover:bg-[rgba(255,255,255,0.1)]"
+                        }`}
+                      >
+                        {g.charAt(0).toUpperCase() + g.slice(1)}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </ConfigSection>
 
-              {/* Nationality */}
-              <ConfigSection title="Nationality" lt={lt}>
+                {/* Nationality */}
                 <div ref={natRef} className="relative">
+                  <p className={`text-[10px] font-semibold uppercase tracking-wider mb-2 ${lt ? "text-[#0a0a0a]/40" : "text-white/35"}`}>Nationality</p>
                   <button
                     onClick={() => setNatOpen(!natOpen)}
-                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm transition-colors ${
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm transition-colors ${
                       lt
                         ? "bg-[rgba(0,0,0,0.03)] border border-[rgba(0,0,0,0.08)] text-[#0a0a0a] hover:border-[#c4a67d]"
                         : "bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-white hover:border-[#c4a67d]"
@@ -508,14 +565,13 @@ function UgcPageInner() {
                   >
                     <span>{nationality}</span>
                     <svg
-                      width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
                       className={`transition-transform ${natOpen ? "rotate-180" : ""}`}
                     >
                       <polyline points="6 9 12 15 18 9" />
                     </svg>
                   </button>
-
                   {natOpen && (
                     <div
                       className={`absolute z-50 mt-1.5 w-full rounded-xl border overflow-hidden shadow-2xl ${
@@ -527,7 +583,7 @@ function UgcPageInner() {
                           type="text"
                           value={natSearch}
                           onChange={(e) => setNatSearch(e.target.value)}
-                          placeholder="Search nationality..."
+                          placeholder="Search..."
                           autoFocus
                           className={`w-full px-3 py-2 rounded-lg text-sm outline-none ${
                             lt
@@ -536,7 +592,7 @@ function UgcPageInner() {
                           }`}
                         />
                       </div>
-                      <div className="max-h-52 overflow-y-auto">
+                      <div className="max-h-44 overflow-y-auto">
                         {filteredNationalities.map((n) => (
                           <button
                             key={n}
@@ -553,332 +609,421 @@ function UgcPageInner() {
                           </button>
                         ))}
                         {filteredNationalities.length === 0 && (
-                          <p className={`px-4 py-3 text-sm ${lt ? "text-[#0a0a0a]/30" : "text-white/30"}`}>
-                            No matches
-                          </p>
+                          <p className={`px-4 py-3 text-sm ${lt ? "text-[#0a0a0a]/30" : "text-white/30"}`}>No matches</p>
                         )}
                       </div>
                     </div>
                   )}
                 </div>
-              </ConfigSection>
 
-              {/* Skin Tone */}
-              <ConfigSection title="Skin Tone" lt={lt}>
-                <div className="flex flex-wrap gap-3">
-                  {UGC_SKIN_TONES.map((tone) => {
-                    const selected = skinTone === tone.id;
-                    return (
+                {/* Skin Tone */}
+                <div>
+                  <p className={`text-[10px] font-semibold uppercase tracking-wider mb-2 ${lt ? "text-[#0a0a0a]/40" : "text-white/35"}`}>Skin Tone</p>
+                  <div className="flex gap-2">
+                    {UGC_SKIN_TONES.map((tone) => (
                       <button
                         key={tone.id}
                         onClick={() => setSkinTone(tone.id)}
-                        className="flex flex-col items-center gap-1.5 group"
+                        className={`flex flex-col items-center gap-1 group`}
                         title={tone.label}
                       >
                         <div
-                          className={`w-9 h-9 rounded-full transition-all duration-200 ${
-                            selected
-                              ? `ring-2 ring-[#c4a67d] ring-offset-2 scale-110 ${lt ? "ring-offset-white" : "ring-offset-[#0a0a0a]"}`
-                              : "hover:scale-105"
+                          className={`w-7 h-7 rounded-full transition-all duration-200 ${
+                            skinTone === tone.id
+                              ? `ring-2 ring-[#c4a67d] ring-offset-2 scale-110 ${lt ? "ring-offset-white" : "ring-offset-[#0E0F14]"}`
+                              : "hover:scale-110"
                           }`}
                           style={{ backgroundColor: tone.hex }}
                         />
-                        <span className={`text-[10px] font-medium ${selected ? "text-[#c4a67d]" : lt ? "text-[#0a0a0a]/50" : "text-white/40"}`}>
-                          {tone.label}
-                        </span>
                       </button>
-                    );
-                  })}
+                    ))}
+                  </div>
                 </div>
-              </ConfigSection>
+              </AccordionSection>
 
-              {/* Background */}
-              <ConfigSection title="Background" lt={lt}>
-                <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
-                  {UGC_BACKGROUNDS.map((bg) => {
-                    const selected = background === bg.id;
-                    return (
+              {/* ── Accordion: Scene ── */}
+              <AccordionSection
+                title="Scene"
+                summary={`${bgObj?.label ?? background} · ${outfitStyle === "custom" ? "Custom outfit" : outfitStyle}`}
+                open={sceneOpen}
+                onToggle={() => setSceneOpen((o) => !o)}
+                lt={lt}
+              >
+                {/* Background */}
+                <div>
+                  <p className={`text-[10px] font-semibold uppercase tracking-wider mb-2 ${lt ? "text-[#0a0a0a]/40" : "text-white/35"}`}>Background</p>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {UGC_BACKGROUNDS.map((bg) => (
                       <button
                         key={bg.id}
                         onClick={() => setBackground(bg.id)}
-                        className={`group relative aspect-square rounded-xl overflow-hidden transition-all duration-200 hover:-translate-y-0.5 ${
-                          selected
-                            ? `ring-2 ring-[#c4a67d] ring-offset-1 shadow-[0_0_12px_rgba(196,166,125,0.25)] ${lt ? "ring-offset-white" : "ring-offset-[#0a0a0a]"}`
+                        className={`group relative aspect-square rounded-xl overflow-hidden transition-all hover:-translate-y-0.5 ${
+                          background === bg.id
+                            ? `ring-2 ring-[#c4a67d] ring-offset-1 ${lt ? "ring-offset-white" : "ring-offset-[#0E0F14]"}`
                             : lt
-                              ? "ring-1 ring-[rgba(0,0,0,0.08)] hover:ring-[rgba(0,0,0,0.2)]"
-                              : "ring-1 ring-[rgba(255,255,255,0.08)] hover:ring-[rgba(255,255,255,0.2)]"
+                              ? "ring-1 ring-[rgba(0,0,0,0.08)]"
+                              : "ring-1 ring-[rgba(255,255,255,0.08)]"
                         }`}
                         title={bg.label}
                       >
-                        <img
-                          src={bg.image}
-                          alt={bg.label}
-                          className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-                          loading="lazy"
-                        />
+                        <img src={bg.image} alt={bg.label} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-                        <span className="absolute bottom-1 left-0 right-0 text-center text-[9px] font-semibold text-white drop-shadow-lg">
+                        <span className="absolute bottom-0.5 left-0 right-0 text-center text-[8px] font-semibold text-white drop-shadow-lg leading-tight px-0.5">
                           {bg.label}
                         </span>
-                        {selected && (
-                          <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-[#c4a67d] flex items-center justify-center">
-                            <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        {background === bg.id && (
+                          <div className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-[#c4a67d] flex items-center justify-center">
+                            <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
                               <polyline points="20 6 9 17 4 12" />
                             </svg>
                           </div>
                         )}
                       </button>
-                    );
-                  })}
+                    ))}
+                  </div>
                 </div>
-              </ConfigSection>
 
-              {/* Outfit Style */}
-              <ConfigSection title="Outfit Style" lt={lt}>
-                <div className="flex flex-wrap gap-2">
-                  {OUTFIT_STYLES.map((o) => (
-                    <PillButton
-                      key={o.id}
-                      label={o.label}
-                      selected={outfitStyle === o.id}
-                      onClick={() => setOutfitStyle(o.id)}
-                      lt={lt}
-                    />
-                  ))}
-                </div>
-                {outfitStyle === "custom" && (
-                  <input
-                    type="text"
-                    value={outfitCustom}
-                    onChange={(e) => setOutfitCustom(e.target.value)}
-                    placeholder="Describe the outfit (e.g. red silk saree, white gown)..."
-                    className={`w-full mt-3 px-3.5 py-2.5 rounded-xl text-sm outline-none transition-colors ${
-                      lt
-                        ? "bg-[rgba(0,0,0,0.03)] border border-[rgba(0,0,0,0.08)] text-[#0a0a0a] placeholder:text-[#0a0a0a]/30 focus:border-[#c4a67d]"
-                        : "bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-white placeholder:text-white/30 focus:border-[#c4a67d]"
-                    }`}
-                  />
-                )}
-              </ConfigSection>
-
-              {/* Poses */}
-              <ConfigSection title={`Poses (${poses.length} selected)`} lt={lt}>
-                <div className="flex flex-wrap gap-2">
-                  {UGC_ALL_POSES.map((pose) => {
-                    const selected = poses.includes(pose.id);
-                    const recommended = recommendedPoses.includes(pose.id);
-                    return (
+                {/* Outfit */}
+                <div>
+                  <p className={`text-[10px] font-semibold uppercase tracking-wider mb-2 ${lt ? "text-[#0a0a0a]/40" : "text-white/35"}`}>Outfit Style</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {OUTFIT_STYLES.map((o) => (
                       <button
-                        key={pose.id}
-                        onClick={() => togglePose(pose.id)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 relative ${
-                          selected
-                            ? "bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-white shadow-[0_2px_8px_rgba(196,166,125,0.3)]"
-                            : recommended
-                              ? lt
-                                ? "bg-[rgba(196,166,125,0.1)] border border-[rgba(196,166,125,0.3)] text-[#8b7355] hover:bg-[rgba(196,166,125,0.18)]"
-                                : "bg-[rgba(196,166,125,0.08)] border border-[rgba(196,166,125,0.2)] text-[#c4a67d] hover:bg-[rgba(196,166,125,0.15)]"
-                              : lt
-                                ? "bg-[rgba(0,0,0,0.04)] text-[#0a0a0a]/60 hover:bg-[rgba(0,0,0,0.08)]"
-                                : "bg-[rgba(255,255,255,0.06)] text-white/60 hover:bg-[rgba(255,255,255,0.1)]"
+                        key={o.id}
+                        onClick={() => setOutfitStyle(o.id)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
+                          outfitStyle === o.id
+                            ? "bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-white"
+                            : lt
+                              ? "bg-[rgba(0,0,0,0.04)] text-[#0a0a0a]/60 hover:bg-[rgba(0,0,0,0.08)]"
+                              : "bg-[rgba(255,255,255,0.06)] text-white/60 hover:bg-[rgba(255,255,255,0.1)]"
                         }`}
                       >
-                        {selected && (
-                          <span className="mr-1">&#10003;</span>
-                        )}
-                        {pose.label}
-                        {recommended && !selected && (
-                          <span className="ml-1 text-[9px] opacity-60">&#9733;</span>
-                        )}
+                        {o.label}
                       </button>
-                    );
-                  })}
+                    ))}
+                  </div>
+                  {outfitStyle === "custom" && (
+                    <input
+                      type="text"
+                      value={outfitCustom}
+                      onChange={(e) => setOutfitCustom(e.target.value)}
+                      placeholder="Describe the outfit..."
+                      className={`w-full mt-2 px-3 py-2 rounded-xl text-sm outline-none transition-colors ${
+                        lt
+                          ? "bg-[rgba(0,0,0,0.03)] border border-[rgba(0,0,0,0.08)] text-[#0a0a0a] placeholder:text-[#0a0a0a]/30 focus:border-[#c4a67d]"
+                          : "bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-white placeholder:text-white/30 focus:border-[#c4a67d]"
+                      }`}
+                    />
+                  )}
                 </div>
-                {recommendedPoses.length > 0 && (
-                  <p className={`text-[10px] mt-2 ${lt ? "text-[#0a0a0a]/30" : "text-white/30"}`}>
-                    &#9733; Recommended for {jewelryType}
-                  </p>
-                )}
-              </ConfigSection>
+              </AccordionSection>
 
-              {/* Quality */}
-              <ConfigSection title="Quality" lt={lt}>
-                <div className="flex gap-2">
-                  {(["standard", "pro"] as const).map((q) => {
-                    const selected = quality === q;
-                    const cost = JEWELRY_PRICING[q].ugcPerPose;
-                    return (
-                      <button
-                        key={q}
-                        onClick={() => setQuality(q)}
-                        className="flex-1 py-3 rounded-xl text-center transition-all duration-200"
-                        style={{
-                          border: selected
-                            ? "1.5px solid #c4a67d"
-                            : `1.5px solid ${lt ? "rgba(0,0,0,0.06)" : "rgba(255,255,255,0.06)"}`,
-                          background: selected
-                            ? lt ? "rgba(196,166,125,0.08)" : "rgba(196,166,125,0.1)"
-                            : lt ? "rgba(0,0,0,0.02)" : "rgba(255,255,255,0.02)",
-                          boxShadow: selected ? "0 0 0 3px rgba(196,166,125,0.1)" : "none",
-                        }}
-                      >
-                        <div className={`text-xs font-semibold capitalize ${selected ? "text-[#c4a67d]" : lt ? "text-[#0a0a0a]" : "text-white"}`}>
-                          {q}
-                        </div>
-                        <div className={`text-[10px] mt-0.5 ${lt ? "text-[#0a0a0a]/40" : "text-white/40"}`}>
-                          {cost} tokens / pose
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </ConfigSection>
-
-              {/* Generate Button */}
-              <button
-                onClick={handleGenerate}
-                disabled={!imageB64 || poses.length === 0 || (outfitStyle === "custom" && !outfitCustom.trim())}
-                className="w-full py-3.5 rounded-xl text-sm font-semibold text-white transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 active:scale-[0.98]"
+              {/* ── Quality ── */}
+              <div
+                className="rounded-2xl p-4"
                 style={{
-                  background: "linear-gradient(135deg, #8b7355, #c4a67d)",
-                  boxShadow: "0 4px 16px rgba(196,166,125,0.3), 0 1px 3px rgba(0,0,0,0.1)",
+                  border: `1px solid ${lt ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.08)"}`,
+                  background: lt ? "#fff" : "rgba(255,255,255,0.02)",
                 }}
               >
-                Generate {poses.length} Photo{poses.length !== 1 ? "s" : ""} — {tokenCost} tokens
-              </button>
-
-              {credits && (
-                <p className={`text-center text-[11px] ${lt ? "text-[#0a0a0a]/35" : "text-white/35"}`}>
-                  Balance: {credits.token_balance} tokens
-                </p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ─── Loading State ─── */}
-        {loading && (
-          <div
-            className="rounded-2xl p-10 md:p-16 text-center space-y-6"
-            style={{
-              border: `1px solid ${lt ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.08)"}`,
-              background: lt ? "#fff" : "rgba(255,255,255,0.02)",
-            }}
-          >
-            <div className="relative w-20 h-20 mx-auto">
-              <div className="absolute inset-0 rounded-full border-2 border-[rgba(196,166,125,0.2)]" />
-              <div className="absolute inset-0 rounded-full border-2 border-[#c4a67d] border-t-transparent animate-spin" />
-              <div className="absolute inset-3 rounded-full border-2 border-[rgba(196,166,125,0.15)]" />
-              <div className="absolute inset-3 rounded-full border-2 border-[#c4a67d]/60 border-b-transparent animate-spin" style={{ animationDirection: "reverse", animationDuration: "1.5s" }} />
-            </div>
-            <div>
-              <p className={`text-lg font-semibold ${lt ? "text-[#0a0a0a]" : "text-white"}`}>
-                Generating model photos...
-              </p>
-              <p className={`text-sm mt-2 ${lt ? "text-[#0a0a0a]/50" : "text-white/50"}`}>
-                Creating {poses.length} pose{poses.length !== 1 ? "s" : ""} with your jewelry. This may take a moment.
-              </p>
-            </div>
-            <div className="max-w-xs mx-auto">
-              <div className={`h-1.5 rounded-full overflow-hidden ${lt ? "bg-[rgba(0,0,0,0.06)]" : "bg-[rgba(255,255,255,0.06)]"}`}>
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-[#8b7355] to-[#c4a67d]"
-                  style={{
-                    animation: "ugcProgress 3s ease-in-out infinite",
-                    width: "70%",
-                  }}
+                <p className={`text-[10px] font-bold uppercase tracking-[0.08em] mb-2.5 ${lt ? "text-[#5a5a5a]" : "text-white/50"}`}>Quality</p>
+                <QualityToggle
+                  value={quality}
+                  onChange={setQuality}
+                  standardCost={JEWELRY_PRICING.standard.ugcPerPose}
+                  proCost={JEWELRY_PRICING.pro.ugcPerPose}
+                  costUnit="/ pose"
+                  lt={lt}
                 />
               </div>
-            </div>
-            <style>{`
-              @keyframes ugcProgress {
-                0%, 100% { opacity: 0.5; width: 30%; }
-                50% { opacity: 1; width: 80%; }
-              }
-            `}</style>
-          </div>
-        )}
 
-        {/* ─── Results Grid ─── */}
-        {results.length > 0 && !loading && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className={`text-lg font-semibold ${lt ? "text-[#0a0a0a]" : "text-white"}`}>
-                Generated Photos
-                <span className={`ml-2 text-sm font-normal ${lt ? "text-[#0a0a0a]/40" : "text-white/40"}`}>
-                  ({results.length} image{results.length !== 1 ? "s" : ""})
-                </span>
-              </h2>
-              {genCount > 0 && (
-                <span className={`text-[11px] ${lt ? "text-[#0a0a0a]/30" : "text-white/30"}`}>
-                  {genCount} generation{genCount !== 1 ? "s" : ""}
-                </span>
-              )}
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {results.map((result, idx) => (
+            {/* ── Right: Poses + Generate + Skeletons/Results ── */}
+            <div className="space-y-4" ref={resultsRef}>
+
+              {/* Poses selector */}
+              {!loading && (
                 <div
-                  key={result.generation_id + idx}
-                  className="group rounded-2xl overflow-hidden relative cursor-pointer transition-all duration-300 hover:scale-[1.02]"
+                  className="rounded-2xl p-5"
                   style={{
                     border: `1px solid ${lt ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.08)"}`,
                     background: lt ? "#fff" : "rgba(255,255,255,0.02)",
                   }}
-                  onClick={() => setLightboxIndex(idx)}
                 >
-                  <img
-                    src={result.image_url}
-                    alt={`UGC ${result.pose}`}
-                    className="w-full aspect-[3/4] object-cover"
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <p className={`text-sm font-semibold ${lt ? "text-[#0a0a0a]" : "text-white"}`}>
+                        Select Poses
+                      </p>
+                      <p className={`text-[11px] mt-0.5 ${lt ? "text-[#0a0a0a]/40" : "text-white/35"}`}>
+                        {poses.length} selected · {tokenCost} tokens
+                        {recommendedPoses.length > 0 && (
+                          <span> · ★ recommended for {jewelryType}</span>
+                        )}
+                      </p>
+                    </div>
+                    {poses.length > 0 && (
+                      <button
+                        onClick={() => setPoses([])}
+                        className={`text-[11px] font-medium transition-colors ${lt ? "text-[#0a0a0a]/30 hover:text-[#0a0a0a]/60" : "text-white/25 hover:text-white/50"}`}
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {poseOptions.map((pose) => {
+                      const selected = poses.includes(pose.id);
+                      const recommended = recommendedPoses.includes(pose.id);
+                      return (
+                        <button
+                          key={pose.id}
+                          onClick={() => togglePose(pose.id)}
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
+                            selected
+                              ? "bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-white shadow-[0_2px_8px_rgba(196,166,125,0.3)]"
+                              : recommended
+                                ? lt
+                                  ? "bg-[rgba(196,166,125,0.1)] border border-[rgba(196,166,125,0.3)] text-[#8b7355] hover:bg-[rgba(196,166,125,0.18)]"
+                                  : "bg-[rgba(196,166,125,0.08)] border border-[rgba(196,166,125,0.2)] text-[#c4a67d] hover:bg-[rgba(196,166,125,0.15)]"
+                                : lt
+                                  ? "bg-[rgba(0,0,0,0.04)] text-[#0a0a0a]/60 hover:bg-[rgba(0,0,0,0.08)]"
+                                  : "bg-[rgba(255,255,255,0.06)] text-white/60 hover:bg-[rgba(255,255,255,0.1)]"
+                          }`}
+                        >
+                          {selected && <span className="mr-1 text-[10px]">✓</span>}
+                          {pose.label}
+                          {recommended && !selected && <span className="ml-1 text-[9px] opacity-60">★</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Generate button */}
+              {!loading && (
+                <button
+                  onClick={handleGenerate}
+                  disabled={!imageB64 || poses.length === 0 || (outfitStyle === "custom" && !outfitCustom.trim())}
+                  className="w-full py-3.5 rounded-xl text-sm font-semibold text-white transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 active:scale-[0.98]"
+                  style={{
+                    background: "linear-gradient(135deg, #8b7355, #c4a67d)",
+                    boxShadow: "0 4px 16px rgba(196,166,125,0.3), 0 1px 3px rgba(0,0,0,0.1)",
+                  }}
+                >
+                  Generate {poses.length} Photo{poses.length !== 1 ? "s" : ""} — {tokenCost} tokens
+                </button>
+              )}
+
+              {credits && !loading && (
+                <p className={`text-center text-[11px] -mt-1 ${lt ? "text-[#0a0a0a]/30" : "text-white/30"}`}>
+                  Balance: {credits.token_balance} tokens
+                </p>
+              )}
+
+              {/* ── Skeleton cards (loading state) ── */}
+              {loading && skeletonPoses.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-[#c4a67d]/30 border-t-[#c4a67d] rounded-full animate-spin flex-shrink-0" />
+                    <p className={`text-sm font-medium ${lt ? "text-[#0a0a0a]/70" : "text-white/60"}`}>
+                      Generating {skeletonPoses.length} photo{skeletonPoses.length !== 1 ? "s" : ""}…
+                    </p>
+                  </div>
+                  <div className={`grid gap-3 ${
+                    skeletonPoses.length === 1 ? "grid-cols-1 max-w-xs" :
+                    skeletonPoses.length === 2 ? "grid-cols-2" :
+                    skeletonPoses.length === 3 ? "grid-cols-3" :
+                    "grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
+                  }`}>
+                    {skeletonPoses.map((poseId, i) => {
+                      const pose = UGC_ALL_POSES.find((p) => p.id === poseId);
+                      return (
+                        <div
+                          key={poseId + i}
+                          className="rounded-2xl overflow-hidden"
+                          style={{
+                            border: `1px solid ${lt ? "rgba(0,0,0,0.06)" : "rgba(255,255,255,0.06)"}`,
+                          }}
+                        >
+                          {/* Shimmer image area */}
+                          <div className="aspect-[3/4] relative overflow-hidden">
+                            <div
+                              className={`absolute inset-0 ${lt ? "bg-[#f0ede8]" : "bg-[rgba(255,255,255,0.04)]"}`}
+                            />
+                            <div
+                              className="absolute inset-0 -translate-x-full animate-[shimmer_1.6s_ease-in-out_infinite]"
+                              style={{
+                                background: lt
+                                  ? "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.6) 50%, transparent 100%)"
+                                  : "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.07) 50%, transparent 100%)",
+                                animationDelay: `${i * 0.2}s`,
+                              }}
+                            />
+                            {/* Centered icon */}
+                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${lt ? "bg-[rgba(196,166,125,0.12)]" : "bg-[rgba(196,166,125,0.1)]"}`}>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c4a67d" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                                  <circle cx="12" cy="7" r="4" />
+                                </svg>
+                              </div>
+                              <span className={`text-[10px] font-medium ${lt ? "text-[#0a0a0a]/30" : "text-white/25"}`}>
+                                {pose?.label ?? poseId}
+                              </span>
+                            </div>
+                          </div>
+                          {/* Label bar */}
+                          <div
+                            className="px-3 py-2"
+                            style={{ background: lt ? "rgba(0,0,0,0.02)" : "rgba(255,255,255,0.02)" }}
+                          >
+                            <div className={`h-2 rounded-full w-2/3 ${lt ? "bg-[rgba(0,0,0,0.06)]" : "bg-[rgba(255,255,255,0.06)]"} animate-pulse`} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Results grid ── */}
+              {results.length > 0 && !loading && (
+                <div className="space-y-5">
+                  <div className="flex items-center justify-between">
+                    <h2 className={`text-base font-semibold ${lt ? "text-[#0a0a0a]" : "text-white"}`}>
+                      Generated Photos
+                      <span className={`ml-2 text-sm font-normal ${lt ? "text-[#0a0a0a]/40" : "text-white/40"}`}>
+                        ({results.length})
+                      </span>
+                    </h2>
+                    {genCount > 0 && (
+                      <span className={`text-[11px] ${lt ? "text-[#0a0a0a]/30" : "text-white/30"}`}>
+                        {genCount} run{genCount !== 1 ? "s" : ""}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className={`grid gap-3 ${
+                    results.length === 1 ? "grid-cols-1 max-w-xs" :
+                    results.length === 2 ? "grid-cols-2" :
+                    results.length === 3 ? "grid-cols-3" :
+                    "grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
+                  }`}>
+                    {results.map((result, idx) => (
+                      <div
+                        key={result.generation_id + idx}
+                        className="group rounded-2xl overflow-hidden relative cursor-pointer transition-all duration-300 hover:scale-[1.02]"
+                        style={{
+                          border: `1px solid ${lt ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.08)"}`,
+                          background: lt ? "#fff" : "rgba(255,255,255,0.02)",
+                        }}
+                        onClick={() => setLightboxIndex(idx)}
+                      >
+                        <img
+                          src={result.image_url}
+                          alt={`UGC ${result.pose}`}
+                          className="w-full aspect-[3/4] object-cover"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                        <div className="absolute bottom-0 left-0 right-0 p-3 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
+                          <span className="text-white text-xs font-medium capitalize">
+                            {result.pose.replace(/_/g, " ")}
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              downloadImage(result.image_url, `ugc-${result.pose}-${idx + 1}.png`);
+                            }}
+                            className="absolute bottom-3 right-3 w-8 h-8 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center hover:bg-white/30 transition-colors"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Feedback */}
+                  <FeedbackWidget
+                    images={results.map((r) => ({
+                      generationId: r.generation_id,
+                      imageUrl: r.image_url,
+                      label: `UGC — ${r.pose.replace(/_/g, " ")}`,
+                    }))}
+                    flowType="ugc"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                  <div className="absolute bottom-0 left-0 right-0 p-3 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
-                    <span className="text-white text-xs font-medium capitalize">
-                      {result.pose.replace(/_/g, " ")}
-                    </span>
+
+                  {/* Actions */}
+                  <div className="flex flex-col sm:flex-row gap-3">
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        downloadImage(result.image_url, `ugc-${result.pose}-${idx + 1}.png`);
+                      onClick={handleGenerate}
+                      disabled={poses.length === 0}
+                      className="flex-1 py-3 rounded-xl text-sm font-semibold text-white text-center transition-all hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+                      style={{
+                        background: "linear-gradient(135deg, #8b7355, #c4a67d)",
+                        boxShadow: "0 4px 16px rgba(196,166,125,0.3)",
                       }}
-                      className="absolute bottom-3 right-3 w-8 h-8 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center hover:bg-white/30 transition-colors"
                     >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                      Generate More — {tokenCost} tokens
+                    </button>
+                    <button
+                      onClick={resetFull}
+                      className={`flex-1 py-3 rounded-xl text-sm font-medium transition-all ${
+                        lt
+                          ? "bg-[rgba(0,0,0,0.04)] text-[#0a0a0a]/70 hover:bg-[rgba(0,0,0,0.08)]"
+                          : "bg-[rgba(255,255,255,0.06)] text-white/70 hover:bg-[rgba(255,255,255,0.1)]"
+                      }`}
+                    >
+                      Start Over
+                    </button>
+                  </div>
+
+                  {/* Video CTA */}
+                  <div
+                    className="rounded-2xl p-4"
+                    style={{
+                      border: `1px solid ${lt ? "rgba(168,85,247,0.15)" : "rgba(168,85,247,0.2)"}`,
+                      background: lt ? "rgba(168,85,247,0.03)" : "rgba(168,85,247,0.05)",
+                    }}
+                  >
+                    <p className={`text-xs font-semibold mb-2.5 ${lt ? "text-[#6b6b6b]" : "text-white/50"}`}>Take it further</p>
+                    <button
+                      onClick={() => {
+                        const firstResult = results[0];
+                        const params = new URLSearchParams();
+                        if (firstResult?.image_url) {
+                          if (firstResult.image_url.startsWith("http")) {
+                            params.set("image", firstResult.image_url);
+                          } else {
+                            const b64 = firstResult.image_url.split(",")[1] || "";
+                            try {
+                              sessionStorage.setItem("video_image_b64", b64);
+                              sessionStorage.setItem("video_image_preview", firstResult.image_url);
+                            } catch {}
+                          }
+                        }
+                        if (jewelryType) params.set("type", jewelryType);
+                        if (sessionId) params.set("session", sessionId);
+                        router.push(`/video?${params.toString()}`);
+                      }}
+                      className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 flex items-center justify-center gap-2"
+                      style={{ background: "linear-gradient(135deg, #7c3aed, #a855f7)", boxShadow: "0 4px 16px rgba(168,85,247,0.25)" }}
+                    >
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polygon points="5 3 19 12 5 21 5 3" />
                       </svg>
+                      Create Video from this Photo
                     </button>
                   </div>
                 </div>
-              ))}
-            </div>
+              )}
 
-            {/* Feedback */}
-            <FeedbackWidget generationIds={generationIds} imageLabel="UGC Model Photo" />
-
-            {/* Generate More */}
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={handleGenerate}
-                disabled={poses.length === 0}
-                className="flex-1 py-3 rounded-xl text-sm font-semibold text-white text-center transition-all duration-200 hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
-                style={{
-                  background: "linear-gradient(135deg, #8b7355, #c4a67d)",
-                  boxShadow: "0 4px 16px rgba(196,166,125,0.3)",
-                }}
-              >
-                Generate More — {tokenCost} tokens
-              </button>
-              <button
-                onClick={resetFull}
-                className={`flex-1 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
-                  lt
-                    ? "bg-[rgba(0,0,0,0.04)] text-[#0a0a0a]/70 hover:bg-[rgba(0,0,0,0.08)]"
-                    : "bg-[rgba(255,255,255,0.06)] text-white/70 hover:bg-[rgba(255,255,255,0.1)]"
-                }`}
-              >
-                Start Over
-              </button>
             </div>
           </div>
         )}
@@ -889,7 +1034,6 @@ function UgcPageInner() {
             className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 backdrop-blur-sm"
             onClick={() => setLightboxIndex(null)}
           >
-            {/* Close */}
             <button
               onClick={() => setLightboxIndex(null)}
               className="absolute top-5 right-5 w-10 h-10 bg-white/10 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-white/20 transition-colors z-10"
@@ -898,8 +1042,6 @@ function UgcPageInner() {
                 <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
               </svg>
             </button>
-
-            {/* Prev */}
             {lightboxIndex > 0 && (
               <button
                 onClick={(e) => { e.stopPropagation(); setLightboxIndex(lightboxIndex - 1); }}
@@ -910,8 +1052,6 @@ function UgcPageInner() {
                 </svg>
               </button>
             )}
-
-            {/* Next */}
             {lightboxIndex < results.length - 1 && (
               <button
                 onClick={(e) => { e.stopPropagation(); setLightboxIndex(lightboxIndex + 1); }}
@@ -922,12 +1062,7 @@ function UgcPageInner() {
                 </svg>
               </button>
             )}
-
-            {/* Image */}
-            <div
-              className="max-w-4xl max-h-[90vh] relative"
-              onClick={(e) => e.stopPropagation()}
-            >
+            <div className="max-w-4xl max-h-[90vh] relative" onClick={(e) => e.stopPropagation()}>
               <img
                 src={results[lightboxIndex].image_url}
                 alt={`UGC ${results[lightboxIndex].pose}`}
@@ -937,17 +1072,15 @@ function UgcPageInner() {
                 <span className="text-white text-sm font-medium capitalize">
                   {results[lightboxIndex].pose.replace(/_/g, " ")}
                 </span>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => downloadImage(results[lightboxIndex!].image_url, `ugc-${results[lightboxIndex!].pose}-${lightboxIndex! + 1}.png`)}
-                    className="px-3 py-1.5 bg-white/20 backdrop-blur-sm rounded-lg text-white text-xs font-medium hover:bg-white/30 transition-colors flex items-center gap-1.5"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
-                    </svg>
-                    Download
-                  </button>
-                </div>
+                <button
+                  onClick={() => downloadImage(results[lightboxIndex!].image_url, `ugc-${results[lightboxIndex!].pose}-${lightboxIndex! + 1}.png`)}
+                  className="px-3 py-1.5 bg-white/20 backdrop-blur-sm rounded-lg text-white text-xs font-medium hover:bg-white/30 transition-colors flex items-center gap-1.5"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  Download
+                </button>
               </div>
               <div className="absolute top-3 right-3 px-2 py-1 bg-black/50 backdrop-blur-sm rounded-lg text-white/70 text-xs">
                 {lightboxIndex + 1} / {results.length}
@@ -956,42 +1089,74 @@ function UgcPageInner() {
           </div>
         )}
       </div>
+
+      {/* shimmer keyframe */}
+      <style>{`
+        @keyframes shimmer {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(200%); }
+        }
+      `}</style>
     </ResponsiveLayout>
   );
 }
 
-// ─── Reusable sub-components ───
+// ─── AccordionSection ───
 
-function ConfigSection({ title, lt, children }: { title: string; lt: boolean; children: React.ReactNode }) {
+function AccordionSection({
+  title,
+  summary,
+  open,
+  onToggle,
+  lt,
+  children,
+}: {
+  title: string;
+  summary: string;
+  open: boolean;
+  onToggle: () => void;
+  lt: boolean;
+  children: React.ReactNode;
+}) {
   return (
     <div
-      className="rounded-2xl p-5 space-y-3"
+      className="rounded-2xl overflow-hidden transition-all duration-200"
       style={{
         border: `1px solid ${lt ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.08)"}`,
         background: lt ? "#fff" : "rgba(255,255,255,0.02)",
       }}
     >
-      <span className={`text-[11px] font-bold uppercase tracking-[0.08em] ${lt ? "text-[#5a5a5a]" : "text-white/50"}`}>
-        {title}
-      </span>
-      {children}
-    </div>
-  );
-}
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center justify-between px-4 py-3.5 text-left group"
+      >
+        <div className="min-w-0 flex-1">
+          <p className={`text-[11px] font-bold uppercase tracking-[0.08em] ${lt ? "text-[#5a5a5a]" : "text-white/50"}`}>
+            {title}
+          </p>
+          {!open && (
+            <p className={`text-xs mt-0.5 truncate ${lt ? "text-[#0a0a0a]/60" : "text-white/50"}`}>
+              {summary}
+            </p>
+          )}
+        </div>
+        <svg
+          width="14" height="14" viewBox="0 0 24 24" fill="none"
+          stroke={lt ? "rgba(0,0,0,0.4)" : "rgba(255,255,255,0.35)"}
+          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+          className={`flex-shrink-0 ml-3 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
 
-function PillButton({ label, selected, onClick, lt }: { label: string; selected: boolean; onClick: () => void; lt: boolean }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`px-4 py-2 rounded-full text-xs font-medium transition-all duration-200 ${
-        selected
-          ? "bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-white shadow-[0_2px_8px_rgba(196,166,125,0.3)]"
-          : lt
-            ? "bg-[rgba(0,0,0,0.04)] text-[#0a0a0a]/60 hover:bg-[rgba(0,0,0,0.08)]"
-            : "bg-[rgba(255,255,255,0.06)] text-white/60 hover:bg-[rgba(255,255,255,0.1)]"
-      }`}
-    >
-      {label}
-    </button>
+      {open && (
+        <div className="px-4 pb-4 space-y-4 border-t" style={{ borderColor: lt ? "rgba(0,0,0,0.05)" : "rgba(255,255,255,0.05)" }}>
+          <div className="pt-3 space-y-4">
+            {children}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

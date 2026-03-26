@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import type { Theme } from "./ThemeGallery";
+import TokenIcon from "@/components/ui/TokenIcon";
+import QualityToggle from "@/components/ui/QualityToggle";
 
 export interface ShotConfig {
   shot_id: string;
@@ -35,6 +37,17 @@ const SHOT_ICONS: Record<string, string> = {
   top_down: "M7 3h10v4H7zM5 9h14v12H5zM9 13h6M9 17h6",
 };
 
+// Map shot_ids that may not have their own preview image to the closest available one
+const SHOT_PREVIEW_FALLBACK: Record<string, string> = {
+  angle_3_4: "closeup",
+  angle_side: "closeup",
+  lifestyle: "lifestyle",
+  environment: "lifestyle",
+  macro: "closeup",
+  detail: "closeup",
+  editorial: "dramatic",
+};
+
 const ASPECT_RATIOS = [
   { id: "square", label: "Square", ratio: "1:1", w: 1, h: 1 },
   { id: "portrait", label: "Portrait", ratio: "3:4", w: 3, h: 4 },
@@ -60,7 +73,14 @@ export default function ShotConfigurator({
 }: ShotConfiguratorProps) {
   const [editingShot, setEditingShot] = useState<string | null>(null);
   const [showAspectRatio, setShowAspectRatio] = useState(false);
-  const [missingPreviews, setMissingPreviews] = useState<Record<string, boolean>>({});
+  // Tracks how many fallback attempts each shot has made: 0 = primary, 1 = fallback alias, 2 = give up
+  const [previewAttempt, setPreviewAttempt] = useState<Record<string, number>>({});
+
+  function getShotPreviewSrc(shotId: string, attempt: number): string | null {
+    if (attempt === 0) return shotId;
+    if (attempt === 1 && SHOT_PREVIEW_FALLBACK[shotId]) return SHOT_PREVIEW_FALLBACK[shotId];
+    return null;
+  }
 
   const selectedCount = shotConfigs.filter((s) => s.selected).length;
 
@@ -133,34 +153,32 @@ export default function ShotConfigurator({
                   className="w-full text-left"
                 >
                   <div className="aspect-[4/3] relative bg-[rgba(255,255,255,0.03)] overflow-hidden">
-                    {jewelryType ? (
-                      missingPreviews[config.shot_id] ? (
-                        <div
-                          className="w-full h-full flex items-center justify-center"
-                          style={{ backgroundColor: theme.preview_color || "#1a1a1a" }}
-                        >
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                            <path d={SHOT_ICONS[config.shot_id] || SHOT_ICONS.hero} />
-                          </svg>
-                        </div>
-                      ) : (
-                        <img
-                          src={`/shot-previews/${jewelryType}/${config.shot_id}.jpg`}
-                          alt={shotMeta.short_name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                          loading="lazy"
-                          onError={() =>
-                            setMissingPreviews((prev) => ({ ...prev, [config.shot_id]: true }))
-                          }
-                        />
-                      )
+                    {jewelryType && getShotPreviewSrc(config.shot_id, previewAttempt[config.shot_id] ?? 0) !== null ? (
+                      <img
+                        src={`/shot-previews/${jewelryType}/${getShotPreviewSrc(config.shot_id, previewAttempt[config.shot_id] ?? 0)}.jpg`}
+                        alt={shotMeta.short_name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        loading="lazy"
+                        onError={() =>
+                          setPreviewAttempt((prev) => ({
+                            ...prev,
+                            [config.shot_id]: (prev[config.shot_id] ?? 0) + 1,
+                          }))
+                        }
+                      />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center"
-                        style={{ backgroundColor: theme.preview_color || "#1a1a1a" }}
+                      <div
+                        className="w-full h-full flex flex-col items-center justify-center gap-2"
+                        style={{
+                          background: `linear-gradient(135deg, ${theme.preview_color || "#1a1a2a"}, rgba(0,0,0,0.7))`,
+                        }}
                       >
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(196,166,125,0.5)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                           <path d={SHOT_ICONS[config.shot_id] || SHOT_ICONS.hero} />
                         </svg>
+                        <span className="text-[9px] font-semibold text-white/30 uppercase tracking-wider px-2 text-center leading-tight">
+                          {shotMeta.short_name}
+                        </span>
                       </div>
                     )}
 
@@ -260,31 +278,13 @@ export default function ShotConfigurator({
       {/* Quality Toggle */}
       <div className="flex items-center gap-3">
         <span className="text-xs font-semibold text-[rgba(255,255,255,0.5)]">Quality</span>
-        <div className="inline-flex rounded-xl bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] p-0.5">
-          <button
-            onClick={() => onQualityChange("standard")}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-              quality === "standard"
-                ? "bg-[rgba(255,255,255,0.1)] text-white shadow-sm"
-                : "text-[rgba(255,255,255,0.5)]"
-            }`}
-          >
-            Standard
-          </button>
-          <button
-            onClick={() => onQualityChange("pro")}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1 ${
-              quality === "pro"
-                ? "bg-gradient-to-r from-[rgba(196,166,125,0.2)] to-[rgba(196,166,125,0.1)] text-[#c4a67d] shadow-sm border border-[rgba(196,166,125,0.2)]"
-                : "text-[rgba(255,255,255,0.5)]"
-            }`}
-          >
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-            </svg>
-            Pro
-          </button>
-        </div>
+        <QualityToggle
+          value={quality}
+          onChange={onQualityChange}
+          standardCost={0}
+          proCost={0}
+          compact
+        />
       </div>
 
       {/* Generate CTA — sticky bottom */}
@@ -306,7 +306,7 @@ export default function ShotConfigurator({
               </svg>
               Generate {selectedCount} Shot{selectedCount !== 1 ? "s" : ""}
               <span className="inline-flex items-center gap-1 ml-1 px-2 py-0.5 rounded-full bg-[rgba(255,255,255,0.15)] text-xs">
-                <span className="text-[10px]">🪙</span>
+                <TokenIcon size={12} />
                 {tokenCost}
               </span>
             </>

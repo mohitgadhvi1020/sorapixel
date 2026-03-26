@@ -33,7 +33,12 @@ class Settings(BaseSettings):
 
     # AI Services
     gemini_api_key: str = ""
+    google_cloud_project: str = ""
+    google_cloud_location: str = "us-central1"
+    google_application_credentials: str = ""
+    use_vertex_ai: bool = False
     fal_key: str = ""
+    openai_api_key: str = ""
 
     # OTP
     otp_expire_minutes: int = 5
