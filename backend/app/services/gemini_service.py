@@ -67,27 +67,21 @@ def _make_client(timeout_ms: int, max_retries: int = 3) -> genai.Client:
     http_opts = _build_http_opts(timeout_ms, max_retries)
 
     if settings.use_vertex_ai and settings.google_cloud_project:
-        try:
-            client = _make_vertex_client(settings, http_opts)
-            client.models.generate_content(
-                model=MODEL_TEXT,
-                contents=[{"text": "ping"}],
-            )
-            _using_vertex = True
-            logger.info(
-                "Vertex AI client OK (project=%s, location=%s) — using Google Cloud billing",
-                settings.google_cloud_project, settings.google_cloud_location,
-            )
-            return client
-        except Exception as e:
-            logger.warning(
-                "Vertex AI client failed (%s). Falling back to AI Studio api_key mode.",
-                str(e)[:120],
-            )
+        client = _make_vertex_client(settings, http_opts)
+        client.models.generate_content(
+            model=MODEL_TEXT,
+            contents=[{"text": "ping"}],
+        )
+        _using_vertex = True
+        logger.info(
+            "Vertex AI client OK (project=%s, location=%s) — using Google Cloud billing",
+            settings.google_cloud_project, settings.google_cloud_location,
+        )
+        return client
 
     if not settings.gemini_api_key:
         raise RuntimeError(
-            "No working AI backend: Vertex AI failed and GEMINI_API_KEY is not set"
+            "No working AI backend: set USE_VERTEX_AI=true with GOOGLE_CLOUD_PROJECT, or set GEMINI_API_KEY"
         )
     _using_vertex = False
     logger.info("Using AI Studio client (api_key mode)")

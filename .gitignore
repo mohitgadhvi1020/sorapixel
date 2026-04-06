@@ -46,3 +46,12 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 sorapixel-vertex-key.json
+gcp-vertex-key.json
+*.json.bak
+
+# GCP deployment env files (contain secrets)
+backend/env.yaml
+frontend/env.yaml
+
+# Claude
+.claude/

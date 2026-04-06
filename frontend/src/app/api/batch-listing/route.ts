@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenAI } from "@google/genai";
 import { getSupabaseServer } from "@/lib/supabase/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import {
@@ -15,12 +14,14 @@ export const maxDuration = 60;
 
 const TOKENS_PER_IMAGE = LISTING_PRICING.costPerImage;
 const TOKENS_PER_REGEN = LISTING_PRICING.costPerRegen;
-const MAX_RETRIES = 3;
 
-async function getAuthUserId(): Promise<string | null> {
+const BACKEND_URL = process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+
+async function getAuthUser(): Promise<{ id: string; token: string } | null> {
   const supabase = await getSupabaseServer();
-  const { data: { user } } = await supabase.auth.getUser();
-  return user?.id || null;
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user?.id || !session.access_token) return null;
+  return { id: session.user.id, token: session.access_token };
 }
 
 async function checkTokenBalance(clientId: string, cost: number = TOKENS_PER_IMAGE): Promise<{ ok: boolean; balance: number }> {
@@ -50,73 +51,7 @@ async function deductTokens(clientId: string, cost: number = TOKENS_PER_IMAGE): 
   return newBalance;
 }
 
-let _ai: GoogleGenAI | null = null;
-function getClient(): GoogleGenAI {
-  if (!_ai) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) throw new Error("GEMINI_API_KEY is not set");
-    _ai = new GoogleGenAI({ apiKey });
-  }
-  return _ai;
-}
-
-async function withRetry<T>(fn: () => Promise<T>, retries = MAX_RETRIES): Promise<T> {
-  for (let i = 0; i < retries; i++) {
-    try {
-      return await fn();
-    } catch (err) {
-      if (i === retries - 1) throw err;
-      await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
-    }
-  }
-  throw new Error("Max retries reached");
-}
-
-function parseListingResponse(text: string): ListingOutput {
-  const cleaned = text
-    .trim()
-    .replace(/^```json?\s*/i, "")
-    .replace(/\s*```$/i, "")
-    .trim();
-  const parsed = JSON.parse(cleaned);
-  const a = parsed.attributes || {};
-  return {
-    title: parsed.title || "",
-    description: parsed.description || "",
-    metaDescription: parsed.metaDescription || "",
-    altText: parsed.altText || "",
-    attributes: {
-      jewelryMaterial: a.jewelryMaterial || "Metal",
-      gemstoneType: a.gemstoneType ?? "",
-      collection: a.collection || "[TBD]",
-      occasion: a.occasion || "[TBD]",
-      material: a.material || "[TBD]",
-      stone: a.stone || "None",
-      closure: a.closure ?? "",
-    },
-  };
-}
-
-async function fetchBrandConfig(clientId: string): Promise<BrandConfig | null> {
-  const sb = getSupabaseAdmin();
-  const { data: clientData } = await sb
-    .from("clients")
-    .select("brand_id")
-    .eq("id", clientId)
-    .single();
-  if (!clientData?.brand_id) return null;
-
-  const { data: brandData } = await sb
-    .from("brand_profiles")
-    .select("config")
-    .eq("id", clientData.brand_id)
-    .single();
-  return (brandData?.config as BrandConfig) || null;
-}
-
-async function generateListing(imageBase64: string, batchDescription?: string, brandConfig?: BrandConfig | null) {
-  const ai = getClient();
-
+function buildPrompt(batchDescription?: string, brandConfig?: BrandConfig | null): string {
   const jewelryType = batchDescription?.trim() || "jewelry";
   const jewelryTypeInstruction = batchDescription?.trim()
     ? `JEWELRY TYPE (USER-CONFIRMED — MANDATORY): The user has explicitly confirmed that this product is: "${batchDescription.trim()}"
@@ -137,36 +72,51 @@ OUTPUT FORMAT (strict JSON, nothing else):
 ${LISTING_JSON_SCHEMA}`;
   }
 
-  const prompt = `${basePrompt}
+  return `${basePrompt}
 
 ${jewelryTypeInstruction}
 
 Look at the image carefully. Identify the metal finish, stones, design style, closure type, and complexity. Then generate the full listing.`;
+}
 
-  const mimeMatch = imageBase64.match(/^data:(image\/\w+);base64,/);
-  const mime = mimeMatch ? mimeMatch[1] : "image/png";
-  const data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+async function callBackendGenerate(imageBase64: string, prompt: string, accessToken: string): Promise<ListingOutput> {
+  const resp = await fetch(`${BACKEND_URL}/batch-listing/generate`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ image_base64: imageBase64, prompt }),
+  });
 
-  const response = await withRetry(() =>
-    ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: [
-        { text: prompt },
-        { inlineData: { mimeType: mime, data } },
-      ],
-    })
-  );
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ detail: `Backend error ${resp.status}` }));
+    throw new Error(err.detail || err.error || `Backend returned ${resp.status}`);
+  }
 
-  const text = response.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error("No response from AI");
+  const data = await resp.json();
+  if (!data.success || !data.listing) {
+    throw new Error(data.error || "Backend returned no listing");
+  }
 
-  const listing = parseListingResponse(text);
-  const usage = response.usageMetadata;
-  const tokenUsage = usage
-    ? { inputTokens: usage.promptTokenCount ?? 0, outputTokens: usage.candidatesTokenCount ?? 0, totalTokens: usage.totalTokenCount ?? 0 }
-    : undefined;
+  return data.listing as ListingOutput;
+}
 
-  return { listing, tokenUsage };
+async function fetchBrandConfig(clientId: string): Promise<BrandConfig | null> {
+  const sb = getSupabaseAdmin();
+  const { data: clientData } = await sb
+    .from("clients")
+    .select("brand_id")
+    .eq("id", clientId)
+    .single();
+  if (!clientData?.brand_id) return null;
+
+  const { data: brandData } = await sb
+    .from("brand_profiles")
+    .select("config")
+    .eq("id", clientData.brand_id)
+    .single();
+  return (brandData?.config as BrandConfig) || null;
 }
 
 async function uploadImage(clientId: string, base64: string, label: string) {
@@ -194,10 +144,11 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { mode } = body;
 
-    const clientId = await getAuthUserId();
-    if (!clientId) {
+    const authUser = await getAuthUser();
+    if (!authUser) {
       return NextResponse.json({ success: false, error: "Not authenticated" }, { status: 401 });
     }
+    const { id: clientId, token: accessToken } = authUser;
 
     const brandConfig = await fetchBrandConfig(clientId);
 
@@ -219,8 +170,8 @@ export async function POST(req: NextRequest) {
 
       let listing: ListingOutput;
       try {
-        const result = await generateListing(imageBase64, batchDescription, brandConfig);
-        listing = result.listing;
+        const prompt = buildPrompt(batchDescription, brandConfig);
+        listing = await callBackendGenerate(imageBase64, prompt, accessToken);
       } catch (aiError) {
         console.error("AI generation failed:", aiError);
         return NextResponse.json({
@@ -292,8 +243,8 @@ export async function POST(req: NextRequest) {
 
       let listing: ListingOutput;
       try {
-        const result = await generateListing(imageBase64, batchDescription, brandConfig);
-        listing = result.listing;
+        const prompt = buildPrompt(batchDescription, brandConfig);
+        listing = await callBackendGenerate(imageBase64, prompt, accessToken);
       } catch (aiError) {
         console.error("AI regeneration failed:", aiError);
         return NextResponse.json({
