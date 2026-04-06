@@ -36,8 +36,22 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# env files — secrets are never committed
+# .env.local files contain secrets everywhere
+**/.env.local
+**/.env*.local
+
+# Root .env has secrets
+/.env
+
+# Backend .env has secrets (use .env.production for public config)
+/backend/.env
+
+# Leadgen .env has secrets
+/leadgen/.env
+
+# frontend/.env is safe to commit (only NEXT_PUBLIC_ vars)
+# backend/.env.production is safe to commit (only public config)
 
 # vercel
 .vercel
