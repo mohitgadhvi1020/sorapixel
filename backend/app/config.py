@@ -14,7 +14,6 @@ class Settings(BaseSettings):
         "http://localhost:3001",
         "https://soraipixel.com",
         "https://www.soraipixel.com",
-        "https://sorapixelnew.vercel.app",
     ]
 
     # Supabase
