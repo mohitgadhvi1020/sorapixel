@@ -2,7 +2,8 @@ import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
+  const origin = process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin;
   const code = searchParams.get("code");
   const token_hash = searchParams.get("token_hash");
   const type = searchParams.get("type") as "email" | "recovery" | "invite" | "magiclink" | "signup" | undefined;
