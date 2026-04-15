@@ -13,6 +13,7 @@ import {
 import { getSupabaseBrowser } from "@/lib/supabase/client";
 import { api } from "@/lib/api-client";
 import { cacheGet, cacheSet } from "@/lib/cache";
+import { trackLead } from "@/lib/meta-pixel";
 import type { Session, AuthChangeEvent } from "@supabase/supabase-js";
 
 const useIsomorphicLayoutEffect =
@@ -130,6 +131,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
             event === "SIGNED_IN" ||
             event === "TOKEN_REFRESHED")
         ) {
+          // Fire Lead event once per session on genuine sign-in
+          if (event === "SIGNED_IN" && !sessionStorage.getItem("sp_lead_tracked")) {
+            trackLead();
+            sessionStorage.setItem("sp_lead_tracked", "1");
+          }
           syncUser().finally(() => setAuthLoading(false));
         } else if (!newSession || event === "SIGNED_OUT") {
           setUser(null);

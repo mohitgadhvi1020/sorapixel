@@ -58,7 +58,7 @@ _ROUTER_MODULES = [
     "auth", "users", "studio", "jewelry", "catalogue", "credits",
     "payments", "admin", "projects", "sessions", "feed", "media",
     "blog", "brands", "themes", "feedback", "video", "flow_video",
-    "batch_listing",
+    "batch_listing", "meta_pixel",
 ]
 for _mod_name in _ROUTER_MODULES:
     _mod = import_module(f"app.routers.{_mod_name}")

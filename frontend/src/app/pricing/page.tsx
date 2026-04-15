@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api-client";
 import { useAuth, useCredits } from "@/providers/AppProvider";
+import { trackPurchase } from "@/lib/meta-pixel";
 import { useTheme } from "@/hooks/useTheme";
 import { useGeoCountry } from "@/hooks/useGeoCountry";
 import { TOKEN_COSTS_TABLE, DAILY_REWARD_TOKENS } from "@/lib/token-pricing";
@@ -148,6 +149,16 @@ export default function PricingPage() {
                   `Payment successful! ${verifyResult.tokens_added} tokens added to your account.`
                 );
                 refreshCredits();
+
+                // Meta Pixel: track purchase + server-side CAPI for dedup
+                const priceValue = currency === "INR" ? plan.price_inr : currency === "EUR" ? ((plan.price_eur ?? plan.price_usd) / 100) : (plan.price_usd / 100);
+                const eventId = trackPurchase(priceValue, currency);
+                api.post("/meta-pixel/event", {
+                  event_name: "Purchase",
+                  event_id: eventId,
+                  value: priceValue,
+                  currency,
+                }).catch(() => {});
               } else {
                 setErrorMessage(verifyResult.error || "Payment verification failed");
               }

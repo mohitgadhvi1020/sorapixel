@@ -59,6 +59,10 @@ class Settings(BaseSettings):
     # Sentry
     sentry_dsn: str = ""
 
+    # Meta Pixel / Conversions API
+    meta_pixel_id: str = ""
+    meta_access_token: str = ""
+
     # Cron / Automation
     cron_secret: str = ""
 
