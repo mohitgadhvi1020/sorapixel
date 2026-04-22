@@ -5,12 +5,40 @@ Matches Flyr's feature set: backgrounds and model interaction change per user ca
 """
 
 PRODUCT_ISOLATION_PROMPT = (
-    "CRITICAL RULES:\n"
-    "1. The product must be the EXACT same product from the input image — same shape, design, color, details\n"
-    "2. Do NOT redesign, modify, or reimagine the product\n"
-    "3. The product must be pixel-perfect preserved\n"
-    "4. Only change the BACKGROUND and LIGHTING, never the product itself"
+    "CRITICAL PRODUCT PRESERVATION RULES — these override any other instruction:\n"
+    "1. The product must be the EXACT same product from the input image. Preserve every visual attribute pixel-perfectly:\n"
+    "   - Exact COLOR and color shade (do not shift hue, saturation, or brightness of the product itself — e.g. dark emerald green must stay dark emerald green, not turn lighter/olive/teal)\n"
+    "   - Exact DESIGN pattern, motifs, engravings, stones, beads, embellishments, prints, textures, and material finish\n"
+    "   - Exact SHAPE, proportions, thickness, and silhouette\n"
+    "2. If the product is a MULTI-PIECE or STACKED/LAYERED set (e.g. a stack of bangles, a set of rings, a pair of earrings, a multi-strand necklace, bundled items), preserve the EXACT COUNT of individual pieces/layers/strands visible in the input image. Do not merge them into one thicker piece, do not add extra pieces, do not remove pieces. Count them carefully from the input and reproduce the same count.\n"
+    "3. Preserve the exact arrangement and stacking order of layered items, including any decorative elements attached to them (e.g. golden ghungroo/bells, charms, tassels) — same count, same placement, same size.\n"
+    "4. Do NOT redesign, restyle, reimagine, 'improve', or 'clean up' the product. Do not substitute it with a similar-looking product.\n"
+    "5. Only the BACKGROUND, SURFACE, and LIGHTING may change. The product itself must remain identical to the input.\n"
+    "6. If you are unsure about a product detail, copy it directly from the input image rather than inventing.\n\n"
+    "EXPLICIT FORBIDDEN TRANSFORMATIONS (do NOT do any of these):\n"
+    "  - DO NOT merge a stack of thin bangles into a single thicker bangle or into fewer thicker bangles.\n"
+    "  - DO NOT replace a beaded, faceted, or textured surface with smooth polished metal.\n"
+    "  - DO NOT reduce, add, resize, or relocate bells, ghungroo, charms, tassels, or other attached ornaments.\n"
+    "  - DO NOT shift the hue of colored gemstones or colored glass (green stays the same green; red stays the same red).\n"
+    "  - DO NOT convert a multi-strand necklace into a single strand, or a pair of earrings into one earring.\n"
+    "  - DO NOT smooth over intentional texture like gold thread wrapping, cording, or engravings."
 )
+
+
+def _format_product_structure(ps: dict | None) -> str:
+    """Render the vision pre-pass output as a ground-truth anchor block for the image-gen prompt."""
+    if not ps:
+        return ""
+    lines = [
+        "INPUT PRODUCT STRUCTURE (extracted from the input image by vision analysis — this is GROUND TRUTH, reproduce exactly):",
+        f"  - Type: {ps.get('product_type', '')}",
+        f"  - Piece / layer count: {ps.get('piece_count', '')}",
+        f"  - Color: {ps.get('primary_color', '')}",
+        f"  - Material / finish: {ps.get('material_finish', '')}",
+        f"  - Ornaments: {ps.get('ornaments', '')}",
+        f"  - Critical: {ps.get('critical_details', '')}",
+    ]
+    return "\n".join(lines) + "\n\n"
 
 # ─── Studio Backgrounds (Photo Shoot) ───
 # Each background has an id, label, color_hex (for solid), and prompt description.
@@ -90,7 +118,7 @@ def _get_bg_prompt(bg_id: str, category_slug: str | None = None) -> str:
 # ─── Category-specific product presentation ───
 
 CATEGORY_STUDIO_CONTEXT = {
-    "jewellery": "Professional jewelry product photography. Place the jewelry piece elegantly on the surface. Enhance sparkle and reflections. No hands or props unless specified.",
+    "jewellery": "Professional jewelry product photography. Place the jewelry piece elegantly on the surface. Enhance sparkle and reflections only — do NOT alter the jewelry's color, gemstone color, metal tone, or design. If the input shows a stacked or multi-layer set (e.g. a bangle stack with 6/8/12 bangles, layered necklaces, ring stacks), reproduce the exact same number of layers/pieces and the exact same ornamentation (bells, ghungroo, charms, beads) as in the input. No hands or props unless specified.",
     "fashion-clothing": "Professional fashion product photography. Display the garment neatly — either flat-lay on the surface or draped naturally to show its design and fabric.",
     "accessories": "Professional accessories product photography. Place the product elegantly on the surface, showing its details, craftsmanship, and design.",
     "kids": "Professional kids product photography. Display the product in a bright, playful, cheerful setting with soft colors.",
@@ -114,14 +142,31 @@ CATEGORY_CATALOGUE_INTERACTION = {
 }
 
 
-def build_studio_prompt(background_id: str, category_slug: str | None = None, special_instructions: str | None = None) -> str:
-    """Build prompt for Studio (Photo Shoot) generation — category-aware."""
+def build_studio_prompt(
+    background_id: str,
+    category_slug: str | None = None,
+    special_instructions: str | None = None,
+    product_structure: dict | None = None,
+) -> str:
+    """Build prompt for Studio (Photo Shoot) generation — category-aware.
+
+    This is framed as a BACKGROUND REPLACEMENT + RELIGHTING task (not an open generation)
+    so the model is biased toward preserving the input product. When product_structure is
+    provided (from the vision pre-pass), its fields are injected as ground-truth anchors
+    before the preservation rules.
+    """
     context = CATEGORY_STUDIO_CONTEXT.get(category_slug or "", CATEGORY_STUDIO_CONTEXT.get("accessories", "Professional product photography."))
     bg_prompt = _get_bg_prompt(background_id, category_slug)
 
+    structure_block = _format_product_structure(product_structure)
+
     prompt = (
+        "TASK: BACKGROUND REPLACEMENT AND RELIGHTING ONLY. "
+        "You are editing the input image, not generating a new product. The product pixels must be preserved; "
+        "only the background, surface, and lighting may change.\n\n"
+        f"{structure_block}"
         f"{context}\n"
-        f"Background: {bg_prompt}\n"
+        f"New background: {bg_prompt}\n"
         f"Commercial quality, high resolution, perfectly lit.\n"
         f"The product must cast a natural, soft shadow on the surface beneath it — "
         f"a realistic contact shadow and a subtle diffused drop shadow to give the product a grounded, three-dimensional appearance. "
@@ -295,13 +340,45 @@ JEWELRY_UGC_RULES: dict[str, str] = {
 }
 
 POSE_DESCRIPTIONS = {
-    "best_match": "in a natural, confident pose that best showcases the product. Frame as a 3/4-length portrait (head to mid-thigh). The head must sit in the upper 20% of the canvas with empty space above the crown",
-    "standing": "standing upright in a confident stance facing the camera. Full-length shot from feet to well above the head. Zoom out enough so the full body fits with generous headroom — the head should be at roughly 15-20% from the top edge",
-    "side_view": "in a side profile pose, head to knees visible. The head in profile must be fully within frame with clear sky/background above the hair",
-    "back_view": "showing the back from head to knees, looking slightly over shoulder. The complete top of the head and all hair must be well within the frame, not touching the top edge",
-    "sitting": "sitting elegantly on a chair or stool. Frame from well above the head to the knees. Head positioned in upper 20% of image with clear space above",
-    "close_up": "a close-up portrait from chest/shoulders up. Face centered and fully visible (forehead to chin) with clear space above the head. Beauty shot — face sharp, well-lit, primary focus",
-    "walking": "in a natural walking pose, full-body mid-stride. Zoom out to fit entire body with the head at roughly 15% from the top edge of the frame",
+    "best_match": (
+        "Three-quarter-length portrait (head to mid-thigh), 85mm lens at eye level. "
+        "Model in a relaxed confident stance angled 10-15° off-axis, weight on the back foot. "
+        "Complete head in frame with 8-10% headroom above the crown. Soft even key light from the front-left"
+    ),
+    "standing": (
+        "Three-quarter-length shot from just above the crown down to mid-thigh, 85mm lens at eye level. "
+        "Model stands with weight shifted to one leg (contrapposto), shoulders open, hands relaxed at sides or lightly on hips. "
+        "This is NOT a full-length shot to the feet and NOT a chest-up close-up — the jewelry must be clearly visible on the upper body"
+    ),
+    "side_view": (
+        "3/4 profile portrait (head turned 70-80° from camera so the nose silhouette is crisp and one eye remains partly visible), 85mm lens at eye level. "
+        "Framed from just above the crown to mid-chest. Hair tucked behind the ear facing camera so jewelry on that side is fully revealed. "
+        "NOT a front-facing portrait"
+    ),
+    "back_view": (
+        "Over-the-shoulder shot from behind, frame from head to mid-back, 85mm lens at eye level. "
+        "Model's back faces camera; head turned to look back over the shoulder nearer camera so ~40% of the face is visible in 3/4 profile. "
+        "Nape of neck and shoulders exposed — useful for clasp details and drop earrings from behind"
+    ),
+    "sitting": (
+        "Seated mid-shot. Model is seated on a simple wooden stool or upholstered chair, body angled 15° off-axis, knees together or gently crossed. "
+        "Frame from just above the crown down to the knees — the seated posture (bent knees, hips on the seat, torso upright) MUST be visibly readable in the shot. "
+        "One hand rests in the lap, the other on the thigh or chair arm. 85mm lens, camera at the model's eye level. "
+        "NOT a standing shot. NOT a face-only close-up"
+    ),
+    "close_up": (
+        "Beauty portrait, chest-up, 85mm lens at eye level, shallow depth of field (f/2.8-equivalent). "
+        "Head centered with 8-10% headroom, eyes on the upper-third line. Soft wrapping key light from front-left. "
+        "Jewelry near the face (earrings, necklace, brooch) is tack-sharp and fully in frame"
+    ),
+    "walking": (
+        "Full-body action shot, mid-stride, model walking toward the camera along a natural path. "
+        "50mm lens, camera positioned at WAIST HEIGHT (camera is LOW — not at face height), subject filling the full vertical frame from the top of the head down to just below the feet. "
+        "One leg clearly forward and one clearly back — the STRIDE MUST BE VISIBLE with both feet off-aligned and one heel lifting. Arms swing naturally at the sides. "
+        "The entire body from crown to feet MUST be inside the frame. "
+        "This is NOT a portrait, NOT a chest-up shot, NOT a face close-up. The face may be small and soft-focus in the frame — that is correct and intentional. "
+        "If the head occupies more than 1/5 of the image height, the shot is WRONG and must be rejected"
+    ),
     "hand_closeup": (
         "a close-up of the hand (wrist to fingertips) showcasing jewelry on the fingers or wrist as the HERO. "
         "Hand posed naturally in a lifestyle way (e.g., resting on a book, gently touching the face/lips, holding a cup). "
@@ -353,6 +430,179 @@ POSE_DESCRIPTIONS = {
 
 # Poses that must be treated as tight close-ups (no portrait/full-body framing rules)
 MACRO_POSE_TYPES = {"finger_macro", "ear_macro", "neck_macro", "wrist_macro", "ankle_macro", "lapel_macro", "hand_closeup", "feet_closeup"}
+
+# Per-pose framing directives. Replaces the old one-size-fits-all "head in upper 25%"
+# rule that was crushing walking/sitting/side_view into face close-ups.
+# Each entry is the "⚠️ FRAMING RULE" block injected at the top of the prompt.
+POSE_FRAMING = {
+    "walking": (
+        "⚠️ FRAMING RULE — FULL-BODY MID-STRIDE:\n"
+        "This is a FULL-BODY shot. The model's entire body from the top of the head to just below the feet MUST be visible inside the frame.\n"
+        "The camera is at WAIST HEIGHT, NOT at face height. The face is intentionally small in the frame (less than 1/5 of image height).\n"
+        "The stride must be unmistakable — one leg clearly forward, one clearly back, one heel lifting off the ground.\n"
+        "DO NOT crop to a portrait. DO NOT produce a face close-up or chest-up framing. If you cannot see both feet and both legs mid-stride, the shot is WRONG."
+    ),
+    "standing": (
+        "⚠️ FRAMING RULE — THREE-QUARTER LENGTH STANDING:\n"
+        "Frame from just above the crown of the head down to mid-thigh. The head sits in the upper 20-25% of the canvas with 8-10% headroom.\n"
+        "This is NOT a full-length shot to the feet, and NOT a chest-up portrait. The jewelry on the upper body must be clearly readable.\n"
+        "DO NOT crop to a face close-up."
+    ),
+    "sitting": (
+        "⚠️ FRAMING RULE — SEATED MID-SHOT:\n"
+        "The seated posture MUST be visible — bent knees, hips on the seat surface, torso upright on a stool or chair.\n"
+        "Frame from just above the crown down to the knees. Head in the upper 25% of the canvas.\n"
+        "DO NOT produce a face-only close-up. DO NOT show the model standing. If the seat and bent knees are not visible, the shot is WRONG."
+    ),
+    "side_view": (
+        "⚠️ FRAMING RULE — 3/4 PROFILE PORTRAIT:\n"
+        "Head turned 70-80° away from camera. The nose-and-chin silhouette MUST be crisp against the background, one eye partly visible.\n"
+        "Frame from just above the crown down to mid-chest. The ear, jawline and neck on the camera-facing side are fully revealed.\n"
+        "This is NOT a front-facing portrait. DO NOT produce a symmetrical face-forward shot."
+    ),
+    "back_view": (
+        "⚠️ FRAMING RULE — OVER-THE-SHOULDER FROM BEHIND:\n"
+        "Model's back faces the camera. Head turned to look back over the shoulder nearer camera; about 40% of the face visible in 3/4 profile.\n"
+        "Frame from just above the crown down to mid-back. Nape of neck and shoulders exposed.\n"
+        "DO NOT produce a front-facing portrait."
+    ),
+    "close_up": (
+        "⚠️ FRAMING RULE — BEAUTY CLOSE-UP:\n"
+        "Chest-up portrait, face centered with 8-10% headroom. Eyes on the upper-third line. Soft wrapping key light.\n"
+        "The complete head and face must be visible (forehead to chin). Jewelry near the face is tack-sharp."
+    ),
+    "best_match": (
+        "⚠️ FRAMING RULE — THREE-QUARTER LENGTH:\n"
+        "Frame from just above the crown to mid-thigh. Complete head in frame with 8-10% headroom above the crown.\n"
+        "Jewelry on the upper body must be clearly visible and well-lit."
+    ),
+}
+
+
+# ─── Jewelry-as-hero composition system ───
+# These blocks are injected into every UGC prompt so the model treats the jewelry
+# as the subject of the frame, not an accessory on a model-subject shot.
+
+JEWELRY_HERO_DIRECTIVE = (
+    "⭐ JEWELRY IS THE HERO — READ BEFORE ANYTHING ELSE:\n"
+    "- The JEWELRY is the SUBJECT of this photograph. The model wears it, but the viewer's eye must land on the jewelry first.\n"
+    "- The jewelry must be FULLY visible — never cropped by the frame, never occluded by hair, fabric, hands, or props.\n"
+    "- The jewelry must be in SHARP FOCUS; everything else may fall off focus if needed to make the piece pop.\n"
+    "- Lighting must catch the stones and metal — specular highlights on gems, soft key light on metal surfaces.\n"
+    "- Composition must lead the eye TO the jewelry (rule-of-thirds placement, framing with negative space, or shallow DoF).\n"
+    "- The model's face must still be framed NATURALLY (no awkward top-of-head or chin crops) but the face is a supporting element, not the subject."
+)
+
+JEWELRY_NEGATIVE_PROMPTS = (
+    "❌ NEGATIVE — the following are FAILURE MODES; do NOT produce any of these:\n"
+    "- jewelry cropped or touching any frame edge\n"
+    "- jewelry out of frame, partially hidden, or cut off at the image border\n"
+    "- hair, collar, scarf, dupatta, pallu, sleeve, or hand occluding the jewelry\n"
+    "- jewelry out of focus while background/face is sharp\n"
+    "- jewelry lost against a busy or similar-tone background\n"
+    "- face cropped awkwardly (top of head missing, chin cut off, eyes cut off)\n"
+    "- jewelry rendered too small to see detail in a wide shot\n"
+    "- motion blur on the jewelry\n"
+    "- multiple pieces of extra jewelry not shown in the input image"
+)
+
+# Per-jewelry-type composition rules for NON-MACRO poses. Macro poses already
+# enforce hero framing via POSE_DESCRIPTIONS, so we only inject these for
+# standing / sitting / side_view / back_view / close_up / walking / best_match.
+JEWELRY_UGC_COMPOSITION: dict[str, str] = {
+    "ring": (
+        "COMPOSITION FOR RING (non-macro pose):\n"
+        "- Stage the hand wearing the ring so it is a prominent secondary focal point — resting at the collarbone, touching the face/chin, holding a prop, or raised near the shoulder.\n"
+        "- The ring hand must be in the near focal plane with the ring tack-sharp; the face can be slightly softer if needed.\n"
+        "- Place the ring near a rule-of-thirds intersection; do NOT let it sit at the absolute frame edge.\n"
+        "- Key light should catch the stone / metal from a 45° angle — no flat front-on lighting.\n"
+        "- The ring finger must be clear of other jewelry and unoccluded by cuffs, sleeves, or the other hand."
+    ),
+    "bracelet": (
+        "COMPOSITION FOR BRACELET (non-macro pose):\n"
+        "- Stage the wrist wearing the bracelet forward of the body — hand on hip, resting at the neckline, or holding an object at chest height.\n"
+        "- The wrist must be in the near focal plane with the bracelet tack-sharp.\n"
+        "- Sleeves MUST be short, pushed up, or sleeveless so the bracelet is fully uncovered end-to-end.\n"
+        "- Key light angled to catch the metalwork; avoid shadowing the wrist with the body.\n"
+        "- No other wristwear (watch, second bracelet) on the same hand."
+    ),
+    "bangle": (
+        "COMPOSITION FOR BANGLE (non-macro pose):\n"
+        "- Arm raised or forward so the full bangle stack is visible end-to-end (every piece, not merged).\n"
+        "- Sleeves MUST be rolled back / sleeveless; no dupatta draped over the forearm.\n"
+        "- Rim / side light on the forearm to separate the bangles from skin and clothing.\n"
+        "- Bangles must sit in the near focal plane with the stack tack-sharp."
+    ),
+    "necklace": (
+        "COMPOSITION FOR NECKLACE (non-macro pose):\n"
+        "- Chest-up or upper-body framing so the full necklace drape is visible from clasp to pendant.\n"
+        "- Outfit neckline MUST be low and wide — V-neck, scoop, or off-shoulder. No collar, no button-up shirt, no high-neck blouse.\n"
+        "- Hair swept back, over one shoulder, or tied up — not a single strand may cross the pendant or chain.\n"
+        "- No dupatta or scarf covering the décolletage.\n"
+        "- Key light from above-front so it catches the chain links and any pendant stones; fill light keeps skin tone even.\n"
+        "- The necklace centre (pendant or focal link) should sit near the upper rule-of-thirds line."
+    ),
+    "pendant": (
+        "COMPOSITION FOR PENDANT (non-macro pose):\n"
+        "- Chest-up framing; the pendant rests on bare skin at the sternum and is the clear focal point.\n"
+        "- Minimal plain chain (no competing statement chain).\n"
+        "- Outfit: low V-neck, scoop neck, or off-shoulder. No prints or patterns that fight the pendant.\n"
+        "- Hair pulled back — zero strands across the pendant.\n"
+        "- Key light catches the pendant face; background a stop darker than skin so the pendant pops."
+    ),
+    "earring": (
+        "COMPOSITION FOR EARRING (non-macro pose):\n"
+        "- Three-quarter or near-profile portrait so at least ONE earring is fully visible, preferably BOTH if framing allows.\n"
+        "- Hair MUST be tucked fully behind the ear(s) or tied back — NO strand may drape across the earlobe.\n"
+        "- Outfit neckline away from the earring (no high collar brushing the earring).\n"
+        "- Side / rim light on the ear to separate the earring from the face and hair — avoid flat front lighting that lets the earring blend into the cheek.\n"
+        "- The earring should sit on the upper-third horizontal line of the frame."
+    ),
+    "brooch": (
+        "COMPOSITION FOR BROOCH (non-macro pose):\n"
+        "- Upper-body framing angled slightly toward the brooch side.\n"
+        "- Brooch pinned flat to a solid-colour lapel / jacket / saree pallu with no competing pattern under it.\n"
+        "- Directional light from the brooch side to catch the relief / stones.\n"
+        "- Hair and scarf clear of the brooch area."
+    ),
+    "anklet": (
+        "COMPOSITION FOR ANKLET (non-macro pose):\n"
+        "- Seated or stepping pose with the ankle forward; lower-body or full-body frame with the ankle in the near focal plane.\n"
+        "- Bare ankle — no long hem, trouser, or saree border covering the anklet.\n"
+        "- Warm key light from low-front to separate the anklet from the skin and ground.\n"
+        "- Anklet should sit on a rule-of-thirds intersection; never at the frame edge."
+    ),
+    "chain": (
+        "COMPOSITION FOR CHAIN (non-macro pose):\n"
+        "- Chest-up framing; entire chain visible from clasp region to lowest point.\n"
+        "- Low V-neck or scoop-neck outfit; hair fully swept back.\n"
+        "- Soft key light angled to render each link — avoid top-down flat lighting that flattens the chain into a single line."
+    ),
+    "set": (
+        "COMPOSITION FOR JEWELRY SET (non-macro pose):\n"
+        "- Three-quarter framing so necklace, earrings, and any bangles/rings are simultaneously visible.\n"
+        "- Hair tied up or swept back to reveal both ears.\n"
+        "- Low neckline outfit in a solid, muted colour that contrasts the metal tone.\n"
+        "- Multi-point lighting: a soft key light, plus a subtle fill that catches each piece. No single hot spot washing out one piece.\n"
+        "- Compose so the necklace sits on the upper-third line and the bangles/ring on the lower-third line — the viewer's eye sweeps across all pieces."
+    ),
+}
+
+
+def _jewelry_hero_block(jewelry_type: str | None, is_macro: bool) -> str:
+    """Assemble the hero-composition block injected into every UGC prompt."""
+    parts = [JEWELRY_HERO_DIRECTIVE]
+    if jewelry_type and jewelry_type in JEWELRY_UGC_COMPOSITION and not is_macro:
+        parts.append(JEWELRY_UGC_COMPOSITION[jewelry_type])
+    if not is_macro:
+        parts.append(
+            "FOCAL PLANE & DEPTH OF FIELD:\n"
+            "- Shoot with shallow depth of field (f/2.8–f/4 equivalent).\n"
+            "- The JEWELRY is in the focal plane and tack-sharp.\n"
+            "- The model's face is acceptably sharp but may be 1 stop softer than the jewelry if that helps the piece pop.\n"
+            "- Background is soft / bokeh'd — never competing with the jewelry for attention."
+        )
+    return "\n\n".join(parts)
 
 CATALOGUE_BACKGROUNDS = [
     {"id": "best_match", "label": "Best Match", "thumb": "https://images.unsplash.com/photo-1557682250-33bd709cbe85?w=200&h=200&fit=crop&q=80", "prompt": "a plain solid light-grey (#E0E0E0) seamless studio backdrop with soft diffused lighting from above — no patterns, no gradients, no props, no windows, no outdoor elements"},
@@ -427,8 +677,11 @@ def build_catalogue_prompt(
 
     is_macro_pose = pose in MACRO_POSE_TYPES
 
+    hero_block = _jewelry_hero_block(jewelry_type, is_macro_pose)
+
     if is_macro_pose:
         prompt = (
+            f"{hero_block}\n\n"
             "⚠️ MACRO CLOSE-UP SHOT — READ FIRST:\n"
             "This is an EXTREME CLOSE-UP shot. The jewelry is the HERO of this image.\n"
             "The jewelry piece MUST fill a large portion of the frame (30-50%).\n"
@@ -451,15 +704,10 @@ def build_catalogue_prompt(
             "- The close-up framing naturally makes the jewelry prominent — do NOT additionally scale it up\n"
         )
     else:
+        framing_block = POSE_FRAMING.get(pose, POSE_FRAMING["best_match"])
         prompt = (
-            "⚠️ MANDATORY FRAMING RULE — READ FIRST:\n"
-            "This image MUST include the model's COMPLETE HEAD AND FACE. "
-            "The top of the head, forehead, eyes, nose, mouth, and chin must ALL be visible. "
-            "Compose the shot so the head is in the upper 25%% of the canvas with at least 8-10%% "
-            "empty space above the crown. Think of how a professional e-commerce photographer frames "
-            "a catalogue shot — the face is ALWAYS fully visible. If any part of the head is cut off, "
-            "the image is UNUSABLE. Imagine the final image printed on a product page — the customer "
-            "must see the model's full face to trust the product.\n\n"
+            f"{hero_block}\n\n"
+            f"{framing_block}\n\n"
             f"Subject: {model_desc} {interaction}.\n"
             f"Pose: {pose_desc}\n"
             f"Background: {bg_desc}\n"
@@ -555,14 +803,42 @@ def build_catalogue_prompt(
             "the same across all images in this set."
         )
     else:
-        prompt += (
-            "\nCOMPOSITION GUIDE:\n"
-            "- Frame as a 3/4-length or full-length portrait (head to below knees minimum)\n"
-            "- Camera at chest/waist height, angled slightly up toward the face\n"
-            "- The model's face should be sharp, well-lit, and the anchor point of the composition\n"
-            "- Leave generous headroom — the top of the frame should have empty background above the hair\n"
-            "- NEVER frame so tight that the head touches or exits the top edge\n\n"
-            "QUALITY RULES:\n"
+        if pose == "walking":
+            composition_guide = (
+                "\nCOMPOSITION GUIDE — WALKING (FULL-BODY):\n"
+                "- Frame the ENTIRE body from the top of the head to below the feet — do NOT crop the legs or feet\n"
+                "- Camera at WAIST HEIGHT (camera is low), lens 50mm equivalent, subject fills the vertical frame\n"
+                "- Stride MUST be visible: one leg forward, one leg back, one heel lifting off the ground\n"
+                "- The face is SMALL in the frame — do NOT anchor composition to the face\n"
+                "- If you produce a portrait or chest-up shot the output is REJECTED\n"
+            )
+        elif pose == "sitting":
+            composition_guide = (
+                "\nCOMPOSITION GUIDE — SEATED MID-SHOT:\n"
+                "- Frame from just above the crown down to the knees — the seat and bent knees MUST be in frame\n"
+                "- The seated posture (torso upright on stool/chair, hips on the seat, knees bent) is the whole point of this shot\n"
+                "- Camera at the model's eye level, 85mm lens\n"
+                "- Do NOT produce a face-only close-up. Do NOT show the model standing\n"
+            )
+        elif pose == "side_view":
+            composition_guide = (
+                "\nCOMPOSITION GUIDE — 3/4 PROFILE:\n"
+                "- Head turned 70-80° from camera so the nose and chin silhouette is crisp\n"
+                "- Frame from just above the crown down to mid-chest\n"
+                "- Hair tucked behind the camera-facing ear; jewelry on that side fully revealed\n"
+                "- Do NOT produce a front-facing symmetrical portrait\n"
+            )
+        else:
+            composition_guide = (
+                "\nCOMPOSITION GUIDE:\n"
+                "- Frame as a 3/4-length portrait (head to mid-thigh) — head to below knees at widest\n"
+                "- Camera at chest height, angled slightly up toward the face\n"
+                "- The model's face should be sharp, well-lit, and the anchor point of the composition\n"
+                "- Leave generous headroom — the top of the frame should have empty background above the hair\n"
+                "- NEVER frame so tight that the head touches or exits the top edge\n"
+            )
+        prompt += composition_guide + (
+            "\nQUALITY RULES:\n"
             f"- The model should look natural, authentic, and {nationality or 'Indian'}\n"
             "- Product must be clearly visible, well-lit, and the focal point\n"
             "- Commercial quality, suitable for e-commerce catalogue\n"
@@ -577,6 +853,8 @@ def build_catalogue_prompt(
 
     if special_instructions:
         prompt += f"\n\nSPECIAL INSTRUCTIONS: {special_instructions}"
+
+    prompt += f"\n\n{JEWELRY_NEGATIVE_PROMPTS}"
 
     return prompt
 
@@ -719,6 +997,48 @@ RATIO_SHAPE_HINTS = {
 }
 
 
+def _jewelry_count_str(detection: dict | None, jewelry_type: str) -> str:
+    """Build the OBJECT COUNT directive from the detection dict.
+
+    The detection service sometimes reports item_count=1 for a visible stack
+    (e.g. a bangle stack) while flagging is_set=True. The raw
+    "EXACTLY these 1 items: bangle" string that results is actively harmful —
+    it suggests to the model that a single bangle is the correct output. This
+    helper produces a count string that preserves the stack semantics instead.
+    """
+    if not detection:
+        return JEWELRY_OBJECT_COUNT.get(jewelry_type, f"EXACTLY 1 {jewelry_type}")
+
+    count = detection.get("item_count", 1)
+    components = detection.get("components", []) or []
+    is_set = bool(detection.get("is_set"))
+    is_pair = bool(detection.get("is_pair"))
+
+    if is_set:
+        # Stacks / sets: item_count is often misleading (1). Defer to visual ground truth.
+        comp_str = (", ".join(components)) if components else jewelry_type
+        return (
+            f"the FULL STACKED/LAYERED SET of {comp_str}s shown in the input image. "
+            f"Count each individual piece/layer/strand visible in the input and reproduce "
+            f"the SAME count in the output — do NOT merge layers into fewer thicker pieces, "
+            f"do NOT drop any piece, do NOT add extras"
+        )
+    if is_pair:
+        return f"EXACTLY {count} items (a matching pair). BOTH pieces MUST be visible"
+    return f"EXACTLY {count} {jewelry_type}{'s' if count > 1 else ''}"
+
+
+STACKED_SET_DEFENSE = (
+    "STACKED / LAYERED SET — HIGH PRIORITY\n"
+    "- The input shows a stacked or layered set of pieces (e.g. multi-bangle stack, multi-strand necklace, ring stack).\n"
+    "- Reproduce the EXACT number of individual layers/strands/pieces from the input. Count them. Do NOT merge.\n"
+    "- Preserve the material finish of each piece (beaded, faceted, threaded, engraved — NOT smooth polished metal unless the input is smooth polished metal).\n"
+    "- Preserve EVERY attached ornament (bells / ghungroo / charms / tassels / beads) with the same count, placement, size, and color as the input.\n"
+    "- Preserve the exact color shade of colored glass, enamel, or gemstones — do NOT shift hue or lighten/darken.\n"
+    "- Do NOT substitute the product with a visually similar but different piece."
+)
+
+
 def build_jewelry_prompt(
     jewelry_type: str,
     background_id: str,
@@ -735,18 +1055,10 @@ def build_jewelry_prompt(
     type_rules = JEWELRY_TYPE_RULES.get(jewelry_type, JEWELRY_TYPE_RULES.get("ring", ""))
     shape_hint = RATIO_SHAPE_HINTS.get(ratio_id or "square", RATIO_SHAPE_HINTS["square"])
 
-    # Use detection results for object count, fall back to static defaults
-    if detection:
-        count = detection.get("item_count", 1)
-        components = detection.get("components", [])
-        if detection.get("is_set") and components:
-            count_str = f"EXACTLY these {count} items: {', '.join(components)}"
-        elif detection.get("is_pair"):
-            count_str = f"EXACTLY {count} items (a matching pair). BOTH pieces MUST be visible"
-        else:
-            count_str = f"EXACTLY {count} {jewelry_type}{'s' if count > 1 else ''}"
-    else:
-        count_str = JEWELRY_OBJECT_COUNT.get(jewelry_type, f"EXACTLY 1 {jewelry_type}")
+    # Use detection results for object count, fall back to static defaults.
+    # Note: for is_set=True the detection service reports item_count=1 for visible
+    # stacks (e.g. a bangle stack), so we defer to visual ground-truth language.
+    count_str = _jewelry_count_str(detection, jewelry_type)
 
     sections = []
 
@@ -846,6 +1158,9 @@ def build_jewelry_prompt(
     # SECTION 9: Conditional defense layers — injected from detection
     if detection:
         defenses = []
+
+        if detection.get("is_set"):
+            defenses.append(STACKED_SET_DEFENSE)
 
         if detection.get("has_reflections"):
             defenses.append(
@@ -1144,17 +1459,7 @@ def build_jewelry_theme_prompt(
     type_rules = JEWELRY_TYPE_RULES.get(jewelry_type, JEWELRY_TYPE_RULES.get("ring", ""))
     shape_hint = RATIO_SHAPE_HINTS.get(ratio_id or "square", RATIO_SHAPE_HINTS["square"])
 
-    if detection:
-        count = detection.get("item_count", 1)
-        components = detection.get("components", [])
-        if detection.get("is_set") and components:
-            count_str = f"EXACTLY these {count} items: {', '.join(components)}"
-        elif detection.get("is_pair"):
-            count_str = f"EXACTLY {count} items (a matching pair). BOTH pieces MUST be visible"
-        else:
-            count_str = f"EXACTLY {count} {jewelry_type}{'s' if count > 1 else ''}"
-    else:
-        count_str = JEWELRY_OBJECT_COUNT.get(jewelry_type, f"EXACTLY 1 {jewelry_type}")
+    count_str = _jewelry_count_str(detection, jewelry_type)
 
     sections = []
 
@@ -1236,6 +1541,8 @@ def build_jewelry_theme_prompt(
 
     if detection:
         defenses = []
+        if detection.get("is_set"):
+            defenses.append(STACKED_SET_DEFENSE)
         if detection.get("has_reflections"):
             defenses.append(
                 "⚠️ REFLECTION DETECTED — HIGH PRIORITY\n"

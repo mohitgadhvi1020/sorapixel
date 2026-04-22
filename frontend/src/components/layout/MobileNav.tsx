@@ -11,7 +11,10 @@ interface MobileNavProps {
   isAdmin?: boolean;
 }
 
-const JEWELRY_ITEMS = [
+// Three buckets: Create (hub), Library, Account. Tools all live behind
+// `/create` to keep the drawer short. Bulk Listings is a first-class batch
+// entry — it's a different intent from single-piece creation.
+const CREATE_ITEMS = [
   {
     label: "Home",
     href: "/",
@@ -22,53 +25,21 @@ const JEWELRY_ITEMS = [
     ),
   },
   {
-    label: "Jewelry Studio",
-    href: "/jewelry",
+    label: "Create",
+    href: "/create",
+    primary: true,
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" />
+        <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
       </svg>
     ),
-    primary: true,
   },
   {
     label: "Bulk Listings",
     href: "/batch-listing",
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" />
-      </svg>
-    ),
-  },
-];
-
-const OTHER_ITEMS = [
-  {
-    label: "Studio (General)",
-    href: "/studio",
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" />
-      </svg>
-    ),
-  },
-  {
-    label: "Try-On",
-    href: "#",
-    disabled: true,
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-      </svg>
-    ),
-  },
-  {
-    label: "Video Generation",
-    href: "/video",
-    disabled: false,
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <polygon points="23 7 16 12 23 17 23 7" /><rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" />
       </svg>
     ),
   },
@@ -135,7 +106,7 @@ export default function MobileNav({ open, onClose, isAdmin = false }: MobileNavP
 
   if (!open) return null;
 
-  function NavItem({ item, highlight }: { item: typeof JEWELRY_ITEMS[0] & { primary?: boolean; disabled?: boolean }; highlight?: boolean }) {
+  function NavItem({ item, highlight }: { item: typeof CREATE_ITEMS[0] & { primary?: boolean; disabled?: boolean }; highlight?: boolean }) {
     const isActive = !item.disabled && (item.href === "/" ? pathname === "/" : pathname.startsWith(item.href));
     const isPrimary = highlight || item.primary;
 
@@ -204,19 +175,18 @@ export default function MobileNav({ open, onClose, isAdmin = false }: MobileNavP
 
         {/* Nav Items */}
         <nav className="flex-1 py-3 px-3 overflow-y-auto">
-          <p className="px-3 pt-2 pb-1.5 text-[10px] font-semibold text-[#c4a67d]/50 uppercase tracking-[0.08em]">Jewelry</p>
-          {JEWELRY_ITEMS.map((item) => (
-            <NavItem key={item.href} item={item} />
+          <p className="px-3 pt-2 pb-1.5 text-[10px] font-semibold text-[#c4a67d]/50 uppercase tracking-[0.08em]">Create</p>
+          {CREATE_ITEMS.map((item, i) => (
+            <div key={item.href} style={{ animationDelay: `${i * 30}ms` }} className="animate-fade-in-up">
+              <NavItem item={item} />
+            </div>
           ))}
 
-          <p className={`px-3 pt-5 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] ${isLight ? "text-[rgba(0,0,0,0.25)]" : "text-[rgba(255,255,255,0.2)]"}`}>Other Categories</p>
-          {OTHER_ITEMS.map((item) => (
-            <NavItem key={item.label} item={item} />
-          ))}
-
-          <p className={`px-3 pt-5 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] ${isLight ? "text-[rgba(0,0,0,0.25)]" : "text-[rgba(255,255,255,0.2)]"}`}>Manage</p>
-          {manageItems.map((item) => (
-            <NavItem key={item.href} item={item} />
+          <p className={`px-3 pt-5 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] ${isLight ? "text-[rgba(0,0,0,0.25)]" : "text-[rgba(255,255,255,0.2)]"}`}>Account</p>
+          {manageItems.map((item, i) => (
+            <div key={item.href} style={{ animationDelay: `${(CREATE_ITEMS.length + i) * 30}ms` }} className="animate-fade-in-up">
+              <NavItem item={item} />
+            </div>
           ))}
         </nav>
 

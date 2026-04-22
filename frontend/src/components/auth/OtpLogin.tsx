@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import Button from "@/components/ui/Button";
 import Logo from "@/components/ui/Logo";
+import { trackEvent } from "@/lib/gtag";
 
 function GoogleIcon({ className }: { className?: string }) {
   return (
@@ -51,8 +52,10 @@ function OtpLoginInner() {
     setGoogleLoading(true);
     setError("");
     try {
+      trackEvent("login_attempt", { method: "google" });
       await signInWithGoogle(redirectTo);
     } catch (e: unknown) {
+      trackEvent("exception", { description: e instanceof Error ? e.message : "google sign-in failed", where: "OtpLogin.google" });
       setError(e instanceof Error ? e.message : "Google sign-in failed");
       setGoogleLoading(false);
     }
@@ -77,8 +80,10 @@ function OtpLoginInner() {
         },
       });
       if (otpError) throw new Error(otpError.message);
+      trackEvent("login_link_sent", { method: "email" });
       setStep("email-sent");
     } catch (e: unknown) {
+      trackEvent("exception", { description: e instanceof Error ? e.message : "email otp failed", where: "OtpLogin.email" });
       setError(e instanceof Error ? e.message : "Failed to send email link");
     } finally {
       setLoading(false);
@@ -100,6 +105,7 @@ function OtpLoginInner() {
         redirectTo: `${window.location.origin}/auth/callback`,
       });
       if (resetError) throw new Error(resetError.message);
+      trackEvent("password_reset_requested");
       setStep("forgot-sent");
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to send reset link");

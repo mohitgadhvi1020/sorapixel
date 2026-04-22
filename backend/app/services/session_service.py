@@ -64,6 +64,44 @@ def create_session(
     return None
 
 
+def update_session_progress(
+    session_id: str,
+    client_id: str,
+    current_step: str | None = None,
+    pending_inputs: dict | None = None,
+    jewelry_type: str | None = None,
+    background: str | None = None,
+    aspect_ratio_id: str | None = None,
+    quality: str | None = None,
+) -> bool:
+    """Persist progress on an in-flight jewelry session.
+
+    Only non-None fields are updated. Safe to call on every step transition.
+    """
+    sb = get_supabase()
+    patch: dict = {"updated_at": "now()"}
+    if current_step is not None:
+        patch["current_step"] = current_step
+    if pending_inputs is not None:
+        patch["pending_inputs"] = pending_inputs
+    if jewelry_type is not None:
+        patch["jewelry_type"] = jewelry_type
+    if background is not None:
+        patch["background"] = background
+    if aspect_ratio_id is not None:
+        patch["aspect_ratio_id"] = aspect_ratio_id
+    if quality is not None:
+        patch["quality"] = quality
+    try:
+        sb.table("sessions").update(patch).eq(
+            "id", session_id
+        ).eq("client_id", client_id).execute()
+        return True
+    except Exception as e:
+        logger.error(f"update_session_progress error: {e}")
+        return False
+
+
 def get_session(session_id: str, client_id: str) -> dict | None:
     sb = get_supabase()
     try:
@@ -118,8 +156,12 @@ def list_sessions(client_id: str, limit: int = 20, offset: int = 0) -> list[dict
             sid = row.get("session_id", "")
             count_map[sid] = count_map.get(sid, 0) + 1
 
+        # Batch signed URL generation (1 HTTP call instead of N).
+        from app.services.signed_urls import sign_many  # lazy import to avoid cycles
+        url_map = sign_many(sb, (s.get("original_image_path") for s in sessions))
+
         for s in sessions:
-            s["original_image_url"] = _signed_url(sb, s["original_image_path"])
+            s["original_image_url"] = url_map.get(s.get("original_image_path") or "", "")
             s["action_count"] = count_map.get(s["id"], 0)
 
         return sessions

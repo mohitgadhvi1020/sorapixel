@@ -12,7 +12,7 @@ class GenerateJewelryRequest(BaseModel):
     step: str = "hero"
     alt_images_base64: list[str] | None = None
     special_instructions: str | None = None
-    quality: Literal["standard", "pro"] = "standard"
+    quality: Literal["standard", "pro", "ultra"] = "standard"
     session_id: str | None = None
     # Theme-based generation fields
     theme_id: str | None = None
@@ -23,7 +23,7 @@ class RecolorJewelryRequest(BaseModel):
     image_base64: str
     target_metal: str
     jewelry_type: str = "necklace"
-    quality: Literal["standard", "pro"] = "standard"
+    quality: Literal["standard", "pro", "ultra"] = "standard"
     session_id: str | None = None
 
 

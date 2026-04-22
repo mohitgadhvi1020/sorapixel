@@ -7,7 +7,6 @@ import Header from "./Header";
 import MobileNav from "./MobileNav";
 import BottomTabBar from "./BottomTabBar";
 import UpgradeBanner from "./UpgradeBanner";
-import ProQualityTicker from "./ProQualityTicker";
 import DailyRewardModal from "@/components/shared/DailyRewardModal";
 
 interface ResponsiveLayoutProps {
@@ -24,8 +23,6 @@ export default function ResponsiveLayout({ children, title }: ResponsiveLayoutPr
 
   return (
     <div className={`min-h-screen transition-colors duration-300 ${isLight ? "bg-[#f7f7f5] text-[#0a0a0a] theme-light" : "bg-[#0E0F14] text-white"}`}>
-      <ProQualityTicker />
-
       <MobileNav
         open={mobileNavOpen}
         onClose={() => setMobileNavOpen(false)}

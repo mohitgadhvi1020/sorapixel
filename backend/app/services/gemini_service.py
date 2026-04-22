@@ -407,6 +407,61 @@ def refine_prompt(raw_prompt: str) -> dict:
         return {"refined": text, "isolate": False}
 
 
+def analyze_product_structure(image_b64: str, category_slug: str | None = None) -> dict | None:
+    """Vision pre-pass that returns a structured description of the input product.
+
+    Used before image generation to anchor the downstream model on concrete facts
+    (piece count, material finish, ornament count) so it can't collapse a stacked
+    product into a single smoothed piece. Returns None on any failure — caller
+    must tolerate that and fall back to prompt-only generation.
+    """
+    category_hint = f" The product category is '{category_slug}'." if category_slug else ""
+    prompt = (
+        "You are a meticulous product-inspection assistant. Analyze this product image and "
+        "return a JSON object describing the product's exact physical structure."
+        f"{category_hint}\n\n"
+        "Required JSON keys (all strings, no nulls, no extra keys):\n"
+        '  "product_type":      a short label, e.g. "bangle stack", "multi-strand necklace", "single ring".\n'
+        '  "piece_count":       COUNT the individual pieces/layers/strands visible. Be explicit and literal, '
+        'e.g. "exactly 10 thin bangles stacked together", "a single ring", "3 strands", "pair of earrings". '
+        'If it is a stack, count and say so — never say "a set" without a number.\n'
+        '  "primary_color":     the dominant color(s) and exact shade, e.g. "deep emerald green with gold thread detailing".\n'
+        '  "material_finish":   the surface finish and material, e.g. "translucent faceted glass beads with visible golden thread wrapping, NOT smooth metal". '
+        "Call out the finish explicitly so a downstream image generator will not substitute it.\n"
+        '  "ornaments":         any attached decorative elements and their approximate count, e.g. '
+        '"small golden ghungroo bells in ~6 clusters hanging from both sides", or "none".\n'
+        '  "critical_details":  one sentence warning a downstream image generator against the most likely failure mode, '
+        'e.g. "each bangle is a distinct thin band; do not merge them into a single thicker bangle".\n\n'
+        "Return JSON only, no markdown fences, no prose."
+    )
+
+    try:
+        result = generate_text(prompt, image_b64, json_mode=True)
+    except Exception as e:
+        logger.warning("Product structure pre-pass failed: %s", str(e)[:120])
+        return None
+
+    text = (result.get("text") or "").strip()
+    if not text:
+        return None
+
+    import json
+    try:
+        text_clean = re.sub(r"^```json\s*", "", text)
+        text_clean = re.sub(r"\s*```$", "", text_clean)
+        parsed = json.loads(text_clean)
+    except Exception as e:
+        logger.warning("Product structure JSON parse failed: %s | text=%r", e, text[:200])
+        return None
+
+    # Defensive: ensure all expected keys exist and are strings
+    keys = ("product_type", "piece_count", "primary_color", "material_finish", "ornaments", "critical_details")
+    out = {k: str(parsed.get(k, "")).strip() for k in keys}
+    if not out["piece_count"]:
+        return None
+    return out
+
+
 def extract_jewelry_details(image_b64: str, jewelry_type: str) -> dict:
     """Extract details from jewelry image for better prompts.
     Returns {"description": str, "metal": str, "stones": str}

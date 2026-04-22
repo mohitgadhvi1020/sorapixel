@@ -21,8 +21,8 @@ interface ShotConfiguratorProps {
   onGenerate: () => void;
   tokenCost: number;
   tokenBalance: number;
-  quality: "standard" | "pro";
-  onQualityChange: (q: "standard" | "pro") => void;
+  quality: "standard" | "pro" | "ultra";
+  onQualityChange: (q: "standard" | "pro" | "ultra") => void;
   aspectRatioId: string;
   onAspectRatioChange: (id: string) => void;
   isGenerating: boolean;
@@ -283,6 +283,7 @@ export default function ShotConfigurator({
           onChange={onQualityChange}
           standardCost={0}
           proCost={0}
+          ultraCost={0}
           compact
         />
       </div>

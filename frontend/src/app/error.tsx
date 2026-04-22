@@ -2,6 +2,7 @@
 
 import * as Sentry from "@sentry/nextjs";
 import { useEffect } from "react";
+import { trackEvent } from "@/lib/gtag";
 
 export default function Error({
   error,
@@ -12,6 +13,7 @@ export default function Error({
 }) {
   useEffect(() => {
     Sentry.captureException(error);
+    trackEvent("exception", { description: error.message, fatal: true, digest: error.digest, where: "app.error-boundary" });
   }, [error]);
 
   return (

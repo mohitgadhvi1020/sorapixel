@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api-client";
 import { useAuth, useCredits } from "@/providers/AppProvider";
 import { trackPurchase } from "@/lib/meta-pixel";
+import { trackPurchase as gaTrackPurchase, trackEvent as gaTrackEvent } from "@/lib/gtag";
 import { useTheme } from "@/hooks/useTheme";
 import { useGeoCountry } from "@/hooks/useGeoCountry";
 import { TOKEN_COSTS_TABLE, DAILY_REWARD_TOKENS } from "@/lib/token-pricing";
@@ -109,6 +110,8 @@ export default function PricingPage() {
       setPayingPlanId(plan.id);
       setErrorMessage(null);
       setSuccessMessage(null);
+      const beginValue = currency === "INR" ? plan.price_inr : currency === "EUR" ? ((plan.price_eur ?? plan.price_usd) / 100) : (plan.price_usd / 100);
+      gaTrackEvent("begin_checkout", { plan_id: plan.id, plan_name: plan.name, value: beginValue, currency, tokens: plan.tokens });
 
       try {
         const orderData = await api.post<{
@@ -159,7 +162,12 @@ export default function PricingPage() {
                   value: priceValue,
                   currency,
                 }).catch(() => {});
+
+                // GA4 purchase + tokens_added
+                gaTrackPurchase(priceValue, currency, response.razorpay_payment_id);
+                gaTrackEvent("tokens_added", { tokens: verifyResult.tokens_added, plan_id: plan.id, plan_name: plan.name, value: priceValue, currency });
               } else {
+                gaTrackEvent("payment_failed", { plan_id: plan.id, reason: verifyResult.error || "verify failed" });
                 setErrorMessage(verifyResult.error || "Payment verification failed");
               }
             } catch {
@@ -176,6 +184,7 @@ export default function PricingPage() {
           theme: { color: "#c4a67d" },
           modal: {
             ondismiss: () => {
+              gaTrackEvent("checkout_abandoned", { plan_id: plan.id, plan_name: plan.name });
               setPayingPlanId(null);
             },
           },
@@ -183,6 +192,7 @@ export default function PricingPage() {
 
         const rzp = new window.Razorpay(options);
         rzp.on("payment.failed", (response: { error: { description: string } }) => {
+          gaTrackEvent("payment_failed", { plan_id: plan.id, reason: response.error?.description || "razorpay failed" });
           setErrorMessage(response.error.description || "Payment failed");
           setPayingPlanId(null);
         });

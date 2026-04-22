@@ -52,9 +52,25 @@ interface ProjectCard {
     quality?: string;
     session_id?: string;
     images?: ProjectImage[];
+    video_url?: string;
+    preset?: string;
+    engine?: string;
   };
   thumbnail_url: string;
   created_at: string;
+}
+
+interface StudioSessionCard {
+  id: string;
+  title: string;
+  background_id: string | null;
+  quality: string | null;
+  original_image_url: string;
+  current_step: string | null;
+  result_project_id: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
 }
 
 type Tab = "all" | "jewelry" | "studio";
@@ -64,6 +80,7 @@ export default function ProjectsPage() {
   const router = useRouter();
   const [sessions, setSessions] = useState<SessionCard[]>([]);
   const [projects, setProjects] = useState<ProjectCard[]>([]);
+  const [studioSessions, setStudioSessions] = useState<StudioSessionCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>("all");
 
@@ -76,15 +93,18 @@ export default function ProjectsPage() {
     if (!user?.id) return;
     (async () => {
       try {
-        const [sessData, projData] = await Promise.all([
+        const [sessData, projData, studioSessData] = await Promise.all([
           api.get<{ sessions: SessionCard[] }>("/sessions?limit=50"),
           api.get<{ projects: ProjectCard[] }>("/projects?limit=50"),
+          api.get<{ sessions: StudioSessionCard[] }>("/studio-sessions?limit=50"),
         ]);
         setSessions(sessData.sessions || []);
         setProjects(projData.projects || []);
+        setStudioSessions(studioSessData.sessions || []);
       } catch {
         setSessions([]);
         setProjects([]);
+        setStudioSessions([]);
       } finally {
         setLoading(false);
       }
@@ -103,8 +123,17 @@ export default function ProjectsPage() {
     }
   }
 
-  function openProjectPreview(p: ProjectCard) {
+  async function openProjectPreview(p: ProjectCard) {
+    // Show the card we already have immediately, then fetch full enriched
+    // data (all image URLs signed) — the list endpoint only signs the
+    // thumbnail, so inner images would otherwise render as "No preview".
     setPreviewProject(p);
+    try {
+      const full = await api.get<ProjectCard>(`/projects/${p.id}`);
+      setPreviewProject(full);
+    } catch {
+      /* keep partial preview */
+    }
   }
 
   function formatDate(iso: string) {
@@ -112,20 +141,42 @@ export default function ProjectsPage() {
     return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
   }
 
-  const jewelryProjects = projects.filter((p) => p.project_type?.startsWith("jewelry"));
+  // Jewelry creations are canonical in `sessions`; ignore any mirror rows in `projects`
+  // with project_type === "jewelry*" to avoid duplicate cards.
   const studioProjects = projects.filter((p) => !p.project_type?.startsWith("jewelry"));
+  // Studio tab shows studio_sessions (resumable) as the canonical view. Old
+  // orphan projects (no linked studio_session) still appear so nothing in My
+  // Creations disappears for existing users.
+  const linkedProjectIds = new Set(
+    studioSessions.map((s) => s.result_project_id).filter((x): x is string => !!x)
+  );
+  const orphanStudioProjects = studioProjects.filter((p) => !linkedProjectIds.has(p.id));
+
+  // Classify orphan projects into photoshoot vs video-like types so we can
+  // show the right badge / CTA. Flow video & video both went through
+  // save_project and currently land in the Studio tab too.
+  function projectKind(p: ProjectCard): "photoshoot" | "flow_video" | "video" {
+    const t = p.project_type || "";
+    if (t.startsWith("flow")) return "flow_video";
+    if (t === "video") return "video";
+    return "photoshoot";
+  }
+
+  const studioTotal = studioSessions.length + orphanStudioProjects.length;
 
   const tabs: { key: Tab; label: string; count: number }[] = [
-    { key: "all", label: "All", count: sessions.length + projects.length },
-    { key: "jewelry", label: "Jewelry", count: sessions.length + jewelryProjects.length },
-    { key: "studio", label: "Product Studio", count: studioProjects.length },
+    { key: "all", label: "All", count: sessions.length + studioTotal },
+    { key: "jewelry", label: "Jewelry", count: sessions.length },
+    { key: "studio", label: "Product Studio", count: studioTotal },
   ];
 
   const showSessions = activeTab === "all" || activeTab === "jewelry";
-  const showProjects = activeTab === "all" || activeTab === "studio" || activeTab === "jewelry";
+  const showStudio = activeTab === "all" || activeTab === "studio";
 
-  const filteredProjects = activeTab === "jewelry" ? jewelryProjects : activeTab === "studio" ? studioProjects : projects;
-  const totalItems = (showSessions ? sessions.length : 0) + (showProjects ? filteredProjects.length : 0);
+  const filteredProjects = orphanStudioProjects;
+  const totalItems =
+    (showSessions ? sessions.length : 0) +
+    (showStudio ? studioSessions.length + filteredProjects.length : 0);
 
   if (authLoading) {
     return (
@@ -226,15 +277,79 @@ export default function ProjectsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Projects (Studio + Jewelry) */}
-            {showProjects &&
+            {/* Studio sessions (resumable) */}
+            {showStudio &&
+              studioSessions.map((s) => {
+                const isDone = s.current_step === "done" || !!s.result_project_id;
+                return (
+                  <div
+                    key={`studio-sess-${s.id}`}
+                    className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)] hover:border-[rgba(99,102,241,0.3)] transition-all duration-200 overflow-hidden group cursor-pointer"
+                    onClick={() => router.push(`/studio?studio_session=${s.id}`)}
+                  >
+                    <div className="aspect-square bg-[rgba(0,0,0,0.3)] overflow-hidden relative">
+                      {s.original_image_url ? (
+                        <img
+                          src={s.original_image_url}
+                          alt={s.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5">
+                            <rect x="3" y="3" width="18" height="18" rx="2" />
+                          </svg>
+                        </div>
+                      )}
+                      <div className="absolute top-2 left-2">
+                        <span className="text-[8px] font-bold text-white px-2 py-0.5 rounded-full uppercase tracking-wider backdrop-blur-sm bg-[rgba(59,130,246,0.85)]">
+                          Studio
+                        </span>
+                      </div>
+                      <div className="absolute top-2 right-2 flex gap-1.5">
+                        {s.quality === "pro" && (
+                          <span className="text-[8px] font-bold bg-gradient-to-r from-[#c4a67d] to-[#d4b88f] text-white px-2 py-0.5 rounded-full uppercase tracking-wider">
+                            Pro
+                          </span>
+                        )}
+                        {!isDone && (
+                          <span className="text-[8px] font-bold bg-[rgba(234,179,8,0.9)] text-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                            In progress
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="p-4 space-y-3">
+                      <div>
+                        <h3 className="text-sm font-semibold text-white truncate">{s.title || "Studio Shot"}</h3>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-[10px] text-[rgba(255,255,255,0.4)] bg-[rgba(255,255,255,0.04)] px-2 py-0.5 rounded-full capitalize">
+                            {s.background_id || "auto"}
+                          </span>
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-[rgba(255,255,255,0.3)]">{formatDate(s.updated_at || s.created_at)}</p>
+                      <button
+                        className="w-full px-3 py-2 text-white text-xs font-semibold rounded-xl active:scale-[0.97] transition-all bg-gradient-to-r from-[#3b82f6] to-[#6366f1] hover:shadow-[0_4px_16px_rgba(99,102,241,0.3)]"
+                        onClick={(e) => { e.stopPropagation(); router.push(`/studio?studio_session=${s.id}`); }}
+                      >
+                        {isDone ? "Open" : "Continue"}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+
+            {/* Orphan projects (legacy — no linked studio session) */}
+            {showStudio &&
               filteredProjects.map((p) => {
-                const isJewelry = p.project_type?.startsWith("jewelry");
+                const kind = projectKind(p);
+                const badgeLabel = kind === "flow_video" ? "Flow Video" : kind === "video" ? "Video" : "Studio";
                 return (
                 <div
                   key={`proj-${p.id}`}
                   className="rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)] hover:border-[rgba(196,166,125,0.3)] transition-all duration-200 overflow-hidden group cursor-pointer"
-                  onClick={() => isJewelry ? router.push(p.metadata?.session_id ? `/jewelry?session=${p.metadata.session_id}` : "/jewelry") : openProjectPreview(p)}
+                  onClick={() => openProjectPreview(p)}
                 >
                   <div className="aspect-square bg-[rgba(0,0,0,0.3)] overflow-hidden relative">
                     {p.thumbnail_url ? (
@@ -253,8 +368,8 @@ export default function ProjectsPage() {
                       </div>
                     )}
                     <div className="absolute top-2 left-2">
-                      <span className={`text-[8px] font-bold text-white px-2 py-0.5 rounded-full uppercase tracking-wider backdrop-blur-sm ${isJewelry ? "bg-[rgba(196,166,125,0.85)]" : "bg-[rgba(59,130,246,0.85)]"}`}>
-                        {isJewelry ? "Jewelry" : "Studio"}
+                      <span className="text-[8px] font-bold text-white px-2 py-0.5 rounded-full uppercase tracking-wider backdrop-blur-sm bg-[rgba(59,130,246,0.85)]">
+                        {badgeLabel}
                       </span>
                     </div>
                     <div className="absolute top-2 right-2 flex gap-1.5">
@@ -284,23 +399,12 @@ export default function ProjectsPage() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          router.push(isJewelry ? (p.metadata?.session_id ? `/jewelry?session=${p.metadata.session_id}` : "/jewelry") : "/studio");
+                          openProjectPreview(p);
                         }}
-                        className={`flex-1 px-3 py-2 text-white text-xs font-semibold rounded-xl active:scale-[0.97] transition-all ${isJewelry ? "bg-gradient-to-r from-[#8b7355] to-[#c4a67d] hover:shadow-[0_4px_16px_rgba(196,166,125,0.3)]" : "bg-gradient-to-r from-[#3b82f6] to-[#6366f1] hover:shadow-[0_4px_16px_rgba(99,102,241,0.3)]"}`}
+                        className="flex-1 px-3 py-2 text-white text-xs font-semibold rounded-xl active:scale-[0.97] transition-all bg-gradient-to-r from-[#3b82f6] to-[#6366f1] hover:shadow-[0_4px_16px_rgba(99,102,241,0.3)]"
                       >
-                        {isJewelry ? "Open Jewelry" : "Open Studio"}
+                        View
                       </button>
-                      {!isJewelry && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openProjectPreview(p);
-                          }}
-                          className="px-3 py-2 bg-[rgba(255,255,255,0.06)] text-[rgba(255,255,255,0.6)] text-xs font-semibold rounded-xl hover:bg-[rgba(255,255,255,0.1)] hover:text-white transition-all border border-[rgba(255,255,255,0.08)]"
-                        >
-                          Preview
-                        </button>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -501,7 +605,7 @@ export default function ProjectsPage() {
                 <h3 className="text-lg font-bold text-white">{previewProject.title}</h3>
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-[8px] font-bold bg-[rgba(59,130,246,0.85)] text-white px-2 py-0.5 rounded-full uppercase tracking-wider">
-                    Studio
+                    {projectKind(previewProject) === "flow_video" ? "Flow Video" : projectKind(previewProject) === "video" ? "Video" : "Studio"}
                   </span>
                   {previewProject.metadata?.quality === "pro" && (
                     <span className="text-[8px] font-bold bg-gradient-to-r from-[#c4a67d] to-[#d4b88f] text-white px-1.5 py-0.5 rounded-full uppercase">
@@ -523,8 +627,21 @@ export default function ProjectsPage() {
               </button>
             </div>
 
+            {previewProject.metadata?.video_url && (
+              <div className="p-5 border-b border-[rgba(255,255,255,0.06)]">
+                <p className="text-[10px] font-semibold text-[rgba(255,255,255,0.4)] uppercase tracking-wider mb-3">Video</p>
+                <video
+                  src={previewProject.metadata.video_url}
+                  controls
+                  className="w-full rounded-xl border border-[rgba(255,255,255,0.08)] bg-black max-h-[50vh]"
+                />
+              </div>
+            )}
+
             <div className="p-5">
-              <p className="text-[10px] font-semibold text-[rgba(255,255,255,0.4)] uppercase tracking-wider mb-3">Generated Images</p>
+              <p className="text-[10px] font-semibold text-[rgba(255,255,255,0.4)] uppercase tracking-wider mb-3">
+                {previewProject.metadata?.video_url ? "Keyframes" : "Generated Images"}
+              </p>
               {(previewProject.metadata?.images || []).length === 0 ? (
                 <p className="text-sm text-[rgba(255,255,255,0.4)] text-center py-6">No images found.</p>
               ) : (
@@ -559,15 +676,30 @@ export default function ProjectsPage() {
             </div>
 
             <div className="p-5 border-t border-[rgba(255,255,255,0.08)]">
-              <button
-                onClick={() => {
-                  setPreviewProject(null);
-                  router.push("/studio");
-                }}
-                className="w-full px-4 py-3 bg-gradient-to-r from-[#3b82f6] to-[#6366f1] text-white text-sm font-semibold rounded-xl hover:shadow-[0_4px_16px_rgba(99,102,241,0.3)] active:scale-[0.97] transition-all"
-              >
-                Open Product Studio
-              </button>
+              {(() => {
+                const k = projectKind(previewProject);
+                const route =
+                  k === "flow_video"
+                    ? `/flow-video?project=${previewProject.id}`
+                    : k === "video"
+                    ? `/video?project=${previewProject.id}`
+                    : "/studio";
+                const label =
+                  k === "flow_video" || k === "video"
+                    ? "Continue in Flow Video"
+                    : "Start New Studio Shot";
+                return (
+                  <button
+                    onClick={() => {
+                      setPreviewProject(null);
+                      router.push(route);
+                    }}
+                    className="w-full px-4 py-3 bg-gradient-to-r from-[#3b82f6] to-[#6366f1] text-white text-sm font-semibold rounded-xl hover:shadow-[0_4px_16px_rgba(99,102,241,0.3)] active:scale-[0.97] transition-all"
+                  >
+                    {label}
+                  </button>
+                );
+              })()}
             </div>
           </div>
         </div>

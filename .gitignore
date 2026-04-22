@@ -66,6 +66,8 @@ gcp-vertex-key.json
 # GCP deployment env files (contain secrets)
 backend/env.yaml
 frontend/env.yaml
+leadgen/env.yaml
+leadgen-saas/env.yaml
 
 # Claude
 .claude/

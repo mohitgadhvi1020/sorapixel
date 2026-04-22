@@ -56,7 +56,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 prefix = settings.api_v1_prefix
 _ROUTER_MODULES = [
     "auth", "users", "studio", "jewelry", "catalogue", "credits",
-    "payments", "admin", "projects", "sessions", "feed", "media",
+    "payments", "admin", "projects", "sessions", "studio_sessions", "feed", "media",
     "blog", "brands", "themes", "feedback", "video", "flow_video",
     "batch_listing", "meta_pixel",
 ]

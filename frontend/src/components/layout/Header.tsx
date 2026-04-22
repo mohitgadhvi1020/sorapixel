@@ -13,14 +13,13 @@ interface HeaderProps {
   showMenu?: boolean;
 }
 
+// In-app desktop header — minimal 3-bucket model.
+//   Create (hub) · My Creations (library) · Profile avatar (account)
+// Bulk Listings lives on /create + mobile bottom tab. Brand/Pricing live
+// behind the profile (plus the tokens pill already routes to /pricing).
 const NAV_LINKS = [
-  { href: "/", label: "Home" },
-  { href: "/jewelry", label: "Jewelry" },
+  { href: "/create", label: "Create", primary: true },
   { href: "/projects", label: "My Creations" },
-  { href: "/studio", label: "Studio" },
-
-  { href: "/batch-listing", label: "Bulk Listings" },
-  { href: "/brand-settings", label: "Brand" },
 ];
 
 export default function Header({ onMenuToggle, showMenu = false }: HeaderProps) {
@@ -60,22 +59,26 @@ export default function Header({ onMenuToggle, showMenu = false }: HeaderProps) 
             const isActive = link.href === "/"
               ? pathname === "/"
               : pathname.startsWith(link.href);
-            const isJewelry = link.href === "/jewelry";
+            const isPrimary = "primary" in link && link.primary;
             return (
               <Link
                 key={link.href}
                 href={link.href}
-                prefetch={isJewelry}
+                prefetch={isPrimary}
                 className={`px-3 py-2 text-[13px] font-medium rounded-lg transition-all duration-200 ${
                   isActive
-                    ? isJewelry
+                    ? isPrimary
                       ? "text-[#c4a67d] bg-[rgba(196,166,125,0.12)]"
                       : isLight
                         ? "text-[#0a0a0a] bg-[rgba(0,0,0,0.06)]"
                         : "text-white bg-[rgba(255,255,255,0.08)]"
-                    : isLight
-                      ? "text-[#4a4a4a] hover:text-[#0a0a0a] hover:bg-[rgba(0,0,0,0.04)]"
-                      : "text-[rgba(255,255,255,0.7)] hover:text-white hover:bg-[rgba(255,255,255,0.06)]"
+                    : isPrimary
+                      ? isLight
+                        ? "text-[#8b7355] bg-[rgba(196,166,125,0.08)] hover:bg-[rgba(196,166,125,0.15)]"
+                        : "text-[#c4a67d] bg-[rgba(196,166,125,0.06)] hover:bg-[rgba(196,166,125,0.15)]"
+                      : isLight
+                        ? "text-[#4a4a4a] hover:text-[#0a0a0a] hover:bg-[rgba(0,0,0,0.04)]"
+                        : "text-[rgba(255,255,255,0.7)] hover:text-white hover:bg-[rgba(255,255,255,0.06)]"
                 }`}
               >
                 {link.label}

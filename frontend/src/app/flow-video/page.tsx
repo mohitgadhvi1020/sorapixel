@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useRef, useCallback, Suspense } from "react";
+import { useState, useRef, useCallback, useEffect, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api-client";
 import { useAuth, useCredits } from "@/providers/AppProvider";
 import { useTheme } from "@/hooks/useTheme";
 import { FLOW_VIDEO_PRICING } from "@/lib/token-pricing";
+import { trackEvent } from "@/lib/gtag";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 import QualityToggle from "@/components/ui/QualityToggle";
 
@@ -119,17 +121,101 @@ function FlowVideoInner() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const progressRef = useRef<NodeJS.Timeout | null>(null);
 
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const projectParam = searchParams.get("project");
+  const loadedProjectRef = useRef<string | null>(null);
+  // Preset id from a restored project, matched once presets load.
+  const pendingPresetIdRef = useRef<string | null>(null);
+
   const tokenCost = FLOW_VIDEO_PRICING[quality];
 
   const fetchPresets = useCallback(async (cat: string) => {
     try {
       const data = await api.get<{ presets: FlowPreset[] }>(`/flow-video/presets/${cat}`);
       setPresets(data.presets || []);
+      const pending = pendingPresetIdRef.current;
+      if (pending) {
+        const match = (data.presets || []).find((p) => p.id === pending);
+        if (match) {
+          setSelectedPreset(match);
+          pendingPresetIdRef.current = null;
+          return;
+        }
+      }
       if (data.presets?.length) setSelectedPreset(data.presets[0]);
     } catch {
       setPresets([]);
     }
   }, []);
+
+  // Restore a completed flow-video project: hydrate settings so the user can
+  // generate another variation without re-entering everything.
+  useEffect(() => {
+    if (!projectParam) return;
+    if (loadedProjectRef.current === projectParam) return;
+    if (!user) return;
+    loadedProjectRef.current = projectParam;
+
+    (async () => {
+      try {
+        const proj = await api.get<{
+          id: string;
+          metadata?: {
+            engine?: string;
+            preset?: string;
+            jewelry_type?: string;
+            quality?: string;
+            aspect_ratio?: string;
+            gender?: string;
+            nationality?: string;
+            skin_tone?: string;
+            outfit_style?: string;
+            custom_transition_prompt?: string;
+            video_url?: string;
+            images?: Array<{ label: string; url?: string; storage_path?: string }>;
+          };
+        }>(`/projects/${projectParam}`);
+        const m = proj.metadata || {};
+        if (m.jewelry_type) {
+          setCategory(m.jewelry_type);
+          if (m.preset) pendingPresetIdRef.current = m.preset;
+          fetchPresets(m.jewelry_type);
+        }
+        if (m.engine) setEngine(m.engine);
+        if (m.quality === "standard" || m.quality === "pro") setQuality(m.quality);
+        if (m.aspect_ratio) setAspectRatio(m.aspect_ratio);
+        if (m.gender) setGender(m.gender);
+        if (m.nationality) setNationality(m.nationality);
+        if (m.skin_tone) setSkinTone(m.skin_tone);
+        if (m.outfit_style) setOutfitStyle(m.outfit_style);
+        if (m.custom_transition_prompt) setCustomPrompt(m.custom_transition_prompt);
+
+        // Try to hydrate the source image from the first frame so the user can
+        // regenerate immediately without re-uploading.
+        const firstImg = (m.images || [])[0];
+        if (firstImg?.url) {
+          try {
+            const resp = await fetch(firstImg.url);
+            const blob = await resp.blob();
+            const dataUrl = await new Promise<string>((resolve, reject) => {
+              const r = new FileReader();
+              r.onload = () => resolve(r.result as string);
+              r.onerror = () => reject(r.error);
+              r.readAsDataURL(blob);
+            });
+            setImageB64(dataUrl.split(",")[1] || "");
+            setImagePreview(dataUrl);
+            setStep("configure");
+          } catch {
+            /* keep upload step */
+          }
+        }
+      } catch {
+        // Project unreachable — silently stay on upload step.
+      }
+    })();
+  }, [projectParam, user, fetchPresets]);
 
   function handleFileSelect(file: File) {
     if (file.size > 10 * 1024 * 1024) {
@@ -193,11 +279,13 @@ function FlowVideoInner() {
       });
       stopProgress();
       setResult(data);
+      trackEvent("video_generated", { type: "flow", engine, quality, aspect_ratio: aspectRatio, preset_id: selectedPreset.id, category });
       setStep("result");
       await refreshCredits();
     } catch (err: unknown) {
       stopProgress();
       const message = err instanceof Error ? err.message : "Flow video generation failed";
+      trackEvent("exception", { description: message, where: "flow-video.generate" });
       setError(message);
       setStep("configure");
     } finally {
@@ -536,6 +624,7 @@ function FlowVideoInner() {
             {/* Actions */}
             <div className="flex flex-col sm:flex-row gap-3">
               <a href={result.video_url} download target="_blank" rel="noopener noreferrer"
+                onClick={() => trackEvent("video_downloaded", { type: "flow" })}
                 className="flex-1 py-3 rounded-xl text-sm font-semibold text-white text-center transition-all hover:opacity-90"
                 style={{ background: "linear-gradient(135deg, #8b7355, #c4a67d)", boxShadow: "0 4px 16px rgba(196,166,125,0.3)" }}>
                 Download Video

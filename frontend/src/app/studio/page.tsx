@@ -4,8 +4,9 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { api } from "@/lib/api-client";
 import { useAuth } from "@/providers/AppProvider";
 import { useTheme } from "@/hooks/useTheme";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { shareToWhatsApp, downloadImage } from "@/lib/share";
+import { trackEvent } from "@/lib/gtag";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
@@ -26,7 +27,7 @@ interface Toast {
   type: "error" | "success" | "info";
 }
 
-type Quality = "standard" | "pro";
+type Quality = "standard" | "pro" | "ultra";
 type AspectRatioId = "square" | "portrait" | "story" | "landscape" | "widescreen";
 
 const ASPECT_RATIOS: { id: AspectRatioId; label: string; ratio: string; w: number; h: number }[] = [
@@ -37,7 +38,7 @@ const ASPECT_RATIOS: { id: AspectRatioId; label: string; ratio: string; w: numbe
   { id: "widescreen",label: "Wide",      ratio: "16:9", w: 16, h: 9 },
 ];
 
-const TOKEN_COST: Record<Quality, number> = { standard: 5, pro: 20 };
+const TOKEN_COST: Record<Quality, number> = { standard: 5, pro: 20, ultra: 60 };
 
 const PROGRESS_STEPS = [
   { label: "Enhancing lighting…", duration: 4000 },
@@ -51,7 +52,12 @@ export default function StudioPage() {
   const { user, loading: authLoading } = useAuth();
   const { theme } = useTheme();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const lt = theme === "light";
+
+  const [studioSessionId, setStudioSessionId] = useState<string | null>(null);
+  const [loadedStudioSessionId, setLoadedStudioSessionId] = useState<string | null>(null);
+  const [sessionRestoring, setSessionRestoring] = useState(!!searchParams.get("studio_session"));
 
   const [backgrounds, setBackgrounds] = useState<Background[]>([]);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -87,6 +93,124 @@ export default function StudioPage() {
     if (!user) { router.push("/login"); return; }
     if (!loaded.current) { loaded.current = true; loadBackgrounds(); }
   }, [authLoading, user, router]);
+
+  // --- Studio session resume ---
+  const sidParam = searchParams.get("studio_session");
+  useEffect(() => {
+    const sid = sidParam;
+    if (!sid) { setSessionRestoring(false); return; }
+    if (loadedStudioSessionId === sid) return;
+    if (!user) return;
+    setLoadedStudioSessionId(sid);
+    setSessionRestoring(true);
+
+    (async () => {
+      try {
+        const s = await api.get<{
+          id: string;
+          original_image_url: string | null;
+          background_id: string | null;
+          quality: string | null;
+          aspect_ratio_id: string | null;
+          special_instructions: string | null;
+          current_step: string | null;
+          result_project_id: string | null;
+          result_images: Array<{ label: string; url: string; storage_path?: string }>;
+        }>(`/studio-sessions/${sid}`);
+
+        setStudioSessionId(s.id);
+        if (s.background_id) setSelectedBg(s.background_id);
+        if (s.quality === "standard" || s.quality === "pro" || s.quality === "ultra") setQuality(s.quality);
+        if (s.aspect_ratio_id) setAspectRatioId(s.aspect_ratio_id as AspectRatioId);
+        if (s.special_instructions) setSpecialInstructions(s.special_instructions);
+        if (s.original_image_url) {
+          setImagePreview(s.original_image_url);
+          fetch(s.original_image_url)
+            .then((r) => r.blob())
+            .then((blob) => new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result as string);
+              reader.onerror = () => reject(reader.error);
+              reader.readAsDataURL(blob);
+            }))
+            .then((dataUrl) => setImagePreview(dataUrl))
+            .catch(() => { /* keep signed URL preview */ });
+        }
+
+        // Restored results: surface so user sees their generated image.
+        if (s.result_images && s.result_images.length > 0) {
+          const enc = await Promise.all(
+            s.result_images.map(async (img) => {
+              if (!img.url) return null;
+              try {
+                const resp = await fetch(img.url);
+                const blob = await resp.blob();
+                const dataUrl = await new Promise<string>((resolve, reject) => {
+                  const r = new FileReader();
+                  r.onload = () => resolve(r.result as string);
+                  r.onerror = () => reject(r.error);
+                  r.readAsDataURL(blob);
+                });
+                return { base64: dataUrl.split(",")[1] || "", label: img.label };
+              } catch {
+                return null;
+              }
+            })
+          );
+          setResults(enc.filter((x): x is { base64: string; label: string } => !!x && !!x.base64));
+        }
+      } catch {
+        showToast("Couldn't load that creation. It may have been deleted.");
+        router.replace("/projects");
+      } finally {
+        setSessionRestoring(false);
+      }
+    })();
+  }, [sidParam, loadedStudioSessionId, user, router, showToast]);
+
+  // Create a studio session as soon as the user has uploaded an image.
+  const ensureStudioSession = useCallback(async (): Promise<string | null> => {
+    if (studioSessionId) return studioSessionId;
+    if (!user || !imagePreview) return null;
+    try {
+      const s = await api.post<{ id: string }>("/studio-sessions", {
+        image_base64: imagePreview,
+        background_id: selectedBg,
+        quality,
+        aspect_ratio_id: aspectRatioId,
+        special_instructions: specialInstructions || null,
+        current_step: "configure",
+      });
+      setStudioSessionId(s.id);
+      setLoadedStudioSessionId(s.id);
+      window.history.replaceState(null, "", `/studio?studio_session=${s.id}`);
+      return s.id;
+    } catch {
+      return null;
+    }
+  }, [studioSessionId, user, imagePreview, selectedBg, quality, aspectRatioId, specialInstructions]);
+
+  useEffect(() => {
+    if (!user || !imagePreview) return;
+    if (studioSessionId || sessionRestoring) return;
+    ensureStudioSession();
+  }, [user, imagePreview, studioSessionId, sessionRestoring, ensureStudioSession]);
+
+  // Debounced patch on input changes.
+  useEffect(() => {
+    if (!studioSessionId) return;
+    const t = setTimeout(() => {
+      api.patch(`/studio-sessions/${studioSessionId}`, {
+        background_id: selectedBg,
+        quality,
+        aspect_ratio_id: aspectRatioId,
+        special_instructions: specialInstructions || null,
+        current_step: results.length > 0 ? "done" : "configure",
+      }).catch(() => { /* best-effort */ });
+    }, 600);
+    return () => clearTimeout(t);
+  }, [studioSessionId, selectedBg, quality, aspectRatioId, specialInstructions, results.length]);
+  // --- end studio session resume ---
 
   async function loadBackgrounds() {
     try {
@@ -134,20 +258,33 @@ export default function StudioPage() {
     if (!imagePreview) return;
     setGenerating(true); setResults([]); setCompareMode(false);
     startProgress();
+    const startedAt = Date.now();
+    trackEvent("generate_started", { type: "studio", quality, background: selectedBg, aspect_ratio: aspectRatioId });
     try {
+      const sid = await ensureStudioSession();
       const data = await api.post<{ success: boolean; images: { base64: string; label: string }[]; error?: string }>(
         "/studio/generate",
-        { image_base64: imagePreview, background_id: selectedBg, quality, aspect_ratio_id: aspectRatioId, special_instructions: specialInstructions || undefined }
+        { image_base64: imagePreview, background_id: selectedBg, quality, aspect_ratio_id: aspectRatioId, special_instructions: specialInstructions || undefined, studio_session_id: sid || undefined }
       );
       stopProgress(data.success);
       if (data.success) {
         setResults(data.images.filter(i => i.base64));
+        trackEvent("image_generated", {
+          type: "studio",
+          quality,
+          background: selectedBg,
+          aspect_ratio: aspectRatioId,
+          image_count: data.images.filter(i => i.base64).length,
+          duration_ms: Date.now() - startedAt,
+        });
         showToast("Studio image ready!", "success");
       } else {
+        trackEvent("generate_failed", { type: "studio", reason: data.error || "unknown" });
         showToast(data.error || "Generation failed. No tokens were deducted.");
       }
     } catch (e: unknown) {
       stopProgress(false);
+      trackEvent("exception", { description: e instanceof Error ? e.message : "studio generate failed", where: "studio.generate" });
       showToast(e instanceof Error ? e.message : "Something went wrong. No tokens were deducted.");
     } finally { setGenerating(false); }
   };
@@ -157,6 +294,7 @@ export default function StudioPage() {
   };
 
   function downloadResult(img: { base64: string; label: string }) {
+    trackEvent("image_downloaded", { type: "studio", label: img.label });
     downloadImage(img.base64, `soraipixel-studio-${img.label.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}.png`);
   }
 
@@ -165,6 +303,9 @@ export default function StudioPage() {
     setResults([]);
     setCompareMode(false);
     setExpandedIndex(null);
+    setStudioSessionId(null);
+    setLoadedStudioSessionId(null);
+    window.history.replaceState(null, "", "/studio");
   }
 
   const scenes = backgrounds.filter(b => b.type === "scene");
@@ -413,6 +554,25 @@ export default function StudioPage() {
                     Pro
                     {quality === "pro" && (
                       <span className="ml-0.5 px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider rounded-full" style={{ background: lt ? "rgba(154,125,78,0.12)" : "rgba(196,166,125,0.2)", color: lt ? "#8b7355" : "#c4a67d" }}>Best</span>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setQuality("ultra")}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-[10px] text-[13px] font-semibold transition-all duration-200"
+                    style={{
+                      background: quality === "ultra" ? (lt ? "linear-gradient(135deg, rgba(139,92,246,0.18), rgba(99,102,241,0.08))" : "linear-gradient(135deg, rgba(139,92,246,0.25), rgba(99,102,241,0.12))") : "transparent",
+                      color: quality === "ultra" ? (lt ? "#6d28d9" : "#c4b5fd") : (lt ? "#999" : "rgba(255,255,255,0.4)"),
+                      boxShadow: quality === "ultra" ? (lt ? "0 1px 3px rgba(139,92,246,0.15)" : "0 1px 8px rgba(139,92,246,0.18)") : "none",
+                      border: quality === "ultra" ? `1px solid ${lt ? "rgba(139,92,246,0.3)" : "rgba(139,92,246,0.35)"}` : "1px solid transparent",
+                    }}
+                    title="gpt-image-2 — highest fidelity, 4K ready"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                    </svg>
+                    Ultra
+                    {quality === "ultra" && (
+                      <span className="ml-0.5 px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider rounded-full" style={{ background: lt ? "rgba(139,92,246,0.15)" : "rgba(139,92,246,0.25)", color: lt ? "#7c3aed" : "#c4b5fd" }}>New</span>
                     )}
                   </button>
                 </div>

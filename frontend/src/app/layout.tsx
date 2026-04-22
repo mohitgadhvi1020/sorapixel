@@ -99,6 +99,7 @@ const softwareAppJsonLd = {
 
 import { ClientProviders } from "@/providers/ClientProviders";
 import MetaPixel from "@/components/MetaPixel";
+import GoogleAnalytics from "@/components/GoogleAnalytics";
 
 export default function RootLayout({
   children,
@@ -124,6 +125,7 @@ export default function RootLayout({
         className={`${inter.variable} ${playfair.variable} ${jetBrainsMono.variable} antialiased`}
       >
         <MetaPixel />
+        <GoogleAnalytics />
         <ClientProviders>{children}</ClientProviders>
       </body>
     </html>

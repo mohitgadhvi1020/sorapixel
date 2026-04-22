@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { trackEvent, trackSignup } from "@/lib/gtag";
 
 export default function AuthRedirectPage() {
   const router = useRouter();
@@ -9,6 +10,12 @@ export default function AuthRedirectPage() {
   useEffect(() => {
     const saved = localStorage.getItem("sp_auth_redirect");
     localStorage.removeItem("sp_auth_redirect");
+    // Fire sign_up only once per browser; GA dedupes via user_id later anyway
+    if (!localStorage.getItem("sp_signup_tracked")) {
+      trackSignup("oauth");
+      localStorage.setItem("sp_signup_tracked", "1");
+    }
+    trackEvent("auth_redirect", { destination: saved || "/jewelry" });
     router.replace(saved || "/jewelry");
   }, [router]);
 

@@ -26,11 +26,19 @@ JEWELRY_PRICING = {
         "listing": 5,
         "ugcPerPose": 20,
     },
+    "ultra": {
+        "imageGen": 60,
+        "regenSingle": 60,
+        "recolorSingle": 55,
+        "listing": 5,
+        "ugcPerPose": 60,
+    },
 }
 
 STUDIO_PRICING = {
     "standard": 5,
     "pro": 20,
+    "ultra": 60,   # gpt-image-2 — ~₹17/image vendor cost, priced to keep margin
 }
 
 VIDEO_PRICING = {
@@ -44,7 +52,7 @@ FREE_FIRST_GENERATION = 1
 
 
 def get_operation_cost(operation: str, quality: str = "standard") -> int:
-    tier = quality if quality in ("standard", "pro") else "standard"
+    tier = quality if quality in ("standard", "pro", "ultra") else "standard"
     return JEWELRY_PRICING[tier].get(operation, 0)
 
 

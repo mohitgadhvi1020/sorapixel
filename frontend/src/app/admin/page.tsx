@@ -224,6 +224,50 @@ export default function AdminPage() {
   const [tokenAmount, setTokenAmount] = useState("");
   const [addingTokens, setAddingTokens] = useState(false);
 
+  // Client images viewer
+  interface ClientImage {
+    id: string;
+    generation_id?: string | null;
+    label?: string | null;
+    url: string | null;
+    created_at?: string;
+  }
+  const [imagesModalOpen, setImagesModalOpen] = useState(false);
+  const [imagesModalTitle, setImagesModalTitle] = useState("");
+  const [imagesModalLoading, setImagesModalLoading] = useState(false);
+  const [imagesModalList, setImagesModalList] = useState<ClientImage[]>([]);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+
+  const openClientImages = async (clientId: string, label: string) => {
+    setImagesModalOpen(true);
+    setImagesModalTitle(`Images — ${label}`);
+    setImagesModalLoading(true);
+    setImagesModalList([]);
+    try {
+      const res = await api.get<{ images: ClientImage[] }>(`/admin/client-images/${clientId}?limit=200`);
+      setImagesModalList(res.images || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load images");
+    } finally {
+      setImagesModalLoading(false);
+    }
+  };
+
+  const openGenerationImages = async (generationId: string, label: string) => {
+    setImagesModalOpen(true);
+    setImagesModalTitle(`Generation — ${label}`);
+    setImagesModalLoading(true);
+    setImagesModalList([]);
+    try {
+      const res = await api.get<{ images: ClientImage[] }>(`/admin/generation-images/${generationId}`);
+      setImagesModalList(res.images || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load images");
+    } finally {
+      setImagesModalLoading(false);
+    }
+  };
+
   // Feed state
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -1196,6 +1240,13 @@ export default function AdminPage() {
                               >
                                 + Tokens
                               </Button>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => openClientImages(c.id, c.phone || c.company_name || c.id.slice(0, 8))}
+                              >
+                                View Images
+                              </Button>
                             </div>
                             {tokenClientId === c.id && (
                               <div className="flex items-center gap-2">
@@ -1237,7 +1288,7 @@ export default function AdminPage() {
                 <table className="w-full text-sm min-w-[550px]">
                   <thead>
                     <tr className="border-b border-border bg-surface">
-                      {["Time", "Client", "Type", "Tokens", "Model", "Status"].map(h => (
+                      {["Time", "Client", "Type", "Tokens", "Model", "Status", "Images"].map(h => (
                         <th key={h} className={`px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider ${["Tokens"].includes(h) ? "text-right" : ["Status"].includes(h) ? "text-center" : "text-left"
                           }`}>{h}</th>
                       ))}
@@ -1256,10 +1307,16 @@ export default function AdminPage() {
                         <td className="text-center px-4 py-3">
                           <span className={`w-2 h-2 inline-block rounded-full ${a.status === "success" ? "bg-success" : "bg-error"}`} title={a.status} />
                         </td>
+                        <td className="text-center px-4 py-3">
+                          <button
+                            onClick={() => openGenerationImages(a.id, a.generation_type)}
+                            className="text-xs font-semibold text-accent hover:underline"
+                          >View</button>
+                        </td>
                       </tr>
                     ))}
                     {(!stats?.recent_activity || stats.recent_activity.length === 0) && (
-                      <tr><td colSpan={6} className="px-4 py-8 text-center text-text-secondary">No activity yet</td></tr>
+                      <tr><td colSpan={7} className="px-4 py-8 text-center text-text-secondary">No activity yet</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -3339,6 +3396,56 @@ export default function AdminPage() {
           </div>
         )}
       </Modal>
+
+      {/* Client / Generation Images Viewer */}
+      <Modal open={imagesModalOpen} onClose={() => { setImagesModalOpen(false); setLightboxUrl(null); }} title={imagesModalTitle} size="lg">
+        {imagesModalLoading ? (
+          <div className="flex justify-center py-10">
+            <div className="w-6 h-6 border-2 border-[rgba(196,166,125,0.2)] border-t-[#c4a67d] rounded-full animate-spin" />
+          </div>
+        ) : imagesModalList.length === 0 ? (
+          <p className="text-center text-text-secondary py-10 text-sm">No images found.</p>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[70vh] overflow-y-auto p-1">
+            {imagesModalList.map((img) => (
+              <div key={img.id} className="group relative rounded-lg overflow-hidden border border-border bg-surface">
+                {img.url ? (
+                  <button
+                    type="button"
+                    onClick={() => setLightboxUrl(img.url)}
+                    className="block w-full"
+                  >
+                    <img src={img.url} alt={img.label || ""} className="w-full h-36 object-cover" loading="lazy" />
+                  </button>
+                ) : (
+                  <div className="w-full h-36 flex items-center justify-center text-xs text-text-secondary">No URL</div>
+                )}
+                <div className="px-2 py-1.5 flex items-center justify-between gap-2">
+                  <span className="text-[10px] text-text-secondary truncate">{img.label || "—"}</span>
+                  {img.url && (
+                    <a
+                      href={img.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] font-semibold text-accent hover:underline shrink-0"
+                    >Open</a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Modal>
+
+      {/* Lightbox */}
+      {lightboxUrl && (
+        <div
+          onClick={() => setLightboxUrl(null)}
+          className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-6 cursor-zoom-out"
+        >
+          <img src={lightboxUrl} alt="" className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" />
+        </div>
+      )}
 
     </ResponsiveLayout>
 

@@ -14,6 +14,7 @@ import { getSupabaseBrowser } from "@/lib/supabase/client";
 import { api } from "@/lib/api-client";
 import { cacheGet, cacheSet } from "@/lib/cache";
 import { trackLead } from "@/lib/meta-pixel";
+import { identifyUser, trackEvent } from "@/lib/gtag";
 import type { Session, AuthChangeEvent } from "@supabase/supabase-js";
 
 const useIsomorphicLayoutEffect =
@@ -98,9 +99,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const data = await api.get<User>("/users/me");
       setUser(data);
       localStorage.setItem("sp_user", JSON.stringify(data));
-    } catch {
+      try {
+        identifyUser(data.id, {
+          email: data.email,
+          phone: (data as unknown as { phone?: string }).phone,
+          company_name: (data as unknown as { company_name?: string }).company_name,
+          token_balance: (data as unknown as { token_balance?: number }).token_balance,
+        });
+      } catch { /* noop */ }
+    } catch (err) {
       setUser(null);
       localStorage.removeItem("sp_user");
+      trackEvent("exception", { description: err instanceof Error ? err.message : "users/me failed", fatal: false, where: "AppProvider.syncUser" });
     } finally {
       syncingRef.current = false;
     }
@@ -134,12 +144,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
           // Fire Lead event once per session on genuine sign-in
           if (event === "SIGNED_IN" && !sessionStorage.getItem("sp_lead_tracked")) {
             trackLead();
+            trackEvent("login", { method: newSession.user?.app_metadata?.provider || "email" });
             sessionStorage.setItem("sp_lead_tracked", "1");
           }
           syncUser().finally(() => setAuthLoading(false));
         } else if (!newSession || event === "SIGNED_OUT") {
           setUser(null);
           localStorage.removeItem("sp_user");
+          trackEvent("logout");
           setAuthLoading(false);
         } else {
           setAuthLoading(false);

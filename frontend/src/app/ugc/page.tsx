@@ -6,6 +6,7 @@ import { api } from "@/lib/api-client";
 import { useAuth, useCredits } from "@/providers/AppProvider";
 import { useTheme } from "@/hooks/useTheme";
 import { JEWELRY_PRICING } from "@/lib/token-pricing";
+import { trackEvent } from "@/lib/gtag";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 import FeedbackWidget from "@/components/jewelry/FeedbackWidget";
 import QualityToggle from "@/components/ui/QualityToggle";
@@ -34,22 +35,21 @@ const UGC_NATIONALITIES = [
   "Pakistani", "Bangladeshi", "Sri Lankan", "Nepali",
 ] as const;
 
+// Curated pose set — each has a dedicated, validated backend prompt and
+// pose-specific framing rule. Dropped from the old list: back_view, side_view,
+// hand_closeup, feet_closeup, mirror_selfie, over_shoulder (redundant, broken,
+// or unreliable — see pose-audit.md).
 const UGC_ALL_POSES = [
-  { id: "standing", label: "Standing" },
-  { id: "sitting", label: "Sitting" },
-  { id: "close_up", label: "Close Up" },
-  { id: "side_view", label: "Side View" },
-  { id: "walking", label: "Walking" },
-  { id: "neck_macro", label: "Neck Macro" },
-  { id: "ear_macro", label: "Ear Macro" },
-  { id: "finger_macro", label: "Finger Macro" },
-  { id: "wrist_macro", label: "Wrist Macro" },
-  { id: "hand_closeup", label: "Hand Closeup" },
-  { id: "ankle_macro", label: "Ankle Macro" },
-  { id: "feet_closeup", label: "Feet Closeup" },
-  { id: "lapel_macro", label: "Lapel Macro" },
-  { id: "over_shoulder", label: "Over Shoulder" },
-  { id: "mirror_selfie", label: "Mirror Selfie" },
+  { id: "close_up",     label: "Beauty Portrait" },
+  { id: "standing",     label: "Three-Quarter" },
+  { id: "sitting",      label: "Seated" },
+  { id: "walking",      label: "Walking (Full Body)" },
+  { id: "neck_macro",   label: "Necklace Macro" },
+  { id: "ear_macro",    label: "Earring Macro" },
+  { id: "finger_macro", label: "Ring Macro" },
+  { id: "wrist_macro",  label: "Wrist Macro" },
+  { id: "ankle_macro",  label: "Anklet Macro" },
+  { id: "lapel_macro",  label: "Brooch Macro" },
 ] as const;
 
 const UGC_BACKGROUNDS = [
@@ -62,20 +62,21 @@ const UGC_BACKGROUNDS = [
   { id: "livingroom", label: "Living Room", swatch: "#BC8F8F", image: "/images/backgrounds/livingroom.png" },
 ] as const;
 
+// Recommended poses per jewelry type. Kept to 3-4 per type so the user picks
+// from a short, reliable set rather than a long menu of near-duplicates.
 const JEWELRY_POSE_MAP: Record<string, string[]> = {
-  necklace: ["standing", "close_up", "neck_macro", "side_view"],
-  pendant: ["standing", "close_up", "neck_macro", "side_view"],
-  chain: ["standing", "close_up", "neck_macro"],
-  mangalsutra: ["standing", "close_up", "neck_macro"],
-  earring: ["close_up", "side_view", "ear_macro"],
-  // Ring UGC should be hand-only closeups (avoid full-body / portrait poses)
-  ring: ["finger_macro", "hand_closeup"],
-  bracelet: ["close_up", "wrist_macro", "hand_closeup"],
-  bangle: ["close_up", "wrist_macro", "hand_closeup"],
-  anklet: ["standing", "ankle_macro", "feet_closeup"],
-  brooch: ["standing", "close_up", "lapel_macro"],
-  watch: ["close_up", "wrist_macro", "hand_closeup"],
-  default: ["standing", "close_up", "side_view"],
+  necklace:    ["close_up", "standing", "neck_macro"],
+  pendant:     ["close_up", "standing", "neck_macro"],
+  chain:       ["close_up", "standing", "neck_macro"],
+  mangalsutra: ["close_up", "standing", "neck_macro"],
+  earring:     ["close_up", "standing", "ear_macro"],
+  ring:        ["finger_macro"],
+  bracelet:    ["standing", "wrist_macro"],
+  bangle:      ["standing", "wrist_macro"],
+  anklet:      ["sitting", "walking", "ankle_macro"],
+  brooch:      ["close_up", "standing", "lapel_macro"],
+  watch:       ["standing", "wrist_macro"],
+  default:     ["close_up", "standing", "walking"],
 };
 
 const OUTFIT_STYLES = [
@@ -160,7 +161,7 @@ function UgcPageInner() {
   const [background, setBackground] = useState("best_match");
   const [outfitStyle, setOutfitStyle] = useState("traditional");
   const [outfitCustom, setOutfitCustom] = useState("");
-  const [quality, setQuality] = useState<"standard" | "pro">("standard");
+  const [quality, setQuality] = useState<"standard" | "pro" | "ultra">("standard");
 
   // Accordion open states (model settings + scene closed by default)
   const [modelOpen, setModelOpen] = useState(false);
@@ -334,15 +335,18 @@ function UgcPageInner() {
         const msg = (data as { error?: string; detail?: string }).error
           || (data as { error?: string; detail?: string }).detail
           || "No results returned. Please try again.";
+        trackEvent("generate_failed", { type: "ugc", reason: typeof msg === "string" ? msg : "unknown" });
         setError(typeof msg === "string" ? msg : "Generation failed. Please try again.");
       } else {
         setResults((prev) => [...resultsArray, ...prev]);
         setGenerationIds((prev) => [...prev, ...resultsArray.map((r) => r.generation_id)]);
         setGenCount((c) => c + 1);
+        trackEvent("image_generated", { type: "ugc", gender, nationality, skin_tone: skinTone, jewelry_type: jewelryType, quality, background, poses: poses.join(","), image_count: resultsArray.length });
       }
       await refreshCredits();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Generation failed";
+      trackEvent("exception", { description: message, where: "ugc.generate" });
       setError(message);
     } finally {
       setLoading(false);
@@ -365,6 +369,7 @@ function UgcPageInner() {
   }
 
   async function downloadImage(url: string, filename: string) {
+    trackEvent("image_downloaded", { type: "ugc", filename });
     try {
       const resp = await fetch(url);
       const blob = await resp.blob();
@@ -733,6 +738,7 @@ function UgcPageInner() {
                   onChange={setQuality}
                   standardCost={JEWELRY_PRICING.standard.ugcPerPose}
                   proCost={JEWELRY_PRICING.pro.ugcPerPose}
+                  ultraCost={JEWELRY_PRICING.ultra.ugcPerPose}
                   costUnit="/ pose"
                   lt={lt}
                 />

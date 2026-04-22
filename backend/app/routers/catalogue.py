@@ -11,6 +11,7 @@ from app.services.gemini_service import (
     generate_image, generate_image_multi,
     generate_image_pro, generate_image_pro_multi,
 )
+from app.services.image_dispatch import generate_with_fidelity
 from app.services.image_service import crop_to_ratio_top, add_branding_bar, jewelry_zoom_crop
 from app.services.credit_service import get_jewelry_credits, deduct_jewelry_tokens, get_operation_cost
 from app.services.tracking_service import track_generation
@@ -21,21 +22,25 @@ from app.services.prompt_service import (
 from app.services.project_service import save_project
 from app.services.session_service import add_session_action
 from app.services.detection_service import detect_jewelry_input
+from app.services.composition_check import (
+    check_jewelry_composition,
+    composition_check_enabled,
+    composition_retry_budget,
+    regen_instruction_from_failure,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/catalogue", tags=["Catalogue"])
 
 
 def _gen_ugc_image(quality: str, prompt: str, image_b64: str) -> dict:
-    if quality == "pro":
-        return generate_image_pro(prompt, image_b64)
-    return generate_image(prompt, image_b64)
+    return generate_with_fidelity(quality, prompt, image_b64)
 
 
 def _gen_ugc_image_multi(quality: str, prompt: str, images: list[dict]) -> dict:
-    if quality == "pro":
-        return generate_image_pro_multi(prompt, images)
-    return generate_image_multi(prompt, images)
+    # For multi-ref, use the first image as the fidelity anchor.
+    anchor = (images[0].get("base64") or images[0].get("image_base64") or "") if images else ""
+    return generate_with_fidelity(quality, prompt, anchor, multi=True, images=images)
 
 
 @router.get("/models")
@@ -56,7 +61,7 @@ async def list_backgrounds():
 @router.post("/generate", response_model=CatalogueResponse)
 async def generate_catalogue(req: GenerateCatalogueRequest, user: dict = Depends(get_current_user)):
     poses_to_gen = (req.poses or ["standing", "side_view", "back_view", "sitting"])[:4]
-    quality = req.quality if req.quality in ("standard", "pro") else "standard"
+    quality = req.quality if req.quality in ("standard", "pro", "ultra") else "standard"
     per_pose_cost = get_operation_cost("ugcPerPose", quality)
     total_cost = len(poses_to_gen) * per_pose_cost
 
@@ -139,15 +144,39 @@ async def generate_catalogue(req: GenerateCatalogueRequest, user: dict = Depends
             logger.info(f"[UGC PROMPT] Full prompt ({len(prompt)} chars):\n{prompt}")
 
         try:
-            if req.additional_images:
-                all_images = [{"base64": req.image_base64, "mime_type": "image/png"}]
-                for extra in req.additional_images[:3]:
-                    all_images.append({"base64": extra, "mime_type": "image/png"})
-                result = _gen_ugc_image_multi(quality, prompt, all_images)
-            else:
-                result = _gen_ugc_image(quality, prompt, req.image_base64)
+            def _run_gen(current_prompt: str) -> dict:
+                if req.additional_images:
+                    all_images = [{"base64": req.image_base64, "mime_type": "image/png"}]
+                    for extra in req.additional_images[:3]:
+                        all_images.append({"base64": extra, "mime_type": "image/png"})
+                    return _gen_ugc_image_multi(quality, current_prompt, all_images)
+                return _gen_ugc_image(quality, current_prompt, req.image_base64)
 
+            result = _run_gen(prompt)
             image_b64 = result["base64"]
+
+            composition_report = None
+            if req.jewelry_type and composition_check_enabled():
+                retries_left = composition_retry_budget()
+                composition_report = check_jewelry_composition(image_b64, req.jewelry_type)
+                current_prompt = prompt
+                while (
+                    composition_report is not None
+                    and not composition_report.passed
+                    and retries_left > 0
+                ):
+                    logger.info(
+                        "[UGC COMPOSITION] pose=%s failed: %s — retrying (%d left)",
+                        pose, composition_report.failed_criteria(), retries_left,
+                    )
+                    current_prompt = (
+                        prompt + "\n\n" + regen_instruction_from_failure(composition_report)
+                    )
+                    retries_left -= 1
+                    result = _run_gen(current_prompt)
+                    image_b64 = result["base64"]
+                    composition_report = check_jewelry_composition(image_b64, req.jewelry_type)
+
             try:
                 image_b64 = crop_to_ratio_top(image_b64, ratio["width"], ratio["height"])
             except Exception:
@@ -164,17 +193,23 @@ async def generate_catalogue(req: GenerateCatalogueRequest, user: dict = Depends
                 )
 
             usage = result.get("usage", {})
+            meta = {"model_type": req.model_type, "pose": pose, "category": category_slug, "quality": quality}
+            if composition_report is not None:
+                meta["composition_check"] = composition_report.to_dict()
+                meta["needs_manual_review"] = not composition_report.passed
             gen_id = track_generation(
                 client_id=user["id"],
                 generation_type="branding" if is_branding else "catalogue",
                 input_tokens=usage.get("input_tokens", 0),
                 output_tokens=usage.get("output_tokens", 0),
-                metadata={"model_type": req.model_type, "pose": pose, "category": category_slug, "quality": quality},
+                metadata=meta,
             )
             if gen_id:
                 generation_ids.append(gen_id)
 
             pose_label = pose.replace("_", " ").title()
+            if composition_report is not None and not composition_report.passed:
+                pose_label = f"{pose_label} ⚠ review"
             images.append({"base64": image_b64, "mime_type": "image/png", "label": pose_label})
 
             if req.jewelry_type and not is_branding and pose not in ("hand_closeup", "feet_closeup"):

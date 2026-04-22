@@ -28,9 +28,41 @@ deploy_backend() {
     --project "$PROJECT" \
     --env-vars-file backend/env.yaml \
     --service-account sorapixel-backend@sorapixel-prod.iam.gserviceaccount.com \
+    --min-instances=1 \
+    --max-instances=10 \
+    --cpu=2 \
+    --memory=2Gi \
+    --no-cpu-throttling \
+    --cpu-boost \
+    --allow-unauthenticated \
     --quiet
 
   echo "✅ Backend deployed: https://api.soraipixel.com"
+}
+
+deploy_leadgen() {
+  echo "🔨 Building leadgen..."
+  gcloud builds submit leadgen/ \
+    --tag "$REPO/sorapixel-leadgen:$TAG" \
+    --region "$REGION" \
+    --project "$PROJECT" \
+    --quiet
+
+  echo "🚀 Deploying leadgen to Cloud Run..."
+  gcloud run deploy sorapixel-leadgen \
+    --image "$REPO/sorapixel-leadgen:$TAG" \
+    --region "$REGION" \
+    --project "$PROJECT" \
+    --env-vars-file leadgen/env.yaml \
+    --service-account sorapixel-backend@sorapixel-prod.iam.gserviceaccount.com \
+    --min-instances=0 \
+    --max-instances=3 \
+    --cpu=1 \
+    --memory=1Gi \
+    --allow-unauthenticated \
+    --quiet
+
+  echo "✅ LeadGen deployed"
 }
 
 deploy_frontend() {
@@ -47,6 +79,10 @@ deploy_frontend() {
     --region "$REGION" \
     --project "$PROJECT" \
     --env-vars-file frontend/env.yaml \
+    --min-instances=1 \
+    --max-instances=10 \
+    --cpu-boost \
+    --allow-unauthenticated \
     --quiet
 
   echo "✅ Frontend deployed: https://soraipixel.com"
@@ -55,6 +91,7 @@ deploy_frontend() {
 case "${1:-all}" in
   backend)  deploy_backend ;;
   frontend) deploy_frontend ;;
+  leadgen)  deploy_leadgen ;;
   all)      deploy_backend && deploy_frontend ;;
-  *)        echo "Usage: ./deploy.sh [backend|frontend|all]" && exit 1 ;;
+  *)        echo "Usage: ./deploy.sh [backend|frontend|leadgen|all]" && exit 1 ;;
 esac

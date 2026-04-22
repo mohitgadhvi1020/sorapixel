@@ -6,6 +6,7 @@ import { api } from "@/lib/api-client";
 import { useAuth, useCredits } from "@/providers/AppProvider";
 import { useTheme } from "@/hooks/useTheme";
 import { VIDEO_PRICING, FLOW_VIDEO_PRICING } from "@/lib/token-pricing";
+import { trackEvent } from "@/lib/gtag";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 import QualityToggle from "@/components/ui/QualityToggle";
 
@@ -277,8 +278,10 @@ function VideoPageInner() {
         session_id: sessionId || undefined,
       });
       setQuickResult(data);
+      trackEvent("video_generated", { type: "quick", mode: videoMode, jewelry_type: jewelryType, aspect_ratio: videoAspect, quality: videoQuality });
       await refreshCredits();
     } catch (err: unknown) {
+      trackEvent("exception", { description: err instanceof Error ? err.message : "quick video failed", where: "video.quick" });
       setError(err instanceof Error ? err.message : "Video generation failed");
     } finally { setVideoGenerating(false); }
   }, [imageB64, videoGenerating, videoMode, jewelryType, videoAspect, videoQuality, videoCustomPrompt, sessionId, refreshCredits]);
@@ -311,9 +314,11 @@ function VideoPageInner() {
       });
       if (progressRef.current) clearTimeout(progressRef.current);
       setFlowResult(data);
+      trackEvent("video_generated", { type: "flow", engine: flowEngine, quality: flowQuality, aspect_ratio: flowAspect, preset_id: selectedPreset.id, category: flowCategory });
       await refreshCredits();
     } catch (err: unknown) {
       if (progressRef.current) clearTimeout(progressRef.current);
+      trackEvent("exception", { description: err instanceof Error ? err.message : "flow video failed", where: "video.flow" });
       setError(err instanceof Error ? err.message : "Flow video generation failed");
     } finally { setFlowGenerating(false); }
   }, [imageB64, selectedPreset, flowGenerating, flowCategory, flowEngine, flowQuality, flowAspect, flowGender, flowNationality, flowSkinTone, flowOutfit, flowCustomPrompt, refreshCredits]);
@@ -702,6 +707,7 @@ function VideoPageInner() {
             </div>
             <div className="flex flex-col sm:flex-row gap-3">
               <a href={quickResult.video_url} download target="_blank" rel="noopener noreferrer"
+                onClick={() => trackEvent("video_downloaded", { type: "quick", mode: quickResult.mode })}
                 className="flex-1 py-3 rounded-xl text-sm font-semibold text-white text-center transition-all hover:opacity-90"
                 style={{ background: "linear-gradient(135deg, #8b7355, #c4a67d)", boxShadow: "0 4px 16px rgba(196,166,125,0.3)" }}>
                 <span className="inline-flex items-center gap-2">
@@ -771,6 +777,7 @@ function VideoPageInner() {
 
             <div className="flex flex-col sm:flex-row gap-3">
               <a href={flowResult.video_url} download target="_blank" rel="noopener noreferrer"
+                onClick={() => trackEvent("video_downloaded", { type: "flow" })}
                 className="flex-1 py-3 rounded-xl text-sm font-semibold text-white text-center transition-all hover:opacity-90"
                 style={{ background: "linear-gradient(135deg, #8b7355, #c4a67d)", boxShadow: "0 4px 16px rgba(196,166,125,0.3)" }}>
                 Download Video

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/providers/AppProvider";
 import Logo from "@/components/ui/Logo";
@@ -33,6 +33,7 @@ const IMG = {
   cardCloseup: "/images/card-closeup.png",
   cardLifestyle: "/images/card-lifestyle.png",
   cardModel: "/images/card-model-catalogue.png",
+  tileProductStudio: "/images/tile-product-studio.png",
 };
 
 const steps = [
@@ -71,10 +72,13 @@ function ImgCard({ src, alt, children, className = "" }: { src: string; alt: str
 }
 
 export default function HomePageClient() {
-  const { user, isAuthenticated } = useAuth();
+  const { user } = useAuth();
+  const isAuthenticated = !!user;
   const { currency, isIndia } = useGeoCountry();
   const [activeTransformation, setActiveTransformation] = useState(0);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  useEffect(() => { setAuthReady(true); }, []);
 
   const sym = currency === "INR" ? "₹" : currency === "EUR" ? "€" : "$";
   const starterPrice = isIndia ? "₹149" : currency === "EUR" ? "€4.99" : "$4.99";
@@ -99,14 +103,15 @@ export default function HomePageClient() {
             <Logo className="text-lg sm:text-xl" variant="dark" />
           </Link>
           <nav className="flex items-center gap-1 sm:gap-2">
-            <Link href="/jewelry" className="px-2.5 sm:px-3 py-2 text-[12px] sm:text-[13px] font-medium text-[#0a0a0a] bg-[#f5f0e8] rounded-lg transition-all">Jewelry Studio</Link>
-            <Link href="/studio" prefetch={false} className="px-2.5 sm:px-3 py-2 text-[12px] sm:text-[13px] font-medium text-[#4a4a4a] rounded-lg hover:text-[#0a0a0a] hover:bg-black/[0.04] transition-all hidden sm:block">Product Studio</Link>
+            <Link href="/create" className="px-2.5 sm:px-3 py-2 text-[12px] sm:text-[13px] font-medium text-[#0a0a0a] bg-[#f5f0e8] rounded-lg transition-all hover:bg-[#ece4d4]">Create</Link>
             <Link href="/batch-listing" prefetch={false} className="px-2.5 sm:px-3 py-2 text-[12px] sm:text-[13px] font-medium text-[#4a4a4a] rounded-lg hover:text-[#0a0a0a] hover:bg-black/[0.04] transition-all hidden sm:block">Bulk Listings</Link>
+            <Link href="/projects" prefetch={false} className="px-2.5 sm:px-3 py-2 text-[12px] sm:text-[13px] font-medium text-[#4a4a4a] rounded-lg hover:text-[#0a0a0a] hover:bg-black/[0.04] transition-all hidden sm:block">My Creations</Link>
             <Link href="/pricing" prefetch={false} className="px-2.5 sm:px-3 py-2 text-[12px] sm:text-[13px] font-medium text-[#4a4a4a] rounded-lg hover:text-[#0a0a0a] hover:bg-black/[0.04] transition-all hidden sm:block">Pricing</Link>
-            {isAuthenticated ? (
-              <Link href="/profile" prefetch={false} className="ml-1 sm:ml-2 flex items-center gap-2 px-4 sm:px-5 py-2 bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-white text-[12px] sm:text-[13px] font-semibold rounded-full hover:shadow-[0_4px_16px_rgba(196,166,125,0.3)] transition-all active:scale-[0.97]">
-                <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-bold">{(user?.contact_name || user?.company_name || "U").charAt(0).toUpperCase()}</span>
-                Dashboard
+            {!authReady ? (
+              <span className="ml-1 sm:ml-2 w-[110px] h-[36px] rounded-full bg-black/5 animate-pulse" aria-hidden />
+            ) : isAuthenticated ? (
+              <Link href="/profile" prefetch={false} aria-label="Profile" className="ml-1 sm:ml-2 w-9 h-9 flex items-center justify-center bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-white text-[13px] font-bold rounded-full hover:shadow-[0_4px_16px_rgba(196,166,125,0.3)] transition-all active:scale-[0.97]">
+                {(user?.contact_name || user?.company_name || "U").charAt(0).toUpperCase()}
               </Link>
             ) : (
               <Link href="/login" prefetch={false} className="ml-1 sm:ml-2 px-4 sm:px-5 py-2 bg-[#0a0a0a] text-white text-[12px] sm:text-[13px] font-semibold rounded-full hover:bg-[#1a1a1a] transition-all active:scale-[0.97]">Sign In</Link>
@@ -191,19 +196,97 @@ export default function HomePageClient() {
         </div>
       </section>
 
-      {/* ═══ TWO STUDIOS — Jewelry + Product ═══ */}
+      {/* ═══ WHAT TO CREATE — 5 tools, mirrors /create ═══ */}
       <section className="bg-[#f7f7f5] border-b border-[#e8e5df]">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-8 lg:px-12 py-16 md:py-24">
           <div className="text-center mb-10 md:mb-14">
-            <span className="text-[11px] sm:text-xs font-semibold text-[#8b7355] tracking-[0.12em] uppercase mb-3 block">Two Powerful Studios</span>
+            <span className="text-[11px] sm:text-xs font-semibold text-[#8b7355] tracking-[0.12em] uppercase mb-3 block">Five tools, one workflow</span>
             <h2 className="font-display font-bold text-[#0a0a0a] uppercase tracking-[-0.02em] text-[1.75rem] sm:text-[2.25rem] md:text-[3rem] leading-[1.0]">
-              Choose Your <span className="text-[#8b7355]">Studio</span>
+              What do you want to <span className="text-[#8b7355]">create</span>?
             </h2>
-            <p className="mt-4 text-[#8c8c8c] text-[15px] max-w-lg mx-auto leading-relaxed">
-              Whether you sell jewelry or any other product — we have the right AI studio for you.
+            <p className="mt-4 text-[#8c8c8c] text-[15px] max-w-xl mx-auto leading-relaxed">
+              One upload, many outcomes. Pick a tool — each one is built for a specific job.
             </p>
           </div>
 
+          {/* 5-tile grid — same shape as /create */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5 max-w-5xl mx-auto">
+            {[
+              { href: "/jewelry",    title: "Jewelry Studio",    tagline: "Raw jewelry photo \u2192 themed product shots.",       image: IMG.darkElegance,  tone: "from-[#8b7355] to-[#c4a67d]", badge: "Most popular" },
+              { href: "/studio",     title: "Product Studio",    tagline: "Any product on a studio backdrop in seconds.",          image: IMG.tileProductStudio, tone: "from-[#8b7355] to-[#c4a67d]" },
+              { href: "/ugc",        title: "Model Shots (UGC)", tagline: "See your product worn by a real-looking model.",        image: IMG.necklaceModel, tone: "from-[#ec4899] to-[#f472b6]" },
+              { href: "/create/video", title: "Video", tagline: "Reels, 360\u00b0 spins, product reveals \u2014 pick a mode on the next step.", image: IMG.cardLifestyle, tone: "from-[#7c3aed] to-[#a78bfa]", badge: "New" },
+            ].map((tile, i) => (
+              <Link
+                key={tile.href}
+                href={tile.href}
+                prefetch={false}
+                className="group relative rounded-2xl overflow-hidden border border-[#e8e5df] bg-white hover:border-[#c4a67d]/50 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)] hover:-translate-y-1 transition-all duration-300 animate-fade-in-up"
+                style={{ animationDelay: `${i * 80}ms` }}
+              >
+                <div className="aspect-[4/3] relative overflow-hidden bg-[#f0ebe3]">
+                  <img src={tile.image} alt={tile.title} className="w-full h-full object-cover group-hover:scale-[1.06] transition-transform duration-500 ease-out" loading="lazy" />
+                  <div className={`absolute inset-0 bg-gradient-to-br ${tile.tone} opacity-15 group-hover:opacity-10 transition-opacity duration-300`} />
+                  {tile.badge && (
+                    <span className="absolute top-3 left-3 text-[9px] font-bold tracking-wider uppercase bg-white/95 text-[#0a0a0a] px-2 py-0.5 rounded-full shadow-sm">
+                      {tile.badge}
+                    </span>
+                  )}
+                </div>
+                <div className="p-5">
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="font-display text-base md:text-lg font-bold text-[#0a0a0a] tracking-tight">{tile.title}</h3>
+                    <span className="flex-shrink-0 w-7 h-7 rounded-full bg-[#f5f0e8] border border-[#e8e5df] flex items-center justify-center text-[#8b7355] group-hover:bg-[#c4a67d] group-hover:text-white group-hover:border-[#c4a67d] group-hover:translate-x-0.5 transition-all duration-250">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                        <polyline points="12 5 19 12 12 19" />
+                      </svg>
+                    </span>
+                  </div>
+                  <p className="text-[13px] text-[#6b6b6b] mt-1.5 leading-relaxed">{tile.tagline}</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+
+          {/* Bulk callout — different intent, lives outside the tile grid */}
+          <div className="mt-8 max-w-5xl mx-auto animate-fade-in-up" style={{ animationDelay: "480ms" }}>
+            <Link
+              href="/batch-listing"
+              prefetch={false}
+              className="group flex items-center gap-4 p-5 rounded-2xl border border-[#e8e5df] bg-white hover:border-[#c4a67d]/40 hover:bg-[#fcfaf7] transition-all duration-300"
+            >
+              <div className="w-11 h-11 rounded-xl bg-[#f5f0e8] flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform duration-300">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8b7355" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="16" y1="13" x2="8" y2="13" />
+                  <line x1="16" y1="17" x2="8" y2="17" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm md:text-base font-bold text-[#0a0a0a]">Bulk Listings</h3>
+                  <span className="text-[9px] font-bold tracking-wider uppercase text-[#8b7355] bg-[#f5f0e8] px-1.5 py-0.5 rounded">
+                    Batch
+                  </span>
+                </div>
+                <p className="text-[12px] text-[#6b6b6b] mt-0.5">
+                  Upload dozens of products at once — listings, titles and descriptions in one go.
+                </p>
+              </div>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8c8c8c" strokeWidth="2" strokeLinecap="round" className="flex-shrink-0 group-hover:text-[#8b7355] group-hover:translate-x-1 transition-all duration-250">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Legacy two-studio section — kept hidden in a never-rendered block */}
+      {false && (
+      <section className="bg-[#f7f7f5] border-b border-[#e8e5df]">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-8 lg:px-12 py-16 md:py-24">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
             {/* Jewelry Studio Card */}
             <div className="relative bg-white rounded-2xl border-2 border-[#c4a67d]/30 overflow-hidden hover:border-[#c4a67d]/60 transition-all duration-300 group shadow-sm hover:shadow-lg">
@@ -270,6 +353,7 @@ export default function HomePageClient() {
           </div>
         </div>
       </section>
+      )}
 
       {/* ═══ TRANSFORMATION GALLERY — Before/After pairs ═══ */}
       <section className="bg-[#f7f7f5] border-b border-[#e8e5df]">

@@ -1,17 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Compass, Users, FileText, Settings,
-  Zap, Bell, ChevronDown, CreditCard, User, Globe
+  Zap, Bell, ChevronDown, CreditCard, User, Globe, Megaphone,
+  LogOut, Send
 } from "lucide-react";
+import { useUser, logout } from "@/lib/auth";
+import { useState } from "react";
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Onboard", href: "/dashboard/onboard", icon: Globe },
   { label: "Discover", href: "/dashboard/discover", icon: Compass },
   { label: "Prospects", href: "/dashboard/prospects", icon: Users },
+  { label: "Campaigns", href: "/dashboard/campaigns", icon: Megaphone },
   { label: "Drafts", href: "/dashboard/drafts", icon: FileText },
   { label: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
@@ -22,6 +26,12 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const { user, loading } = useUser();
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  const userName = user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User";
+  const userEmail = user?.email || "";
+  const initials = userName.charAt(0).toUpperCase();
 
   return (
     <div className="flex h-screen bg-surface-secondary overflow-hidden">
@@ -61,11 +71,11 @@ export default function DashboardLayout({
               <CreditCard className="w-4 h-4 text-primary" />
               <span className="text-xs font-semibold text-text-secondary">Credits Remaining</span>
             </div>
-            <p className="text-2xl font-bold text-primary mb-1">847</p>
+            <p className="text-2xl font-bold text-primary mb-1">1,000</p>
             <div className="w-full bg-border/50 rounded-full h-1.5">
-              <div className="bg-gradient-primary h-1.5 rounded-full" style={{ width: "65%" }} />
+              <div className="bg-gradient-primary h-1.5 rounded-full" style={{ width: "100%" }} />
             </div>
-            <p className="text-[11px] text-text-tertiary mt-2">847 of 1,000 credits remaining</p>
+            <p className="text-[11px] text-text-tertiary mt-2">Free tier — 1,000 credits</p>
           </div>
         </div>
       </aside>
@@ -82,17 +92,34 @@ export default function DashboardLayout({
           <div className="flex items-center gap-4">
             <button className="relative p-2 rounded-xl hover:bg-surface-secondary transition-colors">
               <Bell className="w-5 h-5 text-text-secondary" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-error" />
             </button>
-            <div className="flex items-center gap-3 pl-4 border-l border-border">
+            <div className="relative flex items-center gap-3 pl-4 border-l border-border">
               <div className="w-8 h-8 rounded-full bg-gradient-primary flex items-center justify-center">
-                <User className="w-4 h-4 text-white" />
+                <span className="text-white text-sm font-bold">{initials}</span>
               </div>
-              <div className="hidden sm:block">
-                <p className="text-sm font-medium leading-tight">Mohit G.</p>
-                <p className="text-xs text-text-tertiary leading-tight">Pro Plan</p>
-              </div>
-              <ChevronDown className="w-4 h-4 text-text-tertiary" />
+              <button
+                onClick={() => setShowDropdown(!showDropdown)}
+                className="hidden sm:flex items-center gap-2"
+              >
+                <div className="text-left">
+                  <p className="text-sm font-medium leading-tight">{userName}</p>
+                  <p className="text-xs text-text-tertiary leading-tight">{userEmail}</p>
+                </div>
+                <ChevronDown className="w-4 h-4 text-text-tertiary" />
+              </button>
+
+              {showDropdown && (
+                <div className="absolute right-0 top-12 w-48 bg-white rounded-xl shadow-lg border border-border py-2 z-50">
+                  <Link href="/dashboard/settings" onClick={() => setShowDropdown(false)}
+                    className="flex items-center gap-2 px-4 py-2 text-sm text-text-secondary hover:bg-surface-secondary transition-colors">
+                    <Settings className="w-4 h-4" /> Settings
+                  </Link>
+                  <button onClick={() => { setShowDropdown(false); logout(); }}
+                    className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors w-full text-left">
+                    <LogOut className="w-4 h-4" /> Log Out
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </header>

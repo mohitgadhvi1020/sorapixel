@@ -5,6 +5,7 @@
 
 import * as Sentry from "@sentry/nextjs";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
+import { trackEvent } from "@/lib/gtag";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
@@ -49,11 +50,16 @@ async function apiRequest<T = unknown>(endpoint: string, options: ApiOptions = {
     }
   }
 
+  const startedAt = Date.now();
   const resp = await fetch(url, {
     method,
     headers: requestHeaders,
     body: body ? JSON.stringify(body) : undefined,
   });
+
+  try {
+    trackEvent("api_call", { endpoint, method, status: resp.status, duration_ms: Date.now() - startedAt, ok: resp.ok });
+  } catch { /* noop */ }
 
   if (resp.status === 401 && !noAuth) {
     if (typeof window !== "undefined") {
@@ -84,6 +90,7 @@ async function apiRequest<T = unknown>(endpoint: string, options: ApiOptions = {
     if (resp.status >= 500) {
       Sentry.captureException(err, { extra: { endpoint, method, status: resp.status, errorData } });
     }
+    try { trackEvent("api_error", { endpoint, method, status: resp.status, detail: String(errorData?.detail || "").slice(0, 100) }); } catch { /* noop */ }
     throw err;
   }
 

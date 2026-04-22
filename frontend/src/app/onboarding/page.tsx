@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api-client";
 import { useAuth } from "@/providers/AppProvider";
 import { useRouter } from "next/navigation";
+import { trackEvent } from "@/lib/gtag";
 
 export default function OnboardingPage() {
   const { user, loading } = useAuth();
@@ -22,10 +23,13 @@ export default function OnboardingPage() {
 
   async function handleStart() {
     setSaving(true);
+    trackEvent("onboarding_started");
     try {
       await api.put("/users/me", { category_id: "jewelry" });
+      trackEvent("onboarding_completed", { category: "jewelry" });
       router.push("/jewelry");
-    } catch {
+    } catch (err) {
+      trackEvent("exception", { description: err instanceof Error ? err.message : "onboarding save failed", where: "onboarding.handleStart" });
       router.push("/jewelry");
     }
   }

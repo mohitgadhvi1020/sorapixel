@@ -17,11 +17,19 @@ export const JEWELRY_PRICING = {
     listing: 5,
     ugcPerPose: 20,
   },
+  ultra: {
+    imageGen: 60,
+    regenSingle: 60,
+    recolorSingle: 55,
+    listing: 5,
+    ugcPerPose: 60,
+  },
 } as const;
 
 export const STUDIO_PRICING = {
   standard: 5,
   pro: 20,
+  ultra: 60,
 } as const;
 
 export const VIDEO_PRICING = {
@@ -42,7 +50,7 @@ export const LISTING_PRICING = {
 export const DAILY_REWARD_TOKENS = 8;
 export const FREE_FIRST_GENERATION = 1;
 
-export type Quality = "standard" | "pro";
+export type Quality = "standard" | "pro" | "ultra";
 
 export function getJewelryCost(operation: keyof typeof JEWELRY_PRICING.standard, quality: Quality = "standard"): number {
   return JEWELRY_PRICING[quality][operation];

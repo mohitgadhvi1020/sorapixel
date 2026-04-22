@@ -343,6 +343,13 @@ async def generate_flow(req: FlowVideoRequest, user: dict = Depends(get_current_
                     "engine": req.engine,
                     "preset": preset["id"],
                     "jewelry_type": req.jewelry_type,
+                    "quality": req.quality,
+                    "aspect_ratio": req.aspect_ratio,
+                    "gender": req.gender,
+                    "nationality": req.nationality,
+                    "skin_tone": req.skin_tone,
+                    "outfit_style": req.outfit_style,
+                    "custom_transition_prompt": req.custom_transition_prompt,
                 },
             )
         except Exception as save_err:

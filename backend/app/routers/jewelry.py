@@ -11,6 +11,7 @@ from app.schemas.jewelry import (
 )
 from app.schemas.studio import GenerateResponse, ImageResult
 from app.services.gemini_service import generate_image, generate_image_pro, generate_text
+from app.services.image_dispatch import generate_with_fidelity
 from app.services.image_service import (
     crop_to_ratio, add_branding_bar, generate_low_res_preview,
 )
@@ -36,10 +37,13 @@ router = APIRouter(prefix="/jewelry", tags=["Jewelry"])
 
 
 def _gen_image(quality: str, prompt: str, image_b64: str, aspect_ratio_id: str | None = None) -> dict:
-    """Route to Pro or Standard model based on quality tier."""
-    if quality == "pro":
-        return generate_image_pro(prompt, image_b64, aspect_ratio_id=aspect_ratio_id)
-    return generate_image(prompt, image_b64, aspect_ratio_id=aspect_ratio_id)
+    """Route to Ultra (gpt-image-2), Pro (gemini-3-pro), or Standard (gemini-flash).
+
+    Standard tier is wrapped by the fidelity dispatcher — if the generated
+    product drifts from the input it silently retries and, if needed, escalates
+    to Pro (gated by FIDELITY_CHECK_ENABLED).
+    """
+    return generate_with_fidelity(quality, prompt, image_b64, aspect_ratio_id=aspect_ratio_id)
 
 
 @router.post("/generate-free")

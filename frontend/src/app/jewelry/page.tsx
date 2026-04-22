@@ -8,6 +8,7 @@ import { useAuth, useCredits } from "@/providers/AppProvider";
 import { cacheGet, cacheSet } from "@/lib/cache";
 import { JEWELRY_TYPES, JEWELRY_BACKGROUNDS } from "@/lib/jewelry-styles";
 import { JEWELRY_PRICING } from "@/lib/token-pricing";
+import { trackEvent } from "@/lib/gtag";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 import { useTheme } from "@/hooks/useTheme";
 import { useGeoCountry } from "@/hooks/useGeoCountry";
@@ -152,8 +153,10 @@ function JewelryPage() {
 
   // Session state
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [sessionLoaded, setSessionLoaded] = useState(false);
+  const [loadedSessionId, setLoadedSessionId] = useState<string | null>(null);
   const [sessionRestoring, setSessionRestoring] = useState(!!searchParams.get("session"));
+  // Theme id from restore payload, matched once themes load.
+  const pendingThemeIdRef = useRef<string | null>(null);
 
   // Upload state
   const [mainImage, setMainImage] = useState<UploadedImage | null>(null);
@@ -166,7 +169,7 @@ function JewelryPage() {
   const selectedRatio = ASPECT_RATIOS.find((r) => r.id === aspectRatioId) ?? ASPECT_RATIOS[0];
   const cssAspectRatio = `${selectedRatio.w}/${selectedRatio.h}`;
   const [specialInstructions, setSpecialInstructions] = useState<string>("");
-  const [quality, setQuality] = useState<"standard" | "pro">("standard");
+  const [quality, setQuality] = useState<"standard" | "pro" | "ultra">("standard");
   const geoQualityApplied = useRef(false);
   useEffect(() => {
     if (geoQualityApplied.current || !country) return;
@@ -217,7 +220,7 @@ function JewelryPage() {
   const [ugcBackground, setUgcBackground] = useState("best_match");
   const [ugcOutfitStyle, setUgcOutfitStyle] = useState("modern");
   const [ugcOutfitCustom, setUgcOutfitCustom] = useState("");
-  const [ugcQuality, setUgcQuality] = useState("standard");
+  const [ugcQuality, setUgcQuality] = useState<"standard" | "pro" | "ultra">("standard");
   const [ugcSourceIndex, setUgcSourceIndex] = useState(0);
   const [catalogueLoading, setCatalogueLoading] = useState(false);
   const [catalogueData, setCatalogueData] = useState<Record<string, unknown> | null>(null);
@@ -304,6 +307,103 @@ function JewelryPage() {
     router.push("/login?redirect=/jewelry");
     return false;
   }
+
+  // --- Resume persistence ---
+  // Eagerly creates a session so we can PATCH progress as the user moves
+  // through steps. Safe to call multiple times — becomes a no-op once a
+  // session exists.
+  const ensureJewelrySession = useCallback(async (): Promise<string | null> => {
+    if (sessionId) return sessionId;
+    if (!user || !mainImage) return null;
+    try {
+      const b64 = await resolveBase64(mainImage);
+      const sess = await api.post<{ id: string }>("/sessions", {
+        image_base64: b64,
+        jewelry_type: jewelryType,
+        background: backgroundId,
+        aspect_ratio_id: aspectRatioId,
+        quality,
+      });
+      setSessionId(sess.id);
+      setLoadedSessionId(sess.id);
+      window.history.replaceState(null, "", `/jewelry?session=${sess.id}`);
+      return sess.id;
+    } catch {
+      return null;
+    }
+    // resolveBase64 is module-local and doesn't depend on hooks; mainImage ref
+    // captured via closure. Including it in deps causes re-creation on every
+    // keystroke — intentionally narrow.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, user, mainImage, jewelryType, backgroundId, aspectRatioId, quality]);
+
+  const saveProgress = useCallback(
+    async (fields: {
+      current_step?: string;
+      pending_inputs?: Record<string, unknown>;
+      jewelry_type?: string;
+      background?: string;
+      aspect_ratio_id?: string;
+      quality?: string;
+    }) => {
+      if (!sessionId) return;
+      try {
+        await api.patch(`/sessions/${sessionId}/progress`, fields);
+      } catch {
+        /* best-effort */
+      }
+    },
+    [sessionId]
+  );
+  // Save step + core config whenever the user moves between steps.
+  useEffect(() => {
+    if (!sessionId) return;
+    if (step === "upload" || step === "generating") return;
+    saveProgress({
+      current_step: step,
+      jewelry_type: jewelryType,
+      background: backgroundId,
+      aspect_ratio_id: aspectRatioId,
+      quality,
+    });
+  }, [sessionId, step, jewelryType, backgroundId, aspectRatioId, quality, saveProgress]);
+
+  // Save pending inputs (theme / shots / instructions). Debounced so
+  // keystrokes in the special-instructions field don't spam PATCHes.
+  useEffect(() => {
+    if (!sessionId) return;
+    const t = setTimeout(() => {
+      saveProgress({
+        pending_inputs: {
+          selected_theme_id: selectedTheme?.id || null,
+          shot_configs: shotConfigs,
+          special_instructions: specialInstructions,
+        },
+      });
+    }, 600);
+    return () => clearTimeout(t);
+  }, [sessionId, selectedTheme?.id, shotConfigs, specialInstructions, saveProgress]);
+
+  // Create a session as soon as the user moves past upload with an image,
+  // so subsequent progress saves have something to patch against.
+  useEffect(() => {
+    if (!user || !mainImage) return;
+    if (sessionId || sessionRestoring) return;
+    if (step === "upload" || step === "generating") return;
+    ensureJewelrySession();
+  }, [user, mainImage, sessionId, sessionRestoring, step, ensureJewelrySession]);
+
+  // Once themes have loaded after a restore, match the pending theme id.
+  useEffect(() => {
+    const targetId = pendingThemeIdRef.current;
+    if (!targetId || selectedTheme || themes.length === 0) return;
+    const match = themes.find((t) => t.id === targetId);
+    if (match) {
+      setSelectedTheme(match);
+      pendingThemeIdRef.current = null;
+    }
+  }, [themes, selectedTheme]);
+  // --- end resume persistence ---
 
   function getAnonId(): string {
     const match = document.cookie.match(/(?:^|;\s*)anon_id=([^;]+)/);
@@ -478,6 +578,16 @@ function JewelryPage() {
           shot_id: selectedShots[idx]?.shot_id ?? "hero",
         }));
         setResultImages(taggedImages);
+        trackEvent("image_generated", {
+          type: "jewelry",
+          flow: "main",
+          theme_id: selectedTheme.id,
+          jewelry_type: jewelryType,
+          quality: isAnon ? "standard" : quality,
+          aspect_ratio: aspectRatioId,
+          image_count: taggedImages.length,
+          anonymous: isAnon,
+        });
         setGenerationIds(data.generation_ids || []);
         setStep("done");
         setGenStatus(null);
@@ -518,17 +628,17 @@ function JewelryPage() {
     setStep("theme_browse");
   }
 
+  const sidParam = searchParams.get("session");
   useEffect(() => {
-    const sid = searchParams.get("session");
-    if (!sid || sessionLoaded) {
-      if (!sid) setSessionRestoring(false);
-      return;
-    }
-    if (!user) {
+    const sid = sidParam;
+    if (!sid) {
       setSessionRestoring(false);
       return;
     }
-    setSessionLoaded(true);
+    if (loadedSessionId === sid) return;
+    if (!user) return;
+
+    setLoadedSessionId(sid);
     setSessionRestoring(true);
 
     const timeout = setTimeout(() => setSessionRestoring(false), 15000);
@@ -542,6 +652,8 @@ function JewelryPage() {
           aspect_ratio_id: string | null;
           quality: string;
           original_image_url: string;
+          current_step: Step | null;
+          pending_inputs: Record<string, unknown> | null;
           actions: Array<{
             action_type: string;
             quality: string;
@@ -554,10 +666,42 @@ function JewelryPage() {
         if (session.jewelry_type) setJewelryType(session.jewelry_type);
         if (session.background) setBackgroundId(session.background);
         if (session.aspect_ratio_id) setAspectRatioId(session.aspect_ratio_id);
-        if (session.quality) setQuality(session.quality as "standard" | "pro");
+        if (session.quality) setQuality(session.quality as "standard" | "pro" | "ultra");
+
+        // Hydrate pending inputs (theme/shots/instructions). Theme object is
+        // resolved later when the themes list loads (see effect below) — for
+        // now store the saved id so that effect can match it.
+        const pending = session.pending_inputs || {};
+        if (typeof pending.special_instructions === "string") {
+          setSpecialInstructions(pending.special_instructions);
+        }
+        if (Array.isArray(pending.shot_configs)) {
+          setShotConfigs(pending.shot_configs as ShotConfig[]);
+        }
+        if (typeof pending.selected_theme_id === "string") {
+          pendingThemeIdRef.current = pending.selected_theme_id;
+        }
 
         if (session.original_image_url) {
           setMainImage({ base64: "", preview: session.original_image_url });
+          fetch(session.original_image_url)
+            .then((r) => r.blob())
+            .then(
+              (blob) =>
+                new Promise<string>((resolve, reject) => {
+                  const reader = new FileReader();
+                  reader.onload = () => resolve(reader.result as string);
+                  reader.onerror = () => reject(reader.error);
+                  reader.readAsDataURL(blob);
+                })
+            )
+            .then((dataUrl) => {
+              const b64 = dataUrl.split(",")[1] || "";
+              if (b64) setMainImage({ base64: b64, preview: session.original_image_url });
+            })
+            .catch(() => {
+              /* best-effort; generation call sites will fall back or re-prompt */
+            });
         }
 
         const restoredImages: ResultImage[] = [];
@@ -592,19 +736,27 @@ function JewelryPage() {
         if (restoredImages.length > 0) {
           setResultImages(restoredImages);
           setStep("done");
+        } else if (session.current_step && session.current_step !== "generating") {
+          // Prefer the explicit saved step over inference.
+          setStep(session.current_step);
+        } else if (session.jewelry_type && session.background) {
+          setStep("theme_browse");
+        } else if (session.jewelry_type) {
+          setStep("select_type");
         }
         if (restoredUgc.length > 0) setUgcImages(restoredUgc);
         if (restoredBranded.length > 0) setBrandedImages(restoredBranded);
         if (restoredRecolor.length > 0) setRecolorResults(restoredRecolor);
         if (restoredListing) setCatalogueData(restoredListing);
       } catch {
-        // Session not found or expired — start fresh
+        showToast("Couldn't load that creation. It may have been deleted.");
+        router.replace("/projects");
       } finally {
         clearTimeout(timeout);
         setSessionRestoring(false);
       }
     })();
-  }, [searchParams, sessionLoaded, user]);
+  }, [sidParam, loadedSessionId, user, router, showToast]);
 
   function readFile(file: File): Promise<UploadedImage> {
     return new Promise((resolve, reject) => {
@@ -727,6 +879,7 @@ function JewelryPage() {
 
       if (data.success && data.images.length > 0) {
         setResultImages(data.images);
+        trackEvent("image_generated", { type: "jewelry", flow: "resumed", jewelry_type: jewelryType, quality: isAnon ? "standard" : quality, image_count: data.images.length, anonymous: isAnon });
         setGenerationIds(data.generation_ids || []);
         setStep("done");
         setGenStatus(null);
@@ -786,6 +939,7 @@ function JewelryPage() {
         };
 
         setResultImages((prev) => [newImage, ...prev]);
+        trackEvent("image_regenerated", { type: "jewelry", shot_id: currentImage.shot_id, theme_id: currentImage.theme_id });
         if (data.generation_ids?.length) {
           setGenerationIds((prev) => [...data.generation_ids!, ...prev]);
         }
@@ -998,6 +1152,7 @@ function JewelryPage() {
         const label = recolorMetal === "custom" ? recolorCustom.trim() : (preset?.label || recolorMetal);
         const newImgs = data.images.map((img) => ({ ...img, label: `Recolored — ${label}` }));
         setRecolorResults((prev) => [...newImgs, ...prev]);
+        trackEvent("image_generated", { type: "recolor", target_metal: metalDesc, quality: recolorQuality, image_count: newImgs.length });
         refreshCredits();
         showToast("Metal recolored!", "success");
       }
@@ -1064,6 +1219,7 @@ function JewelryPage() {
         }
       }
       setBrandedImages((prev) => [...prev, ...newBranded]);
+      trackEvent("image_generated", { type: "branding", image_count: newBranded.length, brand_name: brandName.trim() ? "yes" : "no", brand_phone: brandPhone.trim() ? "yes" : "no" });
       setBrandingModalOpen(false);
       showToast(`Branding applied to ${newBranded.length} image${newBranded.length !== 1 ? "s" : ""}!`, "success");
     } catch (err) {
@@ -1095,6 +1251,7 @@ function JewelryPage() {
   }
 
   async function downloadImage(img: ResultImage) {
+    trackEvent("image_downloaded", { type: "jewelry", shot_id: img.shot_id, theme_id: img.theme_id, anonymous: !user, locked: isLocked });
     if (isLocked) {
       router.push("/pricing");
       return;
@@ -1164,7 +1321,7 @@ function JewelryPage() {
     setRecolorResults([]);
     setQuality("standard");
     setSessionId(null);
-    setSessionLoaded(false);
+    setLoadedSessionId(null);
     setSelectedTheme(null);
     setShotConfigs([]);
     window.history.replaceState(null, "", "/jewelry");
@@ -1566,6 +1723,7 @@ function JewelryPage() {
 
         {/* ===== SHOT CONFIGURATION ===== */}
         {step === "shot_config" && selectedTheme && (
+          <>
           <ShotConfigurator
             theme={selectedTheme}
             shotConfigs={shotConfigs}
@@ -1581,6 +1739,7 @@ function JewelryPage() {
             isGenerating={false}
             jewelryType={jewelryType}
           />
+          </>
         )}
 
         {/* ===== GENERATING STATE ===== */}
@@ -1964,88 +2123,160 @@ function JewelryPage() {
               </div>
             )}
 
-            {/* ===== NEXT STEPS: UGC + VIDEO CTAs ===== */}
+            {/* ===== WHAT'S NEXT? — unified outcome grid ===== */}
             <div className={`pt-6 border-t ${isLight ? "border-[#e5e2dc]" : "border-[rgba(255,255,255,0.08)]"}`}>
-              <h3 className={`text-lg font-bold tracking-tight mb-1.5 ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>Take it further</h3>
-              <p className={`text-[14px] mb-4 leading-relaxed ${isLight ? "text-[#6b6b6b]" : "text-[rgba(255,255,255,0.6)]"}`}>Use your generated images to create videos or model photos.</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* UGC CTA */}
-                <button
-                  onClick={() => {
-                    const img = resultImages[0];
-                    const src = img?.url || (img?.base64 ? `data:image/png;base64,${img.base64}` : "");
-                    const params = new URLSearchParams();
-                    if (src && src.startsWith("http")) {
-                      params.set("image", src);
-                    } else if (img?.base64) {
-                      try { sessionStorage.setItem("ugc_image_b64", img.base64); } catch {}
-                    }
-                    if (jewelryType) params.set("type", jewelryType);
-                    if (sessionId) params.set("session", sessionId);
-                    router.push(`/ugc?${params.toString()}`);
-                  }}
-                  className={`group text-left rounded-2xl p-5 border transition-all hover:scale-[1.01] ${isLight ? "border-[#8b7355]/20 bg-gradient-to-br from-[#8b7355]/[0.04] to-[#f5f0e8]/50 hover:border-[#8b7355]/40" : "border-[rgba(196,166,125,0.18)] bg-gradient-to-br from-[rgba(196,166,125,0.06)] to-[rgba(255,255,255,0.02)] hover:border-[rgba(196,166,125,0.35)]"}`}
-                >
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isLight ? "bg-[#8b7355]/10" : "bg-[rgba(196,166,125,0.15)]"}`}>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={isLight ? "#8b7355" : "#c4a67d"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                        <circle cx="12" cy="7" r="4" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h4 className={`text-[15px] font-bold ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>Model / UGC Photos</h4>
-                      <p className={`text-[12px] ${isLight ? "text-[#6b6b6b]" : "text-white/50"}`}>AI model wearing your jewelry</p>
-                    </div>
-                  </div>
-                  <span className={`inline-flex items-center gap-1 text-[12px] font-semibold ${isLight ? "text-[#8b7355]" : "text-[#c4a67d]"}`}>
-                    Create UGC Photos
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                  </span>
-                </button>
+              <h3 className={`text-lg font-bold tracking-tight mb-1.5 ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>What&apos;s next?</h3>
+              <p className={`text-[14px] mb-5 leading-relaxed ${isLight ? "text-[#6b6b6b]" : "text-[rgba(255,255,255,0.6)]"}`}>
+                Pick an outcome. Each one takes your generated photos one step further.
+              </p>
 
-                {/* Video CTA */}
-                <button
-                  onClick={() => {
-                    const img = resultImages[0];
-                    const src = img?.url || (img?.base64 ? `data:image/png;base64,${img.base64}` : "");
-                    const params = new URLSearchParams();
-                    if (src && src.startsWith("http")) {
-                      params.set("image", src);
-                    } else if (img?.base64) {
-                      try { sessionStorage.setItem("video_image_b64", img.base64); } catch {}
-                    }
-                    if (jewelryType) params.set("type", jewelryType);
-                    if (sessionId) params.set("session", sessionId);
-                    router.push(`/video?${params.toString()}`);
-                  }}
-                  className={`group text-left rounded-2xl p-5 border transition-all hover:scale-[1.01] ${isLight ? "border-purple-200 bg-gradient-to-br from-purple-50/50 to-pink-50/30 hover:border-purple-300" : "border-[rgba(168,85,247,0.2)] bg-gradient-to-br from-[rgba(168,85,247,0.06)] to-[rgba(236,72,153,0.04)] hover:border-[rgba(168,85,247,0.35)]"}`}
-                >
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isLight ? "bg-purple-100" : "bg-[rgba(168,85,247,0.15)]"}`}>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={isLight ? "#7c3aed" : "#a855f7"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polygon points="5 3 19 12 5 21 5 3" />
+              {(() => {
+                // Routes a downstream tool with the first result image as starting point.
+                const goTo = (path: string, storageKey: string) => {
+                  const img = resultImages[0];
+                  const src = img?.url || (img?.base64 ? `data:image/png;base64,${img.base64}` : "");
+                  const params = new URLSearchParams();
+                  if (src && src.startsWith("http")) {
+                    params.set("image", src);
+                  } else if (img?.base64) {
+                    try { sessionStorage.setItem(storageKey, img.base64); } catch { /* quota */ }
+                  }
+                  if (jewelryType) params.set("type", jewelryType);
+                  if (sessionId) params.set("session", sessionId);
+                  router.push(`${path}?${params.toString()}`);
+                };
+
+                const scrollToId = (id: string) => {
+                  const el = document.getElementById(id);
+                  if (el) {
+                    el.scrollIntoView({ behavior: "smooth", block: "start" });
+                    el.classList.add("ring-2", "ring-[#c4a67d]/50");
+                    setTimeout(() => el.classList.remove("ring-2", "ring-[#c4a67d]/50"), 1400);
+                  }
+                };
+
+                const nextTiles: Array<{
+                  key: string;
+                  title: string;
+                  tagline: string;
+                  tone: string;
+                  count?: number;
+                  icon: React.ReactNode;
+                  onClick: () => void;
+                }> = [
+                  {
+                    key: "ugc",
+                    title: "Model Shots (UGC)",
+                    tagline: "AI model wearing your jewelry",
+                    tone: "from-[#ec4899] to-[#f472b6]",
+                    count: ugcImages.length || undefined,
+                    icon: (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
                       </svg>
-                    </div>
-                    <div>
-                      <h4 className={`text-[15px] font-bold ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>Video Generation</h4>
-                      <p className={`text-[12px] ${isLight ? "text-[#6b6b6b]" : "text-white/50"}`}>360° spin, reveal, lifestyle videos</p>
-                    </div>
+                    ),
+                    onClick: () => goTo("/ugc", "ugc_image_b64"),
+                  },
+                  {
+                    key: "flow-video",
+                    title: "Flow Video",
+                    tagline: "Reel: product → model reveal",
+                    tone: "from-[#7c3aed] to-[#a78bfa]",
+                    icon: (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <polygon points="10 8 16 12 10 16 10 8" /><rect x="2" y="3" width="20" height="18" rx="2" />
+                      </svg>
+                    ),
+                    onClick: () => goTo("/flow-video", "flow_video_image_b64"),
+                  },
+                  {
+                    key: "branding",
+                    title: "Add Branding",
+                    tagline: "Brand strip below images",
+                    tone: "from-[#8b7355] to-[#c4a67d]",
+                    count: brandedImages.length || undefined,
+                    icon: (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
+                      </svg>
+                    ),
+                    onClick: () => openBrandingModal(),
+                  },
+                  {
+                    key: "listing",
+                    title: "Product Listing",
+                    tagline: "Shopify-ready title & description",
+                    tone: "from-[#10b981] to-[#34d399]",
+                    count: catalogueData ? 1 : undefined,
+                    icon: (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" />
+                      </svg>
+                    ),
+                    onClick: () => (catalogueData ? openListingModal() : generateCatalogue()),
+                  },
+                  {
+                    key: "recolor",
+                    title: "Recolor Metal",
+                    tagline: "Gold, rose gold, silver — stones stay",
+                    tone: "from-[#f59e0b] to-[#fbbf24]",
+                    count: recolorResults.length || undefined,
+                    icon: (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="13.5" cy="6.5" r="2.5" /><circle cx="17.5" cy="10.5" r="2.5" /><circle cx="8.5" cy="7.5" r="2.5" /><circle cx="6.5" cy="12.5" r="2.5" />
+                      </svg>
+                    ),
+                    onClick: () => scrollToId("recolor-workspace"),
+                  },
+                ];
+
+                return (
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                    {nextTiles.map((t, i) => (
+                      <button
+                        key={t.key}
+                        onClick={t.onClick}
+                        style={{ animationDelay: `${i * 50}ms` }}
+                        className={`group relative rounded-2xl p-4 border text-left transition-all duration-300 animate-fade-in-up hover:-translate-y-0.5 ${
+                          isLight
+                            ? "border-[#e5e2dc] bg-white hover:border-[#c4a67d]/40 hover:shadow-[0_6px_20px_rgba(0,0,0,0.06)]"
+                            : "border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)] hover:border-[rgba(196,166,125,0.35)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.3)]"
+                        }`}
+                      >
+                        <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${t.tone} flex items-center justify-center text-white mb-3 group-hover:scale-105 transition-transform duration-300`}>
+                          {t.icon}
+                        </div>
+                        <div className="flex items-start justify-between gap-1.5">
+                          <h4 className={`text-[13px] font-bold tracking-tight leading-tight ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>{t.title}</h4>
+                          {t.count !== undefined && (
+                            <span className="flex-shrink-0 text-[9px] font-bold bg-[rgba(196,166,125,0.15)] text-[#c4a67d] px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                              {t.count}
+                            </span>
+                          )}
+                        </div>
+                        <p className={`text-[11px] mt-1 leading-snug ${isLight ? "text-[#6b6b6b]" : "text-[rgba(255,255,255,0.45)]"}`}>
+                          {t.tagline}
+                        </p>
+                        <span className={`mt-2 inline-flex items-center gap-1 text-[11px] font-semibold transition-all duration-200 ${isLight ? "text-[#8b7355] group-hover:gap-1.5" : "text-[#c4a67d] group-hover:gap-1.5"}`}>
+                          {t.count ? "Open" : "Try it"}
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
+                          </svg>
+                        </span>
+                      </button>
+                    ))}
                   </div>
-                  <span className={`inline-flex items-center gap-1 text-[12px] font-semibold ${isLight ? "text-purple-600" : "text-purple-400"}`}>
-                    Create Video
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                  </span>
-                </button>
-              </div>
+                );
+              })()}
             </div>
 
 
-            {/* ===== FEATURE CARDS ===== */}
+            {/* ===== YOUR OUTPUTS — detailed workspaces for branding/listing/recolor ===== */}
             <div className={`pt-6 border-t ${isLight ? "border-[#e5e2dc]" : "border-[rgba(255,255,255,0.08)]"}`}>
-              <h3 className={`text-lg font-bold tracking-tight mb-1.5 ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>Do more with your photos</h3>
+              <h3 className={`text-lg font-bold tracking-tight mb-1.5 ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>Your workspace</h3>
               <p className={`text-[14px] mb-5 leading-relaxed ${isLight ? "text-[#6b6b6b]" : "text-[rgba(255,255,255,0.6)]"}`}>
-                Enhance your generated images with branding, listings, or recoloring.
+                Branding · listing · recolor controls, with all outputs in one place.
               </p>
 
               <div className="space-y-4">
@@ -2242,7 +2473,7 @@ function JewelryPage() {
                 </div>
 
                 {/* ── Recolor Card ── */}
-                <div className={`rounded-2xl p-5 md:p-6 ${isLight ? "border border-[#e5e2dc] bg-white" : "border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)]"}`}>
+                <div id="recolor-workspace" className={`rounded-2xl p-5 md:p-6 transition-shadow duration-300 ${isLight ? "border border-[#e5e2dc] bg-white" : "border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)]"}`}>
                   {/* Header + controls row */}
                   <div className="flex items-center gap-2.5 mb-4">
                     <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${isLight ? "bg-[#8b7355]/10" : "bg-[rgba(196,166,125,0.12)]"}`}>
@@ -2777,10 +3008,11 @@ function JewelryPage() {
               <div>
                 <label className="block text-[10px] font-semibold text-[rgba(255,255,255,0.45)] uppercase tracking-[0.1em] mb-2.5">Quality</label>
                 <QualityToggle
-                  value={ugcQuality as "standard" | "pro"}
+                  value={ugcQuality}
                   onChange={setUgcQuality}
                   standardCost={JEWELRY_PRICING.standard.ugcPerPose}
                   proCost={JEWELRY_PRICING.pro.ugcPerPose}
+                  ultraCost={JEWELRY_PRICING.ultra.ugcPerPose}
                   costUnit="/ pose"
                 />
               </div>
@@ -2793,7 +3025,7 @@ function JewelryPage() {
                 disabled={ugcPoses.length === 0}
                 className="w-full py-3 rounded-full text-sm font-bold bg-gradient-to-r from-[#8b7355] to-[#c4a67d] text-white shadow-[0_4px_20px_rgba(196,166,125,0.3)] hover:shadow-[0_6px_30px_rgba(196,166,125,0.45)] hover:-translate-y-0.5 active:scale-[0.97] transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none"
               >
-                Generate {ugcPoses.length} Photo{ugcPoses.length !== 1 ? "s" : ""} ({(ugcQuality === "pro" ? JEWELRY_PRICING.pro.ugcPerPose : JEWELRY_PRICING.standard.ugcPerPose) * ugcPoses.length} tokens)
+                Generate {ugcPoses.length} Photo{ugcPoses.length !== 1 ? "s" : ""} ({JEWELRY_PRICING[ugcQuality].ugcPerPose * ugcPoses.length} tokens)
               </button>
             </div>
           </div>

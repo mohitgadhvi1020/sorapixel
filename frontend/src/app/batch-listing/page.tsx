@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { safeFetch } from "@/lib/safe-fetch";
 import type { ListingAttributes } from "@/lib/listing-prompt";
 import { LISTING_PRICING } from "@/lib/token-pricing";
+import { trackEvent } from "@/lib/gtag";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 
 /* ─── Types ──────────────────────────────────────────────── */
@@ -644,6 +645,7 @@ export default function BatchListingPage() {
 
     abortRef.current = null;
     setPhase("done");
+    trackEvent("batch_listing_done", { total: items.length, completed: items.filter(i => i.status === "completed").length, failed: items.filter(i => i.status === "failed").length });
   }, [items, batchId, batchDescription, updateItem, tokenBalance, showToast]);
 
   /* ─── Export CSV ─────────────────────────────────────────── */
@@ -690,6 +692,7 @@ export default function BatchListingPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
+    trackEvent("batch_csv_exported", { row_count: completed.length });
     a.download = `batch-listings-${Date.now()}.csv`;
     document.body.appendChild(a);
     a.click();

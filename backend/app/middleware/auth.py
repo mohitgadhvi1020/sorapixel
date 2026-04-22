@@ -2,7 +2,9 @@ from __future__ import annotations
 
 """Auth middleware — validates Supabase JWT tokens and auto-syncs user to clients table."""
 
+import hashlib
 import logging
+import time
 import httpx
 from fastapi import Request, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -12,6 +14,38 @@ from app.config import get_settings
 logger = logging.getLogger(__name__)
 
 security = HTTPBearer()
+
+# Short-TTL in-process cache for (token → user_data) so parallel API calls on a
+# single page load don't each pay Supabase + DB round-trips. Bounded by JWT
+# lifetime; safe to cache briefly since token revocation is not instantaneous
+# with Supabase anyway.
+_USER_CACHE: dict[str, tuple[float, dict]] = {}
+_USER_CACHE_TTL_SECONDS = 60
+_USER_CACHE_MAX_ENTRIES = 1000
+
+
+def _token_key(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _cache_get(token: str) -> dict | None:
+    key = _token_key(token)
+    entry = _USER_CACHE.get(key)
+    if not entry:
+        return None
+    expires_at, user_data = entry
+    if time.time() >= expires_at:
+        _USER_CACHE.pop(key, None)
+        return None
+    return user_data
+
+
+def _cache_put(token: str, user_data: dict) -> None:
+    if len(_USER_CACHE) >= _USER_CACHE_MAX_ENTRIES:
+        # Cheap eviction: drop the oldest ~10% of entries.
+        for k in list(_USER_CACHE.keys())[: _USER_CACHE_MAX_ENTRIES // 10]:
+            _USER_CACHE.pop(k, None)
+    _USER_CACHE[_token_key(token)] = (time.time() + _USER_CACHE_TTL_SECONDS, user_data)
 
 
 def _verify_supabase_token(token: str) -> dict | None:
@@ -133,6 +167,10 @@ async def get_current_user(
     """Extract and validate current user from Supabase JWT token."""
     token = credentials.credentials
 
+    cached = _cache_get(token)
+    if cached is not None:
+        return cached
+
     supabase_user = _verify_supabase_token(token)
     if not supabase_user:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
@@ -144,6 +182,7 @@ async def get_current_user(
     if not user_data.get("is_active", True):
         raise HTTPException(status_code=403, detail="Account is deactivated")
 
+    _cache_put(token, user_data)
     return user_data
 
 
@@ -154,12 +193,20 @@ async def get_current_user_optional(request: Request) -> dict | None:
         return None
 
     token = auth_header[7:]
+
+    cached = _cache_get(token)
+    if cached is not None:
+        return cached
+
     supabase_user = _verify_supabase_token(token)
     if not supabase_user:
         return None
 
     try:
-        return _ensure_client_record(supabase_user)
+        user_data = _ensure_client_record(supabase_user)
+        if user_data:
+            _cache_put(token, user_data)
+        return user_data
     except Exception:
         return None
 

@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Zap, Mail, Lock, ArrowRight, User, Building, Eye, EyeOff } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Zap, Mail, Lock, ArrowRight, User, Building, Eye, EyeOff, AlertCircle } from "lucide-react";
 
 export default function SignupPage() {
   const [name, setName] = useState("");
@@ -11,13 +12,36 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const router = useRouter();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => {
-      window.location.href = "/dashboard";
-    }, 1000);
+    setError("");
+
+    try {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, full_name: name, company_name: company }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Signup failed");
+        setLoading(false);
+        return;
+      }
+
+      // Auto-login after signup
+      router.push("/dashboard");
+      router.refresh();
+    } catch {
+      setError("Network error — please try again");
+      setLoading(false);
+    }
   };
 
   return (
@@ -28,13 +52,20 @@ export default function SignupPage() {
             <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center">
               <Zap className="w-6 h-6 text-white" />
             </div>
-            <span className="text-2xl font-bold">LeadFlow<span className="text-primary">AI</span></span>
+            <span className="text-2xl font-bold">Reach<span className="text-primary">Wise</span></span>
           </Link>
           <h1 className="text-2xl font-bold mb-2">Create your account</h1>
           <p className="text-text-secondary">Start generating leads in minutes</p>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl p-8 shadow-lg border border-border/50 animate-slide-up">
+          {error && (
+            <div className="flex items-center gap-2 p-3 mb-5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              {error}
+            </div>
+          )}
+
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-2">Full Name</label>
@@ -81,10 +112,7 @@ export default function SignupPage() {
               {loading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
-                <>
-                  Create Account
-                  <ArrowRight className="w-4 h-4" />
-                </>
+                <>Create Account <ArrowRight className="w-4 h-4" /></>
               )}
             </button>
           </div>

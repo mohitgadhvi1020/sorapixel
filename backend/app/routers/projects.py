@@ -48,6 +48,12 @@ def _enrich_project_thumbnail(sb, project: dict) -> dict:
     return project
 
 
+def _thumbnail_path(project: dict) -> str | None:
+    meta = project.get("metadata") or {}
+    images = meta.get("images") or []
+    return images[0].get("storage_path") if images else None
+
+
 @router.get("")
 async def list_projects(
     project_type: str | None = None,
@@ -68,8 +74,13 @@ async def list_projects(
     result = query.execute()
 
     projects = result.data or []
+
+    # Batch signed URL generation (1 HTTP call instead of N).
+    from app.services.signed_urls import sign_many
+    url_map = sign_many(sb, (_thumbnail_path(p) for p in projects))
     for p in projects:
-        _enrich_project_thumbnail(sb, p)
+        sp = _thumbnail_path(p)
+        p["thumbnail_url"] = url_map.get(sp or "", "")
 
     return {"projects": projects, "page": page, "limit": limit}
 

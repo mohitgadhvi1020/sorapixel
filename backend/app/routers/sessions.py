@@ -10,6 +10,7 @@ from app.services.session_service import (
     get_session,
     list_sessions,
     delete_session,
+    update_session_progress,
 )
 
 router = APIRouter(prefix="/sessions", tags=["Sessions"])
@@ -54,6 +55,36 @@ async def get_one(session_id: str, user: dict = Depends(get_current_user)):
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     return session
+
+
+class UpdateProgressRequest(BaseModel):
+    current_step: str | None = None
+    pending_inputs: dict | None = None
+    jewelry_type: str | None = None
+    background: str | None = None
+    aspect_ratio_id: str | None = None
+    quality: str | None = None
+
+
+@router.patch("/{session_id}/progress")
+async def patch_progress(
+    session_id: str,
+    req: UpdateProgressRequest,
+    user: dict = Depends(get_current_user),
+):
+    ok = update_session_progress(
+        session_id=session_id,
+        client_id=user["id"],
+        current_step=req.current_step,
+        pending_inputs=req.pending_inputs,
+        jewelry_type=req.jewelry_type,
+        background=req.background,
+        aspect_ratio_id=req.aspect_ratio_id,
+        quality=req.quality,
+    )
+    if not ok:
+        raise HTTPException(status_code=500, detail="Failed to update progress")
+    return {"success": True}
 
 
 @router.delete("/{session_id}")

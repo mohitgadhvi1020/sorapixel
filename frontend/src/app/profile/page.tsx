@@ -103,6 +103,16 @@ export default function ProfilePage() {
               onClick={() => setSection("name")}
             />
             <ProfileMenuItem
+              label="Brand Settings"
+              description="Brand voice, visual identity, watermark"
+              onClick={() => router.push("/brand-settings")}
+            />
+            <ProfileMenuItem
+              label="Credits & Pricing"
+              description="Token balance, plans, upgrade"
+              onClick={() => router.push("/pricing")}
+            />
+            <ProfileMenuItem
               label="Category"
               description="Product category selection"
               onClick={() => setSection("category")}
