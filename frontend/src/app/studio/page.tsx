@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { api } from "@/lib/api-client";
 import { useAuth } from "@/providers/AppProvider";
 import { useTheme } from "@/hooks/useTheme";
@@ -49,6 +49,14 @@ const PROGRESS_STEPS = [
 ];
 
 export default function StudioPage() {
+  return (
+    <Suspense fallback={null}>
+      <StudioPageInner />
+    </Suspense>
+  );
+}
+
+function StudioPageInner() {
   const { user, loading: authLoading } = useAuth();
   const { theme } = useTheme();
   const router = useRouter();
