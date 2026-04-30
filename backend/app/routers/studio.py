@@ -2,13 +2,17 @@ from __future__ import annotations
 
 """Studio (Photo Shoot) router — Flyr-style: upload product + pick background."""
 
+import base64
+import io
 import logging
+import re
 from fastapi import APIRouter, Depends, HTTPException
+from PIL import Image as PILImage
 from app.middleware.auth import get_current_user
 from app.schemas.studio import GenerateStudioRequest, GenerateResponse, ImageResult
-import re
-from app.services.gemini_service import generate_image, generate_image_pro, analyze_product_structure
-from app.services.openai_image_service import generate_image as generate_image_ultra, MODEL_ULTRA
+from app.services.gemini_service import analyze_product_structure
+from app.services.image_dispatch import generate_with_fidelity
+from app.services.openai_image_service import MODEL_ULTRA
 from app.services.image_service import crop_to_ratio
 from app.services.credit_service import check_studio_balance, deduct_studio_tokens, get_studio_credits, STUDIO_PRICING
 from app.services.tracking_service import track_generation
@@ -95,22 +99,55 @@ async def generate_studio_image(req: GenerateStudioRequest, user: dict = Depends
         special_instructions=req.special_instructions,
         product_structure=product_structure,
     )
-    ratio = get_ratio(req.aspect_ratio_id)
+
+    # Aspect-ratio inference: when the client doesn't pick a ratio, infer from
+    # the input photo so a tall product never gets squashed into a 1:1 canvas.
+    # Never override an explicit user choice.
+    effective_aspect_ratio_id = req.aspect_ratio_id
+    aspect_inferred = False
+    if effective_aspect_ratio_id is None:
+        try:
+            clean = re.sub(r"^data:image/\w+;base64,", "", req.image_base64)
+            img = PILImage.open(io.BytesIO(base64.b64decode(clean)))
+            w, h = img.size
+            ratio_wh = w / h if h else 1.0
+            if ratio_wh < 0.9:
+                effective_aspect_ratio_id = "portrait"
+            elif ratio_wh > 1.1:
+                effective_aspect_ratio_id = "landscape"
+            else:
+                effective_aspect_ratio_id = "square"
+            aspect_inferred = True
+            logger.info("Studio aspect inferred: %dx%d -> %s", w, h, effective_aspect_ratio_id)
+        except Exception as e:
+            logger.warning("Aspect inference failed (%s), using default", str(e)[:80])
+
+    ratio = get_ratio(effective_aspect_ratio_id)
 
     try:
         if effective_quality == "ultra":
             # gpt-image-2 — highest fidelity, higher cost. Gated by token price upstream.
+            # Defensive fallback to Pro (with fidelity gate) if OpenAI fails.
             try:
-                result = generate_image_ultra(prompt, req.image_base64, aspect_ratio_id=req.aspect_ratio_id)
+                result = generate_with_fidelity(
+                    "ultra", prompt, req.image_base64,
+                    aspect_ratio_id=effective_aspect_ratio_id,
+                )
             except Exception as oe:
                 logger.warning("OpenAI ultra failed (%s), falling back to Gemini Pro", str(oe)[:100])
-                result = generate_image_pro(prompt, req.image_base64, aspect_ratio_id=req.aspect_ratio_id)
+                result = generate_with_fidelity(
+                    "pro", prompt, req.image_base64,
+                    aspect_ratio_id=effective_aspect_ratio_id,
+                )
                 result["model"] = f"{result.get('model', 'gemini-3-pro')} (fallback from ultra)"
                 result["fallback"] = True
-        elif effective_quality == "pro":
-            result = generate_image_pro(prompt, req.image_base64, aspect_ratio_id=req.aspect_ratio_id)
         else:
-            result = generate_image(prompt, req.image_base64, aspect_ratio_id=req.aspect_ratio_id)
+            # Standard / Pro — fidelity dispatcher will silently retry / escalate
+            # to Pro on drift if quality == "standard" and FIDELITY_CHECK_ENABLED.
+            result = generate_with_fidelity(
+                effective_quality, prompt, req.image_base64,
+                aspect_ratio_id=effective_aspect_ratio_id,
+            )
 
         image_b64 = result["base64"]
         try:
@@ -127,7 +164,15 @@ async def generate_studio_image(req: GenerateStudioRequest, user: dict = Depends
             input_tokens=usage.get("input_tokens", 0),
             output_tokens=usage.get("output_tokens", 0),
             model_used=result.get("model", "gemini-2.5-flash-image"),
-            metadata={"background": req.background_id, "category": category_slug, "quality": req.quality},
+            metadata={
+                "background": req.background_id,
+                "category": category_slug,
+                "quality": req.quality,
+                "effective_quality": result.get("effective_quality", effective_quality),
+                "fidelity": result.get("fidelity"),
+                "aspect_ratio": effective_aspect_ratio_id,
+                "aspect_inferred": aspect_inferred,
+            },
         )
 
         saved_project_id: str | None = None
