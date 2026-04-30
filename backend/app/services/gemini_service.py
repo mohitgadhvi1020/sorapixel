@@ -116,6 +116,16 @@ def _is_transient_error(e: Exception) -> bool:
     ])
 
 
+def _is_pro_unavailable(e: Exception) -> bool:
+    """Pro is a preview model — Vertex returns 404 NOT_FOUND when the project
+    doesn't have access in the configured region. Treat as a fallback trigger."""
+    err_msg = str(e).lower()
+    return any(kw in err_msg for kw in [
+        "404", "not_found", "not found", "publisher model", "permission_denied",
+        "permissiondenied", "not have access",
+    ])
+
+
 RATIO_ID_TO_API = {
     "square": "1:1",
     "portrait": "3:4",
@@ -188,13 +198,13 @@ def generate_image(prompt: str, image_b64: str, mime_type: str = "image/png", as
 
 
 def generate_image_pro(prompt: str, image_b64: str, mime_type: str = "image/png", aspect_ratio_id: str | None = None) -> dict:
-    """Generate using Pro model. If Pro is overloaded/unavailable, automatically falls back to Flash."""
+    """Generate using Pro model. If Pro is overloaded/unavailable/not-published, falls back to Flash."""
     try:
         client = get_pro_client()
         return _generate_image_with_client(client, MODEL_PRO_IMAGE, prompt, image_b64, mime_type, aspect_ratio_id)
     except Exception as e:
-        if _is_transient_error(e):
-            logger.warning("Pro model unavailable (%s: %s), falling back to Flash", type(e).__name__, str(e)[:80])
+        if _is_transient_error(e) or _is_pro_unavailable(e):
+            logger.warning("Pro model unavailable (%s: %s), falling back to Flash", type(e).__name__, str(e)[:120])
             client = get_image_client()
             result = _generate_image_with_client(client, MODEL_FLASH_IMAGE, prompt, image_b64, mime_type, aspect_ratio_id)
             result["model"] = f"{MODEL_FLASH_IMAGE} (fallback from pro)"
@@ -274,8 +284,8 @@ def generate_image_pro_multi(prompt: str, images: list[dict], aspect_ratio_id: s
         client = get_pro_client()
         return _generate_image_multi_with_client(client, MODEL_PRO_IMAGE, prompt, images, aspect_ratio_id)
     except Exception as e:
-        if _is_transient_error(e):
-            logger.warning("Pro multi-image unavailable (%s), falling back to Flash", type(e).__name__)
+        if _is_transient_error(e) or _is_pro_unavailable(e):
+            logger.warning("Pro multi-image unavailable (%s: %s), falling back to Flash", type(e).__name__, str(e)[:120])
             client = get_image_client()
             result = _generate_image_multi_with_client(client, MODEL_FLASH_IMAGE, prompt, images, aspect_ratio_id)
             result["model"] = f"{MODEL_FLASH_IMAGE} (fallback from pro)"
