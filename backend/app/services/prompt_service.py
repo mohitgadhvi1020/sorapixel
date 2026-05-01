@@ -25,12 +25,41 @@ PRODUCT_ISOLATION_PROMPT = (
 )
 
 
+GENERAL_PRODUCT_PRESERVATION_PROMPT = (
+    "Keep the product identical to the input image: same design, shape, proportions, colors, materials, labels, visible details, and camera/viewing angle. "
+    "Do not redesign, replace, simplify, add, remove, recolor, or alter any part of the product."
+)
+
+
+def _detected_product_conflicts_with_category(category_slug: str | None, ps: dict | None) -> bool:
+    """Avoid injecting category styling when the vision pass clearly found a different product."""
+    if not category_slug or not ps:
+        return False
+
+    detected = " ".join([
+        ps.get("product_type", ""),
+        ps.get("piece_count", ""),
+        ps.get("critical_details", ""),
+    ]).lower()
+    industrial_terms = (
+        "industrial", "machine", "machinery", "oven", "dryer", "incubator",
+        "cabinet", "chamber", "control panel", "chart recorder", "gauge",
+        "equipment", "appliance",
+    )
+    if any(term in detected for term in industrial_terms):
+        return category_slug in {
+            "fashion-clothing", "kids", "jewellery", "beauty-wellness",
+            "food-beverages", "art-craft",
+        }
+    return False
+
+
 def _format_product_structure(ps: dict | None) -> str:
     """Render the vision pre-pass output as a ground-truth anchor block for the image-gen prompt."""
     if not ps:
         return ""
     lines = [
-        "INPUT PRODUCT STRUCTURE (extracted from the input image by vision analysis — this is GROUND TRUTH, reproduce exactly):",
+        "Input product details detected from the image — use these as ground truth:",
         f"  - Type: {ps.get('product_type', '')}",
         f"  - Piece / layer count: {ps.get('piece_count', '')}",
         f"  - Color: {ps.get('primary_color', '')}",
@@ -39,6 +68,7 @@ def _format_product_structure(ps: dict | None) -> str:
         f"  - Critical: {ps.get('critical_details', '')}",
     ]
     return "\n".join(lines) + "\n\n"
+
 
 # ─── Studio Backgrounds (Photo Shoot) ───
 # Each background has an id, label, color_hex (for solid), and prompt description.
@@ -150,44 +180,36 @@ def build_studio_prompt(
 ) -> str:
     """Build prompt for Studio (Photo Shoot) generation.
 
-    Concise, prose-style brief. Modern image models follow short, clear directives
-    better than long bullet-list rule walls. We append the strict jewelry-specific
-    PRODUCT_ISOLATION_PROMPT only for jewelry/accessories where multi-piece merging
-    is a real failure mode; for other categories we trust the short brief.
+    Concise, product-forward brief for general product categories. The selected
+    background, studio polish, full visibility, and product preservation are all
+    first-order requirements. Jewelry/accessories still get the stricter
+    multi-piece preservation block because those categories fail differently.
     """
     bg_prompt = _get_bg_prompt(background_id, category_slug)
+    category_context = "" if _detected_product_conflicts_with_category(category_slug, product_structure) else CATEGORY_STUDIO_CONTEXT.get(category_slug or "")
     structure_block = _format_product_structure(product_structure).strip()
 
-    parts: list[str] = [
-        "Product studio photoshoot edit. Take the product from the input image and place it on "
-        "a new background with professional studio lighting and a soft, realistic contact shadow.",
-        "",
-        "Keep the product exactly as it appears in the input — same shape, proportions, orientation, "
-        "color, materials, finish, and every visible component (panels, displays, buttons, knobs, "
-        "handles, hinges, gauges, vents, casters, logos, labels). Same camera angle and viewing "
-        "perspective. Do not redesign, restyle, or simplify the product.",
-        "",
-        f"Background: {bg_prompt}",
-        "",
-        "Replace any reflections of the photographer, hands, phone, ceiling, or surroundings on "
-        "glass and polished metal with clean reflections of the new studio environment. Remove dust, "
-        "fingerprints, smudges, plastic wrap, price tags, and stray cables. Do not use this cleanup "
-        "as an excuse to alter the product itself.",
-        "",
-        "Frame the product as the hero of the shot with at least 10% margin on every side. Center it. "
-        "Never crop the product at any canvas edge.",
-        "",
-        "Commercial product photography quality — sharp focus, accurate colors, balanced exposure.",
-    ]
+    parts: list[str] = []
 
     if structure_block:
-        parts.extend(["", structure_block])
+        parts.extend([structure_block, ""])
+
+    parts.extend([
+        GENERAL_PRODUCT_PRESERVATION_PROMPT,
+        "",
+        f"Create a professional studio-quality product photo using this selected background: {bg_prompt}.",
+        "Only improve the presentation: selected background, studio lighting, exposure, shadows, and overall polish. On glass, screens, mirrors, and polished surfaces, remove reflections of the original environment, photographer, phone, ceiling, walls, and harsh light streaks. Replace them with subtle clean studio reflections only. Keep glass and glossy materials realistic, and keep the product details behind transparent surfaces visible. Add a soft, natural contact shadow beneath the product so it feels physically placed in the studio scene.",
+        "The full product must be clearly visible, sharp, well-lit, and centered, with clean space around it. Do not crop the product.",
+    ])
 
     if category_slug in ("jewellery", "accessories"):
         parts.extend(["", PRODUCT_ISOLATION_PROMPT])
 
+    if category_context:
+        parts.extend(["", f"Category guidance: {category_context}"])
+
     if special_instructions:
-        parts.extend(["", f"Additional instructions: {special_instructions}"])
+        parts.extend(["", f"Additional instructions, only if they keep the product identical: {special_instructions}"])
 
     return "\n".join(parts)
 

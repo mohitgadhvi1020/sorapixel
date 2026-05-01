@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 MODEL_FLASH_IMAGE = "gemini-2.5-flash-image"
 MODEL_PRO_IMAGE = "gemini-3-pro-image-preview"
 MODEL_TEXT = "gemini-2.5-flash"
+MODEL_PRO_VERTEX_LOCATION = "global"
 
 TEXT_TIMEOUT_MS = 30_000
 IMAGE_TIMEOUT_MS = 60_000
@@ -43,13 +44,13 @@ def _build_http_opts(timeout_ms: int, max_retries: int) -> HttpOptions:
     )
 
 
-def _make_vertex_client(settings, http_opts: HttpOptions) -> genai.Client:
+def _make_vertex_client(settings, http_opts: HttpOptions, location: str | None = None) -> genai.Client:
     if settings.google_application_credentials:
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = settings.google_application_credentials
     return genai.Client(
         vertexai=True,
         project=settings.google_cloud_project,
-        location=settings.google_cloud_location,
+        location=location or settings.google_cloud_location,
         http_options=http_opts,
     )
 
@@ -61,13 +62,14 @@ def _make_apikey_client(settings, http_opts: HttpOptions) -> genai.Client:
     )
 
 
-def _make_client(timeout_ms: int, max_retries: int = 3) -> genai.Client:
+def _make_client(timeout_ms: int, max_retries: int = 3, location_override: str | None = None) -> genai.Client:
     global _using_vertex
     settings = get_settings()
     http_opts = _build_http_opts(timeout_ms, max_retries)
+    location = location_override or settings.google_cloud_location
 
     if settings.use_vertex_ai and settings.google_cloud_project:
-        client = _make_vertex_client(settings, http_opts)
+        client = _make_vertex_client(settings, http_opts, location=location)
         client.models.generate_content(
             model=MODEL_TEXT,
             contents=[{"text": "ping"}],
@@ -75,7 +77,7 @@ def _make_client(timeout_ms: int, max_retries: int = 3) -> genai.Client:
         _using_vertex = True
         logger.info(
             "Vertex AI client OK (project=%s, location=%s) — using Google Cloud billing",
-            settings.google_cloud_project, settings.google_cloud_location,
+            settings.google_cloud_project, location,
         )
         return client
 
@@ -88,11 +90,11 @@ def _make_client(timeout_ms: int, max_retries: int = 3) -> genai.Client:
     return _make_apikey_client(settings, http_opts)
 
 
-def get_client(timeout_ms: int = IMAGE_TIMEOUT_MS, max_retries: int = 3) -> genai.Client:
+def get_client(timeout_ms: int = IMAGE_TIMEOUT_MS, max_retries: int = 3, location_override: str | None = None) -> genai.Client:
     global _clients
-    key = f"{timeout_ms}_{max_retries}"
+    key = f"{timeout_ms}_{max_retries}_{location_override or 'default'}"
     if key not in _clients:
-        _clients[key] = _make_client(timeout_ms, max_retries)
+        _clients[key] = _make_client(timeout_ms, max_retries, location_override=location_override)
     return _clients[key]
 
 
@@ -105,7 +107,7 @@ def get_image_client() -> genai.Client:
 
 
 def get_pro_client() -> genai.Client:
-    return get_client(timeout_ms=PRO_TIMEOUT_MS, max_retries=1)
+    return get_client(timeout_ms=PRO_TIMEOUT_MS, max_retries=1, location_override=MODEL_PRO_VERTEX_LOCATION)
 
 
 def _is_transient_error(e: Exception) -> bool:

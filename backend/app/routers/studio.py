@@ -12,7 +12,6 @@ from app.middleware.auth import get_current_user
 from app.schemas.studio import GenerateStudioRequest, GenerateResponse, ImageResult
 from app.services.gemini_service import analyze_product_structure
 from app.services.image_dispatch import generate_with_fidelity
-from app.services.openai_image_service import MODEL_ULTRA
 from app.services.image_service import crop_to_ratio
 from app.services.credit_service import check_studio_balance, deduct_studio_tokens, get_studio_credits, STUDIO_PRICING
 from app.services.tracking_service import track_generation
@@ -72,33 +71,9 @@ async def generate_studio_image(req: GenerateStudioRequest, user: dict = Depends
     except Exception as e:
         logger.warning("Product structure pre-pass errored (non-blocking): %s", e)
 
-    # Silent Pro auto-upgrade: if the pre-pass detects a stacked / multi-piece product,
-    # override Standard to Pro — gemini-3-pro-image-preview follows structural constraints
-    # much more reliably on complex inputs. User still pays Standard credits (the deduction
-    # uses req.quality below, which we leave untouched).
+    # Respect the user's selected quality. The vision pre-pass is used only to
+    # ground the prompt, not to silently change the model tier.
     effective_quality = req.quality
-    if product_structure and req.quality == "standard":
-        blob = " ".join([
-            product_structure.get("product_type", ""),
-            product_structure.get("piece_count", ""),
-            product_structure.get("critical_details", ""),
-        ]).lower()
-        # Jewelry/accessory complexity signals
-        is_complex = any(tok in blob for tok in (
-            "stack", "multi", "layered", "multiple", "strand", "pair", "set of",
-            # General multi-section / multi-tier complexity signals (machinery, electronics, furniture)
-            "tier", "tiers", "compartment", "chamber", "drawer", "section",
-            "vertical", "tall", "two-door", "2-door", "double", "stacked",
-            "control panel", "display", "gauge", "industrial",
-        ))
-        if not is_complex:
-            # Also upgrade if piece_count contains a number > 2
-            nums = [int(n) for n in re.findall(r"\b(\d+)\b", product_structure.get("piece_count", ""))]
-            if nums and max(nums) > 2:
-                is_complex = True
-        if is_complex:
-            logger.info("Studio: auto-upgrading Standard -> Pro for complex/multi-section product")
-            effective_quality = "pro"
 
     prompt = build_studio_prompt(
         background_id=req.background_id or "studio",
