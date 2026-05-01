@@ -148,76 +148,48 @@ def build_studio_prompt(
     special_instructions: str | None = None,
     product_structure: dict | None = None,
 ) -> str:
-    """Build prompt for Studio (Photo Shoot) generation — category-aware.
+    """Build prompt for Studio (Photo Shoot) generation.
 
-    This is framed as a BACKGROUND REPLACEMENT + RELIGHTING task (not an open generation)
-    so the model is biased toward preserving the input product. When product_structure is
-    provided (from the vision pre-pass), its fields are injected as ground-truth anchors
-    before the preservation rules.
+    Concise, prose-style brief. Modern image models follow short, clear directives
+    better than long bullet-list rule walls. We append the strict jewelry-specific
+    PRODUCT_ISOLATION_PROMPT only for jewelry/accessories where multi-piece merging
+    is a real failure mode; for other categories we trust the short brief.
     """
-    context = CATEGORY_STUDIO_CONTEXT.get(category_slug or "", CATEGORY_STUDIO_CONTEXT.get("accessories", "Professional product photography."))
     bg_prompt = _get_bg_prompt(background_id, category_slug)
+    structure_block = _format_product_structure(product_structure).strip()
 
-    structure_block = _format_product_structure(product_structure)
+    parts: list[str] = [
+        "Product studio photoshoot edit. Take the product from the input image and place it on "
+        "a new background with professional studio lighting and a soft, realistic contact shadow.",
+        "",
+        "Keep the product exactly as it appears in the input — same shape, proportions, orientation, "
+        "color, materials, finish, and every visible component (panels, displays, buttons, knobs, "
+        "handles, hinges, gauges, vents, casters, logos, labels). Same camera angle and viewing "
+        "perspective. Do not redesign, restyle, or simplify the product.",
+        "",
+        f"Background: {bg_prompt}",
+        "",
+        "Replace any reflections of the photographer, hands, phone, ceiling, or surroundings on "
+        "glass and polished metal with clean reflections of the new studio environment. Remove dust, "
+        "fingerprints, smudges, plastic wrap, price tags, and stray cables. Do not use this cleanup "
+        "as an excuse to alter the product itself.",
+        "",
+        "Frame the product as the hero of the shot with at least 10% margin on every side. Center it. "
+        "Never crop the product at any canvas edge.",
+        "",
+        "Commercial product photography quality — sharp focus, accurate colors, balanced exposure.",
+    ]
 
-    prompt = (
-        "TASK: BACKGROUND REPLACEMENT AND RELIGHTING ONLY. "
-        "You are editing the input image, not generating a new product. The product pixels must be preserved; "
-        "only the background, surface, and lighting may change.\n\n"
-        "PRODUCT GEOMETRY LOCK — these constraints apply to ALL products (jewelry, electronics, "
-        "machinery, furniture, garments, anything):\n"
-        "  • Preserve the product's overall ORIENTATION — if the input is a tall vertical product, "
-        "the output product must also be tall and vertical; if horizontal, stay horizontal. "
-        "Do NOT rotate, tilt the product onto its side, or change its standing axis.\n"
-        "  • Preserve the EXACT silhouette and proportions — same height-to-width ratio, same "
-        "depth, same overall footprint.\n"
-        "  • Preserve the COUNT and arrangement of structural sections — if the input has two "
-        "stacked compartments / drawers / doors / tiers / chambers, the output must show the "
-        "same number in the same arrangement. Do not merge tiers, do not drop sections, do not "
-        "add new ones.\n"
-        "  • Preserve the placement, shape, and color of EVERY visible component — control panels, "
-        "displays, knobs, hinges, handles, gauges, vents, feet, casters, logos, stickers, labels, "
-        "screens, buttons, indicator lights. Same component in the same position with the same proportions.\n"
-        "  • Preserve the camera angle and viewing perspective — if the input is shot front-on, "
-        "render front-on; if 3/4 view, render 3/4. Do not switch between front view, side view, "
-        "top-down view, or isometric view.\n"
-        "  • You may ONLY change the background, the surface the product rests on, and the lighting. "
-        "Everything inside the product silhouette must match the input pixel-for-pixel in shape and detail.\n\n"
-        "INPUT-PHOTO DEFECT CLEANUP — these are NOT product features, remove them:\n"
-        "  • Reflections of the photographer, hands, smartphones, cameras, ceilings, factory floors, "
-        "shelving, cables, or any environment from the input photo that appear on glass surfaces, "
-        "polished metal, mirrors, or any reflective part of the product. The product's reflective "
-        "surfaces should reflect the NEW clean studio environment, not the input scene.\n"
-        "  • Dust, smudges, fingerprints, water spots, plastic wrap, protective films, price tags, "
-        "barcode stickers, shipping labels (unless the label is the actual product branding), "
-        "masking tape, scratches that are clearly handling damage rather than product finish.\n"
-        "  • Stray cables, wires, tools, or unrelated objects that happen to be near the product or "
-        "leaning against it in the input.\n"
-        "  • Background bleed-through showing through translucent or glass parts — replace with the "
-        "new clean studio environment instead.\n"
-        "  Cleanup applies ONLY to surface artifacts. Do NOT use cleanup as an excuse to redesign, "
-        "smooth, or restyle the product itself — its shape, color, materials, and components must "
-        "stay identical.\n\n"
-        "FRAMING & MARGINS:\n"
-        "  • Frame the product with generous margin on ALL sides — at least 8–12% padding above the "
-        "topmost point, below the bottommost point, and on the left and right. Never crop or clip "
-        "the product at any edge of the canvas. Show the product complete, fully inside the frame.\n"
-        "  • Center the product horizontally on the canvas (or compose to a clean rule-of-thirds if "
-        "the aspect ratio benefits from it). The product should clearly be the hero of the frame.\n\n"
-        f"{structure_block}"
-        f"{context}\n"
-        f"New background: {bg_prompt}\n"
-        f"Commercial quality, high resolution, perfectly lit.\n"
-        f"The product must cast a natural, soft shadow on the surface beneath it — "
-        f"a realistic contact shadow and a subtle diffused drop shadow to give the product a grounded, three-dimensional appearance. "
-        f"The shadow should look physically accurate as if the product is sitting on the surface under studio lighting.\n\n"
-        f"{PRODUCT_ISOLATION_PROMPT}"
-    )
+    if structure_block:
+        parts.extend(["", structure_block])
+
+    if category_slug in ("jewellery", "accessories"):
+        parts.extend(["", PRODUCT_ISOLATION_PROMPT])
 
     if special_instructions:
-        prompt += f"\n\nSPECIAL INSTRUCTIONS: {special_instructions}"
+        parts.extend(["", f"Additional instructions: {special_instructions}"])
 
-    return prompt
+    return "\n".join(parts)
 
 
 # ─── Catalogue / UGC ───
