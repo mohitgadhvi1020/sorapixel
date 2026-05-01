@@ -28,9 +28,10 @@ interface Toast {
 }
 
 type Quality = "standard" | "pro" | "ultra";
-type AspectRatioId = "square" | "portrait" | "story" | "landscape" | "widescreen";
+type AspectRatioId = "auto" | "square" | "portrait" | "story" | "landscape" | "widescreen";
 
 const ASPECT_RATIOS: { id: AspectRatioId; label: string; ratio: string; w: number; h: number }[] = [
+  { id: "auto",      label: "Auto",      ratio: "Auto", w: 1, h: 1 },
   { id: "square",    label: "Square",    ratio: "1:1",  w: 1, h: 1 },
   { id: "portrait",  label: "Portrait",  ratio: "3:4",  w: 3, h: 4 },
   { id: "story",     label: "Tall",      ratio: "9:16", w: 9, h: 16 },
@@ -71,7 +72,7 @@ function StudioPageInner() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [selectedBg, setSelectedBg] = useState("white");
   const [quality, setQuality] = useState<Quality>("pro");
-  const [aspectRatioId, setAspectRatioId] = useState<AspectRatioId>("square");
+  const [aspectRatioId, setAspectRatioId] = useState<AspectRatioId>("auto");
   const [showRatioPanel, setShowRatioPanel] = useState(false);
   const [specialInstructions, setSpecialInstructions] = useState("");
   const [showInstructions, setShowInstructions] = useState(false);
@@ -272,7 +273,7 @@ function StudioPageInner() {
       const sid = await ensureStudioSession();
       const data = await api.post<{ success: boolean; images: { base64: string; label: string }[]; error?: string }>(
         "/studio/generate",
-        { image_base64: imagePreview, background_id: selectedBg, quality, aspect_ratio_id: aspectRatioId, special_instructions: specialInstructions || undefined, studio_session_id: sid || undefined }
+        { image_base64: imagePreview, background_id: selectedBg, quality, aspect_ratio_id: aspectRatioId === "auto" ? null : aspectRatioId, special_instructions: specialInstructions || undefined, studio_session_id: sid || undefined }
       );
       stopProgress(data.success);
       if (data.success) {

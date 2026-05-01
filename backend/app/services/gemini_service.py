@@ -198,18 +198,28 @@ def generate_image(prompt: str, image_b64: str, mime_type: str = "image/png", as
 
 
 def generate_image_pro(prompt: str, image_b64: str, mime_type: str = "image/png", aspect_ratio_id: str | None = None) -> dict:
-    """Generate using Pro model. If Pro is overloaded/unavailable/not-published, falls back to Flash."""
+    """Generate using Pro model. If Pro is overloaded/unavailable/not-published, falls back to
+    Ultra (gpt-image-2) for product fidelity. We eat the higher vendor cost rather than ship
+    Flash output to a user who paid Pro tokens. If Ultra is also unavailable, fall back to Flash."""
     try:
         client = get_pro_client()
         return _generate_image_with_client(client, MODEL_PRO_IMAGE, prompt, image_b64, mime_type, aspect_ratio_id)
     except Exception as e:
         if _is_transient_error(e) or _is_pro_unavailable(e):
-            logger.warning("Pro model unavailable (%s: %s), falling back to Flash", type(e).__name__, str(e)[:120])
-            client = get_image_client()
-            result = _generate_image_with_client(client, MODEL_FLASH_IMAGE, prompt, image_b64, mime_type, aspect_ratio_id)
-            result["model"] = f"{MODEL_FLASH_IMAGE} (fallback from pro)"
-            result["fallback"] = True
-            return result
+            logger.warning("Pro model unavailable (%s: %s), falling back to Ultra (gpt-image-2)", type(e).__name__, str(e)[:120])
+            try:
+                from app.services.openai_image_service import generate_image as _ultra
+                result = _ultra(prompt, image_b64, aspect_ratio_id=aspect_ratio_id)
+                result["model"] = f"{result.get('model', 'gpt-image-2')} (fallback from pro)"
+                result["fallback"] = True
+                return result
+            except Exception as ue:
+                logger.warning("Ultra fallback also failed (%s), final fallback to Flash", str(ue)[:120])
+                client = get_image_client()
+                result = _generate_image_with_client(client, MODEL_FLASH_IMAGE, prompt, image_b64, mime_type, aspect_ratio_id)
+                result["model"] = f"{MODEL_FLASH_IMAGE} (fallback from pro)"
+                result["fallback"] = True
+                return result
         raise
 
 
@@ -428,20 +438,35 @@ def analyze_product_structure(image_b64: str, category_slug: str | None = None) 
     category_hint = f" The product category is '{category_slug}'." if category_slug else ""
     prompt = (
         "You are a meticulous product-inspection assistant. Analyze this product image and "
-        "return a JSON object describing the product's exact physical structure."
+        "return a JSON object describing the product's exact physical structure. "
+        "This product can be ANYTHING — jewelry, electronics, machinery, industrial equipment, "
+        "furniture, garments, food, etc. Adapt the descriptions to the product type."
         f"{category_hint}\n\n"
         "Required JSON keys (all strings, no nulls, no extra keys):\n"
-        '  "product_type":      a short label, e.g. "bangle stack", "multi-strand necklace", "single ring".\n'
-        '  "piece_count":       COUNT the individual pieces/layers/strands visible. Be explicit and literal, '
-        'e.g. "exactly 10 thin bangles stacked together", "a single ring", "3 strands", "pair of earrings". '
-        'If it is a stack, count and say so — never say "a set" without a number.\n'
-        '  "primary_color":     the dominant color(s) and exact shade, e.g. "deep emerald green with gold thread detailing".\n'
-        '  "material_finish":   the surface finish and material, e.g. "translucent faceted glass beads with visible golden thread wrapping, NOT smooth metal". '
-        "Call out the finish explicitly so a downstream image generator will not substitute it.\n"
-        '  "ornaments":         any attached decorative elements and their approximate count, e.g. '
-        '"small golden ghungroo bells in ~6 clusters hanging from both sides", or "none".\n'
-        '  "critical_details":  one sentence warning a downstream image generator against the most likely failure mode, '
-        'e.g. "each bangle is a distinct thin band; do not merge them into a single thicker bangle".\n\n'
+        '  "product_type":      a short label naming what this is, e.g. "bangle stack", "vacuum oven", '
+        '"chest freezer", "wireless earbuds case", "office chair".\n'
+        '  "piece_count":       COUNT and describe the structural sections / pieces / chambers / tiers / '
+        "compartments visible. Be explicit and literal. Examples: "
+        '"exactly 10 thin bangles stacked together"; "a single ring"; "3 strands"; '
+        '"a tall vertical 2-tier industrial cabinet — top tier and bottom tier are separate chambers, each '
+        'with its own glass-window door, mounted on a blue base with control panel and chart recorder"; '
+        '"single horizontal microwave oven with one front door". If multiple sections exist, count them.\n'
+        '  "primary_color":     the dominant color(s) and exact shade, e.g. "off-white body with royal '
+        'blue base panel" or "matte black with red indicator light".\n'
+        '  "material_finish":   the surface finish and material, e.g. "powder-coated white sheet metal '
+        'with chrome handles and tempered glass viewing windows" or "translucent faceted glass beads '
+        'with visible golden thread wrapping". Call out the finish explicitly so a downstream image '
+        "generator will not substitute it.\n"
+        '  "ornaments":         decorative or functional attached elements with placement, e.g. '
+        '"red 7-segment temperature display on the bottom-left of the base, circular chart recorder '
+        'with white dial on the bottom-right, four caster wheels at the floor"; or "small golden '
+        'ghungroo bells in ~6 clusters hanging from both sides"; or "none".\n'
+        '  "critical_details":  one sentence warning the downstream image generator against the most '
+        "likely failure mode for THIS product. Examples: "
+        '"each bangle is a distinct thin band; do not merge them into a single thicker bangle"; '
+        '"this is a TALL VERTICAL 2-tier machine — do NOT collapse it into a single horizontal box, '
+        "do NOT drop the bottom control-panel tier, do NOT change the orientation from vertical to "
+        'horizontal".\n\n'
         "Return JSON only, no markdown fences, no prose."
     )
 

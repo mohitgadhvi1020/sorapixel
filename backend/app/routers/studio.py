@@ -53,24 +53,24 @@ async def generate_studio_image(req: GenerateStudioRequest, user: dict = Depends
 
     category_slug = user.get("category_slug")
 
-    # Vision pre-pass: for categories where products frequently have multi-piece / stacked
-    # structure (jewellery, accessories), analyze the input image first so the downstream
-    # image generator has explicit ground-truth anchors (piece count, finish, ornaments).
-    # Best-effort: failures return None and we fall back to the prompt-only path.
+    # Vision pre-pass: analyze the input image first so the downstream image generator has
+    # explicit ground-truth anchors (product type, structural sections, finish, components).
+    # Run for ALL categories — industrial machinery, furniture, electronics etc. drift just
+    # as badly as multi-piece jewelry without an anchor block. Best-effort: failures return
+    # None and we fall back to the prompt-only path.
     product_structure: dict | None = None
-    if category_slug in ("jewellery", "accessories"):
-        try:
-            product_structure = analyze_product_structure(req.image_base64, category_slug)
-            if product_structure:
-                logger.info(
-                    "Studio pre-pass [%s]: type=%r count=%r ornaments=%r",
-                    category_slug,
-                    product_structure.get("product_type"),
-                    product_structure.get("piece_count"),
-                    product_structure.get("ornaments"),
-                )
-        except Exception as e:
-            logger.warning("Product structure pre-pass errored (non-blocking): %s", e)
+    try:
+        product_structure = analyze_product_structure(req.image_base64, category_slug)
+        if product_structure:
+            logger.info(
+                "Studio pre-pass [%s]: type=%r count=%r critical=%r",
+                category_slug,
+                product_structure.get("product_type"),
+                product_structure.get("piece_count"),
+                product_structure.get("critical_details"),
+            )
+    except Exception as e:
+        logger.warning("Product structure pre-pass errored (non-blocking): %s", e)
 
     # Silent Pro auto-upgrade: if the pre-pass detects a stacked / multi-piece product,
     # override Standard to Pro — gemini-3-pro-image-preview follows structural constraints
@@ -83,14 +83,21 @@ async def generate_studio_image(req: GenerateStudioRequest, user: dict = Depends
             product_structure.get("piece_count", ""),
             product_structure.get("critical_details", ""),
         ]).lower()
-        is_multi = any(tok in blob for tok in ("stack", "multi", "layered", "multiple", "strand", "pair", "set of"))
-        if not is_multi:
+        # Jewelry/accessory complexity signals
+        is_complex = any(tok in blob for tok in (
+            "stack", "multi", "layered", "multiple", "strand", "pair", "set of",
+            # General multi-section / multi-tier complexity signals (machinery, electronics, furniture)
+            "tier", "tiers", "compartment", "chamber", "drawer", "section",
+            "vertical", "tall", "two-door", "2-door", "double", "stacked",
+            "control panel", "display", "gauge", "industrial",
+        ))
+        if not is_complex:
             # Also upgrade if piece_count contains a number > 2
             nums = [int(n) for n in re.findall(r"\b(\d+)\b", product_structure.get("piece_count", ""))]
             if nums and max(nums) > 2:
-                is_multi = True
-        if is_multi:
-            logger.info("Studio: auto-upgrading Standard -> Pro for multi-piece product")
+                is_complex = True
+        if is_complex:
+            logger.info("Studio: auto-upgrading Standard -> Pro for complex/multi-section product")
             effective_quality = "pro"
 
     prompt = build_studio_prompt(
