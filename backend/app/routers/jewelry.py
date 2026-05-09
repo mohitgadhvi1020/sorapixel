@@ -325,6 +325,7 @@ async def _generate_all(req: GenerateJewelryRequest, user: dict, ratio: dict):
             title=f"Jewelry – {req.jewelry_type.title()} ({len(images)} shots)",
             images=save_images,
             metadata=meta,
+            generation_ids=generation_ids,
         )
     except Exception as save_err:
         logger.warning(f"Project save failed (non-blocking): {save_err}")
@@ -395,6 +396,7 @@ async def _regenerate_single(req: GenerateJewelryRequest, user: dict, ratio: dic
                 title=f"Jewelry Regen – {shot_label}",
                 images=[{"base64": img_b64, "label": shot_label}],
                 metadata={"jewelry_type": req.jewelry_type, "background": req.background, "theme_id": req.theme_id, "shot_id": shot_id},
+                generation_ids=[regen_gen_id] if regen_gen_id else None,
             )
         except Exception as save_err:
             logger.warning(f"Project save failed (non-blocking): {save_err}")
@@ -435,7 +437,7 @@ async def recolor_jewelry(req: RecolorJewelryRequest, user: dict = Depends(get_c
         result = _gen_image(req.quality, prompt, req.image_base64)
 
         usage = result.get("usage", {})
-        track_generation(
+        recolor_gen_id = track_generation(
             client_id=user["id"],
             generation_type="recolor",
             input_tokens=usage.get("input_tokens", 0),
@@ -453,6 +455,7 @@ async def recolor_jewelry(req: RecolorJewelryRequest, user: dict = Depends(get_c
                 title=f"Jewelry Recolor – {req.target_metal.title()}",
                 images=[{"base64": result["base64"], "label": recolor_label}],
                 metadata={"jewelry_type": req.jewelry_type, "target_metal": req.target_metal},
+                generation_ids=[recolor_gen_id] if recolor_gen_id else None,
             )
         except Exception as save_err:
             logger.warning(f"Project save failed (non-blocking): {save_err}")

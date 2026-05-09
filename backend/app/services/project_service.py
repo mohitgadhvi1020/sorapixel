@@ -16,16 +16,23 @@ def save_project(
     title: str,
     images: list[dict],
     metadata: dict | None = None,
+    generation_ids: list[str] | None = None,
 ) -> dict | None:
     """
     Upload images to Supabase Storage, then create a project record
     with storage paths stored in the metadata JSONB field.
 
+    Also inserts rows into the ``images`` table so the admin
+    ``/generation-images/{id}`` endpoint can find them.
+
     images: list of {"base64": str, "label": str}
+    generation_ids: parallel list of generation UUIDs (one per *primary*
+        image; zoom / derivative images inherit the preceding id).
     Returns the created project dict or None on failure.
     """
     sb = get_supabase()
     saved_images = []
+    gen_idx = 0
 
     for img in images:
         b64 = img.get("base64", "")
@@ -43,6 +50,28 @@ def save_project(
             saved_images.append({"label": label, "storage_path": file_name, "size": len(raw)})
         except Exception as e:
             logger.error(f"Storage upload failed for {label}: {e}")
+            continue
+
+        cur_gen_id = None
+        if generation_ids:
+            is_derivative = "zoom" in label.lower() or "recolor" in label.lower()
+            if is_derivative:
+                cur_gen_id = generation_ids[min(gen_idx - 1, len(generation_ids) - 1)] if gen_idx > 0 else generation_ids[0]
+            else:
+                cur_gen_id = generation_ids[min(gen_idx, len(generation_ids) - 1)]
+                gen_idx += 1
+
+        try:
+            sb.table("images").insert({
+                "id": str(uuid.uuid4()),
+                "generation_id": cur_gen_id,
+                "client_id": client_id,
+                "label": label,
+                "storage_path": file_name,
+                "file_size_bytes": len(raw),
+            }).execute()
+        except Exception as e:
+            logger.error(f"images table insert failed for {label}: {e}")
 
     if not saved_images:
         return None

@@ -140,7 +140,7 @@ async def generate_studio_image(req: GenerateStudioRequest, user: dict = Depends
         deducted = deduct_studio_tokens(user["id"], req.quality)
 
         usage = result.get("usage", {})
-        track_generation(
+        gen_id = track_generation(
             client_id=user["id"],
             generation_type="studio",
             input_tokens=usage.get("input_tokens", 0),
@@ -165,6 +165,7 @@ async def generate_studio_image(req: GenerateStudioRequest, user: dict = Depends
                 title=f"Studio Shot – {req.background_id or 'auto'}",
                 images=[{"base64": image_b64, "label": "Studio Shot"}],
                 metadata={"background": req.background_id, "category": category_slug, "quality": req.quality},
+                generation_ids=[gen_id] if gen_id else None,
             )
             if saved_project:
                 saved_project_id = saved_project.get("id")

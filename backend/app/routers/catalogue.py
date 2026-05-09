@@ -242,6 +242,7 @@ async def generate_catalogue(req: GenerateCatalogueRequest, user: dict = Depends
                 title=f"Catalogue – {req.model_type.replace('_', ' ').title()}",
                 images=valid_images,
                 metadata={"model_type": req.model_type, "poses": poses_to_gen, "category": category_slug},
+                generation_ids=generation_ids,
             )
         except Exception as save_err:
             logger.warning(f"Project save failed (non-blocking): {save_err}")

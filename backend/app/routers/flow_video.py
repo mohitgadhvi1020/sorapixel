@@ -315,7 +315,7 @@ async def generate_flow(req: FlowVideoRequest, user: dict = Depends(get_current_
 
         deduct_jewelry_tokens(user["id"], cost, operation="flowVideo", quality=req.quality, session_id=req.session_id)
 
-        track_generation(
+        flow_gen_id = track_generation(
             client_id=user["id"],
             generation_type="flow_video",
             model_used=video_result.get("model", req.engine),
@@ -339,7 +339,7 @@ async def generate_flow(req: FlowVideoRequest, user: dict = Depends(get_current_
                     {"base64": last_frame_b64, "label": "Last Frame"},
                 ],
                 metadata={
-                    "video_url": video_result.get("video_url", ""),
+                    "video_storage_path": video_result.get("storage_path", ""),
                     "engine": req.engine,
                     "preset": preset["id"],
                     "jewelry_type": req.jewelry_type,
@@ -351,6 +351,7 @@ async def generate_flow(req: FlowVideoRequest, user: dict = Depends(get_current_
                     "outfit_style": req.outfit_style,
                     "custom_transition_prompt": req.custom_transition_prompt,
                 },
+                generation_ids=[flow_gen_id] if flow_gen_id else None,
             )
         except Exception as save_err:
             logger.warning(f"Project save failed (non-blocking): {save_err}")
