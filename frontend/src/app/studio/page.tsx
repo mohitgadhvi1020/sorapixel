@@ -70,15 +70,13 @@ function StudioPageInner() {
   const [backgrounds, setBackgrounds] = useState<Background[]>([]);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [selectedBg, setSelectedBg] = useState("white");
-  const [quality, setQuality] = useState<Quality>("pro");
+  const quality = "pro" as const;
   const [aspectRatioId, setAspectRatioId] = useState<AspectRatioId>("auto");
   const [showRatioPanel, setShowRatioPanel] = useState(false);
   const [specialInstructions, setSpecialInstructions] = useState("");
   const [showInstructions, setShowInstructions] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [progressStep, setProgressStep] = useState(0);
-  const [progressPct, setProgressPct] = useState(0);
-  const [elapsedSec, setElapsedSec] = useState(0);
   const [results, setResults] = useState<{ base64: string; label: string }[]>([]);
   const [compareMode, setCompareMode] = useState(false);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
@@ -128,7 +126,7 @@ function StudioPageInner() {
 
         setStudioSessionId(s.id);
         if (s.background_id) setSelectedBg(s.background_id);
-        if (s.quality === "standard" || s.quality === "pro" || s.quality === "ultra") setQuality(s.quality);
+        // quality is now hardcoded to "pro" — no need to restore from session
         if (s.aspect_ratio_id) setAspectRatioId(s.aspect_ratio_id as AspectRatioId);
         if (s.special_instructions) setSpecialInstructions(s.special_instructions);
         if (s.original_image_url) {
@@ -248,18 +246,15 @@ function StudioPageInner() {
   }
 
   const startProgress = () => {
-    setProgressStep(0); setProgressPct(0); setElapsedSec(0);
+    setProgressStep(0);
     let step = 0;
     const advance = () => { step++; if (step < PROGRESS_STEPS.length) { setProgressStep(step); stepTimer.current = setTimeout(advance, PROGRESS_STEPS[step].duration); } };
     stepTimer.current = setTimeout(advance, PROGRESS_STEPS[0].duration);
-    let pct = 0; let sec = 0;
-    progressTimer.current = setInterval(() => { sec++; setElapsedSec(sec); pct = Math.min(95, pct + (95 - pct) * 0.04); setProgressPct(Math.round(pct)); }, 1000);
   };
 
   const stopProgress = (success: boolean) => {
     if (stepTimer.current) clearTimeout(stepTimer.current);
     if (progressTimer.current) clearInterval(progressTimer.current);
-    if (success) setProgressPct(100);
   };
 
   const handleGenerate = async () => {
@@ -522,75 +517,7 @@ function StudioPageInner() {
               }}
             >
 
-              {/* Quality */}
-              <div className="px-5 py-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold uppercase tracking-[0.08em]" style={{ color: lt ? "#5a5a5a" : "rgba(255,255,255,0.5)" }}>Quality</span>
-                  <span className="text-[11px] font-medium" style={{ color: lt ? "#999" : "rgba(255,255,255,0.3)" }}>{TOKEN_COST[quality]} {TOKEN_COST[quality] === 1 ? "token" : "tokens"}/image</span>
-                </div>
-                <div
-                  className="inline-flex w-full rounded-xl p-1"
-                  style={{
-                    background: lt ? "#f3f3f1" : "rgba(255,255,255,0.04)",
-                    border: `1px solid ${lt ? "rgba(0,0,0,0.06)" : "rgba(255,255,255,0.06)"}`,
-                  }}
-                >
-                  <button
-                    onClick={() => setQuality("standard")}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-[10px] text-[13px] font-semibold transition-all duration-200"
-                    style={{
-                      background: quality === "standard" ? (lt ? "#fff" : "rgba(255,255,255,0.1)") : "transparent",
-                      color: quality === "standard" ? (lt ? "#2a2a2a" : "#fff") : (lt ? "#999" : "rgba(255,255,255,0.4)"),
-                      boxShadow: quality === "standard" ? (lt ? "0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)" : "0 1px 4px rgba(0,0,0,0.3)") : "none",
-                    }}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: quality === "standard" ? 0.8 : 0.5 }}>
-                      <path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" />
-                    </svg>
-                    Standard
-                  </button>
-                  <button
-                    onClick={() => setQuality("pro")}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-[10px] text-[13px] font-semibold transition-all duration-200"
-                    style={{
-                      background: quality === "pro" ? (lt ? "linear-gradient(135deg, rgba(184,152,95,0.18), rgba(184,152,95,0.08))" : "linear-gradient(135deg, rgba(196,166,125,0.2), rgba(196,166,125,0.1))") : "transparent",
-                      color: quality === "pro" ? "#9a7d4e" : (lt ? "#999" : "rgba(255,255,255,0.4)"),
-                      boxShadow: quality === "pro" ? (lt ? "0 1px 3px rgba(184,152,95,0.15), 0 1px 2px rgba(184,152,95,0.08)" : "0 1px 8px rgba(196,166,125,0.15)") : "none",
-                      border: quality === "pro" ? `1px solid ${lt ? "rgba(184,152,95,0.3)" : "rgba(196,166,125,0.25)"}` : "1px solid transparent",
-                    }}
-                  >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                    </svg>
-                    Pro
-                    {quality === "pro" && (
-                      <span className="ml-0.5 px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider rounded-full" style={{ background: lt ? "rgba(154,125,78,0.12)" : "rgba(196,166,125,0.2)", color: lt ? "#8b7355" : "#c4a67d" }}>Best</span>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => setQuality("ultra")}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-[10px] text-[13px] font-semibold transition-all duration-200"
-                    style={{
-                      background: quality === "ultra" ? (lt ? "linear-gradient(135deg, rgba(139,92,246,0.18), rgba(99,102,241,0.08))" : "linear-gradient(135deg, rgba(139,92,246,0.25), rgba(99,102,241,0.12))") : "transparent",
-                      color: quality === "ultra" ? (lt ? "#6d28d9" : "#c4b5fd") : (lt ? "#999" : "rgba(255,255,255,0.4)"),
-                      boxShadow: quality === "ultra" ? (lt ? "0 1px 3px rgba(139,92,246,0.15)" : "0 1px 8px rgba(139,92,246,0.18)") : "none",
-                      border: quality === "ultra" ? `1px solid ${lt ? "rgba(139,92,246,0.3)" : "rgba(139,92,246,0.35)"}` : "1px solid transparent",
-                    }}
-                    title="gpt-image-2 — highest fidelity, 4K ready"
-                  >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                    </svg>
-                    Ultra
-                    {quality === "ultra" && (
-                      <span className="ml-0.5 px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider rounded-full" style={{ background: lt ? "rgba(139,92,246,0.15)" : "rgba(139,92,246,0.25)", color: lt ? "#7c3aed" : "#c4b5fd" }}>New</span>
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {/* Divider */}
-              <div style={{ height: 1, background: lt ? "rgba(0,0,0,0.06)" : "rgba(255,255,255,0.06)" }} />
+              {/* Quality hardcoded to Pro — picker removed */}
 
               {/* Aspect Ratio */}
               <div className="px-5 py-4 space-y-3">
@@ -654,9 +581,9 @@ function StudioPageInner() {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" />
               </svg>
-              Generate {quality === "pro" ? "Pro" : ""} Image
+              Generate Pro Image
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[12px] font-bold" style={{ background: "rgba(255,255,255,0.2)", color: "#fff" }}>
-                {TOKEN_COST[quality]} {TOKEN_COST[quality] === 1 ? "token" : "tokens"}
+                {TOKEN_COST[quality]} tokens
               </span>
             </button>
           </>
@@ -664,18 +591,86 @@ function StudioPageInner() {
 
         {/* AI Processing Overlay */}
         {generating && (
-          <div className="ai-overlay">
-            <div className="glow-ring mb-8" />
-            <h3 className="text-xl font-bold text-white mb-2">Creating Your Photo</h3>
-            <p className="text-sm text-[rgba(255,255,255,0.6)] mb-8 min-h-[20px]">{PROGRESS_STEPS[progressStep]?.label}</p>
-            <div className="w-64 bg-[rgba(255,255,255,0.06)] rounded-full h-1.5 mb-3 overflow-hidden">
-              <div className="h-full rounded-full bg-gradient-to-r from-[#8b7355] to-[#c4a67d] transition-all duration-1000 ease-out" style={{ width: `${progressPct}%` }} />
+          <div className="space-y-6">
+            {/* Header — matches results layout */}
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <h3 className="text-lg font-semibold text-white">Your Studio Image</h3>
+                <p className="text-xs text-[rgba(255,255,255,0.4)] mt-0.5">
+                  {selectedBg ? backgrounds.find(b => b.id === selectedBg)?.label || selectedBg : "Studio"} background
+                </p>
+              </div>
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[rgba(234,179,8,0.1)] border border-[rgba(234,179,8,0.2)]">
+                <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
+                <span className="text-xs font-semibold text-yellow-500">Generating</span>
+              </div>
             </div>
-            <div className="flex justify-between text-xs text-[rgba(255,255,255,0.4)] w-64">
-              <span>{progressPct}%</span>
-              <span>{elapsedSec}s</span>
+
+            {/* Status bar */}
+            <div className="rounded-xl bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] px-4 py-3 flex items-center gap-3">
+              <div className="w-5 h-5 border-2 border-[#c4a67d]/30 border-t-[#c4a67d] rounded-full animate-spin flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-white font-medium">{PROGRESS_STEPS[progressStep]?.label || "Creating your photo…"}</p>
+                <p className="text-[11px] text-[rgba(255,255,255,0.35)] mt-0.5">
+                  This typically takes 15–30 seconds
+                </p>
+              </div>
             </div>
-            <p className="text-xs text-[rgba(255,255,255,0.3)] mt-6">Usually takes 15-30 seconds</p>
+
+            {/* Skeleton result card */}
+            <div className="max-w-lg mx-auto rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.02)] overflow-hidden">
+              {/* Card header */}
+              <div className="px-3 py-2.5 border-b border-[rgba(255,255,255,0.04)] flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[rgba(234,179,8,0.1)]">
+                    <div className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse" />
+                    <span className="text-[10px] font-semibold text-yellow-500">Generating</span>
+                  </div>
+                  <span className="text-xs font-semibold text-white uppercase tracking-wider">Studio Shot</span>
+                </div>
+              </div>
+
+              {/* Image placeholder with spinner */}
+              <div
+                className="relative bg-[rgba(255,255,255,0.02)] flex items-center justify-center"
+                style={{ aspectRatio: "1 / 1" }}
+              >
+                <div className="relative w-14 h-14">
+                  <svg className="absolute inset-0 w-full h-full animate-spin" viewBox="0 0 56 56" fill="none" style={{ animationDuration: "1.8s" }}>
+                    <circle cx="28" cy="28" r="24" stroke="rgba(196,166,125,0.1)" strokeWidth="2.5" />
+                    <path
+                      d="M28 4a24 24 0 0 1 24 24"
+                      stroke="#c4a67d"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(196,166,125,0.4)" strokeWidth="1.5">
+                      <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card footer — disabled buttons */}
+              <div className="px-3 py-2.5 border-t border-[rgba(255,255,255,0.04)] flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <button disabled className="text-[11px] text-[rgba(255,255,255,0.2)] uppercase tracking-wider font-semibold flex items-center gap-1 cursor-not-allowed">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 4v6h6" /><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+                    </svg>
+                    Regenerate
+                  </button>
+                  <button disabled className="text-[11px] text-[rgba(255,255,255,0.2)] uppercase tracking-wider font-semibold cursor-not-allowed">
+                    Compare
+                  </button>
+                </div>
+                <button disabled className="text-[11px] text-[rgba(255,255,255,0.2)] uppercase tracking-wider font-semibold cursor-not-allowed">
+                  Download
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

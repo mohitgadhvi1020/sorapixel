@@ -18,7 +18,7 @@ import InsufficientCreditsModal from "@/components/jewelry/InsufficientCreditsMo
 import FeedbackWidget from "@/components/jewelry/FeedbackWidget";
 import EmailGateModal from "@/components/ui/EmailGateModal";
 import TokenIcon from "@/components/ui/TokenIcon";
-import QualityToggle from "@/components/ui/QualityToggle";
+// Quality is now fixed to "pro" for all generations — no user-facing picker
 type Step = "upload" | "select_type" | "theme_browse" | "shot_config" | "generating" | "done";
 
 interface ResultImage {
@@ -122,17 +122,6 @@ const JEWELRY_POSE_MAP: Record<string, string[]> = {
   set: ["standing", "close_up", "side_view", "sitting"],
 };
 
-const METAL_PRESETS = [
-  { id: "yellow-gold", label: "Yellow Gold", swatch: "#D4A843", metal: "yellow gold with warm lustrous finish" },
-  { id: "rose-gold", label: "Rose Gold", swatch: "#B76E79", metal: "rose gold with warm pink copper tones" },
-  { id: "white-gold", label: "White Gold", swatch: "#E8E4DF", metal: "white gold with bright rhodium-plated finish" },
-  { id: "silver", label: "Silver", swatch: "#C0C0C0", metal: "polished sterling silver" },
-  { id: "platinum", label: "Platinum", swatch: "#E5E4E2", metal: "platinum with cool bright white sheen" },
-  { id: "antique-gold", label: "Antique Gold", swatch: "#996515", metal: "antique oxidized gold with aged patina" },
-  { id: "copper", label: "Copper", swatch: "#B87333", metal: "polished copper with warm reddish-brown tones" },
-  { id: "gunmetal", label: "Gunmetal", swatch: "#4A4A4A", metal: "dark gunmetal grey with matte finish" },
-  { id: "custom", label: "Custom", swatch: "conic-gradient(#D4A843, #C0C0C0, #B76E79, #B87333)" },
-];
 
 export default function JewelryPageWrapper() {
   return (
@@ -169,13 +158,7 @@ function JewelryPage() {
   const selectedRatio = ASPECT_RATIOS.find((r) => r.id === aspectRatioId) ?? ASPECT_RATIOS[0];
   const cssAspectRatio = `${selectedRatio.w}/${selectedRatio.h}`;
   const [specialInstructions, setSpecialInstructions] = useState<string>("");
-  const [quality, setQuality] = useState<"standard" | "pro" | "ultra">("standard");
-  const geoQualityApplied = useRef(false);
-  useEffect(() => {
-    if (geoQualityApplied.current || !country) return;
-    geoQualityApplied.current = true;
-    if (!isIndia) setQuality("pro");
-  }, [country, isIndia]);
+  const quality = "pro" as const;
 
   // Theme state
   const [themes, setThemes] = useState<Theme[]>([]);
@@ -194,6 +177,7 @@ function JewelryPage() {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [compareIndex, setCompareIndex] = useState<number | null>(null);
   const [regenIndex, setRegenIndex] = useState<number | null>(null);
+  const [autoFixIndex, setAutoFixIndex] = useState<number | null>(null);
   const [justUpdatedIndex, setJustUpdatedIndex] = useState<number | null>(null);
   const resultRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [isLocked, setIsLocked] = useState(false);
@@ -220,7 +204,7 @@ function JewelryPage() {
   const [ugcBackground, setUgcBackground] = useState("best_match");
   const [ugcOutfitStyle, setUgcOutfitStyle] = useState("modern");
   const [ugcOutfitCustom, setUgcOutfitCustom] = useState("");
-  const [ugcQuality, setUgcQuality] = useState<"standard" | "pro" | "ultra">("standard");
+  const ugcQuality = "pro" as const;
   const [ugcSourceIndex, setUgcSourceIndex] = useState(0);
   const [catalogueLoading, setCatalogueLoading] = useState(false);
   const [catalogueData, setCatalogueData] = useState<Record<string, unknown> | null>(null);
@@ -241,13 +225,6 @@ function JewelryPage() {
   const [editAltText, setEditAltText] = useState("");
   const [editAttributes, setEditAttributes] = useState<Record<string, string>>({});
   const [hasBrandConfig, setHasBrandConfig] = useState<boolean | null>(null);
-  const [recolorMetal, setRecolorMetal] = useState<string | null>(null);
-  const [recolorCustom, setRecolorCustom] = useState("");
-  const [recolorImageIdx, setRecolorImageIdx] = useState(0);
-  const [recolorQuality, setRecolorQuality] = useState<"standard" | "pro">("standard");
-  const [recolorLoading, setRecolorLoading] = useState(false);
-  const [recolorResults, setRecolorResults] = useState<ResultImage[]>([]);
-  const [recolorLightbox, setRecolorLightbox] = useState<number | null>(null);
   const [brandName, setBrandName] = useState(user?.company_name || "");
   const [brandPhone, setBrandPhone] = useState(user?.phone || "");
   const [brandingLoading, setBrandingLoading] = useState(false);
@@ -554,7 +531,7 @@ function JewelryPage() {
         jewelry_type: jewelryType,
         theme_id: selectedTheme.id,
         aspect_ratio_id: aspectRatioId,
-        quality: isAnon ? "standard" : quality,
+        quality: quality,
         step: "all",
         session_id: activeSessionId,
         shots: selectedShots.slice(0, isAnon ? 1 : selectedShots.length).map((s) => ({
@@ -583,7 +560,7 @@ function JewelryPage() {
           flow: "main",
           theme_id: selectedTheme.id,
           jewelry_type: jewelryType,
-          quality: isAnon ? "standard" : quality,
+          quality: quality,
           aspect_ratio: aspectRatioId,
           image_count: taggedImages.length,
           anonymous: isAnon,
@@ -666,7 +643,7 @@ function JewelryPage() {
         if (session.jewelry_type) setJewelryType(session.jewelry_type);
         if (session.background) setBackgroundId(session.background);
         if (session.aspect_ratio_id) setAspectRatioId(session.aspect_ratio_id);
-        if (session.quality) setQuality(session.quality as "standard" | "pro" | "ultra");
+        // Quality is now fixed to "pro" — no need to restore from session
 
         // Hydrate pending inputs (theme/shots/instructions). Theme object is
         // resolved later when the themes list loads (see effect below) — for
@@ -707,7 +684,6 @@ function JewelryPage() {
         const restoredImages: ResultImage[] = [];
         const restoredUgc: ResultImage[] = [];
         const restoredBranded: ResultImage[] = [];
-        const restoredRecolor: ResultImage[] = [];
         let restoredListing: Record<string, unknown> | null = null;
 
         for (const action of session.actions) {
@@ -721,10 +697,6 @@ function JewelryPage() {
           } else if (action.action_type === "branding") {
             for (const img of imgs) {
               restoredBranded.push({ base64: "", label: img.label, url: img.url } as ResultImage & { url: string });
-            }
-          } else if (action.action_type === "recolor") {
-            for (const img of imgs) {
-              restoredRecolor.push({ base64: "", label: img.label, url: img.url } as ResultImage & { url: string });
             }
           } else {
             for (const img of imgs) {
@@ -746,7 +718,6 @@ function JewelryPage() {
         }
         if (restoredUgc.length > 0) setUgcImages(restoredUgc);
         if (restoredBranded.length > 0) setBrandedImages(restoredBranded);
-        if (restoredRecolor.length > 0) setRecolorResults(restoredRecolor);
         if (restoredListing) setCatalogueData(restoredListing);
       } catch {
         showToast("Couldn't load that creation. It may have been deleted.");
@@ -867,7 +838,7 @@ function JewelryPage() {
     try {
       const payload = {
         ...(await basePayload()),
-        quality: isAnon ? "standard" : quality,
+        quality: quality,
         step: "all",
         session_id: activeSessionId,
         alt_images_base64: (!isAnon && altImages.length > 0) ? altImages.map((a) => a.base64) : undefined,
@@ -879,7 +850,7 @@ function JewelryPage() {
 
       if (data.success && data.images.length > 0) {
         setResultImages(data.images);
-        trackEvent("image_generated", { type: "jewelry", flow: "resumed", jewelry_type: jewelryType, quality: isAnon ? "standard" : quality, image_count: data.images.length, anonymous: isAnon });
+        trackEvent("image_generated", { type: "jewelry", flow: "resumed", jewelry_type: jewelryType, quality: quality, image_count: data.images.length, anonymous: isAnon });
         setGenerationIds(data.generation_ids || []);
         setStep("done");
         setGenStatus(null);
@@ -962,6 +933,59 @@ function JewelryPage() {
       showToast(err instanceof Error ? err.message : "Regeneration failed. No tokens were deducted.");
     } finally {
       setRegenIndex(null);
+    }
+  }
+
+  async function autoFixShot(index: number) {
+    if (!mainImage) return;
+    setAutoFixIndex(index);
+
+    const currentImage = resultImages[index];
+
+    try {
+      const inputB64 = await resolveBase64(mainImage);
+      const outputB64 = await resolveBase64(currentImage);
+
+      const data = await api.post<GenerateResponse>("/jewelry/auto-fix", {
+        image_base64: inputB64,
+        output_base64: outputB64,
+        jewelry_type: jewelryType,
+        background: backgroundId,
+        aspect_ratio_id: aspectRatioId,
+        quality,
+        session_id: sessionId,
+        ...(specialInstructions.trim() ? { special_instructions: specialInstructions.trim() } : {}),
+        ...(currentImage.theme_id ? { theme_id: currentImage.theme_id } : {}),
+        ...(currentImage.shot_id ? { shot_id: currentImage.shot_id } : {}),
+      });
+
+      if (data.success && data.images.length > 0) {
+        const newImage = {
+          ...data.images[0],
+          label: `${currentImage.label || "Shot"} — Improved`,
+          theme_id: currentImage.theme_id,
+          shot_id: currentImage.shot_id,
+        };
+
+        setResultImages((prev) => [newImage, ...prev]);
+        trackEvent("image_auto_fixed", { type: "jewelry", shot_id: currentImage.shot_id });
+        if (data.generation_ids?.length) {
+          setGenerationIds((prev) => [...data.generation_ids!, ...prev]);
+        }
+        refreshCredits();
+
+        setJustUpdatedIndex(0);
+        setTimeout(() => {
+          resultRefs.current[0]?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 100);
+        setTimeout(() => setJustUpdatedIndex(null), 2000);
+
+        showToast("Improved version generated!", "success");
+      }
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Auto-fix failed. No tokens were deducted.");
+    } finally {
+      setAutoFixIndex(null);
     }
   }
 
@@ -1128,40 +1152,6 @@ function JewelryPage() {
     showToast("Copied to clipboard!", "success");
   }
 
-  async function recolorImage() {
-    if (!recolorMetal || resultImages.length === 0) return;
-    if (!requireAuth()) return;
-    const preset = METAL_PRESETS.find((p) => p.id === recolorMetal);
-    const metalDesc = recolorMetal === "custom" ? recolorCustom.trim() : (preset?.metal || recolorMetal);
-    if (!metalDesc) {
-      showToast("Enter a custom color or hex code");
-      return;
-    }
-    setRecolorLoading(true);
-    try {
-      const srcImg = resultImages[recolorImageIdx] || resultImages[0];
-      const imgB64 = await resolveBase64(srcImg);
-      const data = await api.post<GenerateResponse>("/jewelry/recolor", {
-        image_base64: imgB64,
-        target_metal: metalDesc,
-        jewelry_type: jewelryType,
-        quality: recolorQuality,
-        session_id: sessionId,
-      });
-      if (data.success && data.images.length > 0) {
-        const label = recolorMetal === "custom" ? recolorCustom.trim() : (preset?.label || recolorMetal);
-        const newImgs = data.images.map((img) => ({ ...img, label: `Recolored — ${label}` }));
-        setRecolorResults((prev) => [...newImgs, ...prev]);
-        trackEvent("image_generated", { type: "recolor", target_metal: metalDesc, quality: recolorQuality, image_count: newImgs.length });
-        refreshCredits();
-        showToast("Metal recolored!", "success");
-      }
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : "Recolor failed");
-    } finally {
-      setRecolorLoading(false);
-    }
-  }
 
   useEffect(() => {
     if (user) {
@@ -1178,7 +1168,7 @@ function JewelryPage() {
   }, [user, hasBrandConfig]);
 
   function getAllBrandableImages(): ResultImage[] {
-    return [...resultImages, ...recolorResults];
+    return [...resultImages];
   }
 
   function openBrandingModal() {
@@ -1316,10 +1306,6 @@ function JewelryPage() {
     setBrandedImages([]);
     setBrandingModalOpen(false);
     setBrandingSelectedIdxs([]);
-    setRecolorMetal(null);
-    setRecolorCustom("");
-    setRecolorResults([]);
-    setQuality("standard");
     setSessionId(null);
     setLoadedSessionId(null);
     setSelectedTheme(null);
@@ -1733,7 +1719,7 @@ function JewelryPage() {
             tokenCost={getThemeTokenCost()}
             tokenBalance={credits?.token_balance || 0}
             quality={quality}
-            onQualityChange={(q) => setQuality(q)}
+            onQualityChange={() => {}}
             aspectRatioId={aspectRatioId}
             onAspectRatioChange={(id) => setAspectRatioId(id)}
             isGenerating={false}
@@ -1998,6 +1984,28 @@ function JewelryPage() {
                     />
                     {isLocked && <LockedOverlay />}
                   </div>
+                  {/* "Want to improve this picture?" auto-fix strip */}
+                  {!isLocked && !anonGeneration && (
+                    <button
+                      onClick={() => autoFixShot(i)}
+                      disabled={autoFixIndex === i}
+                      className="w-full px-3 py-2.5 border-t border-[rgba(255,255,255,0.06)] flex items-center justify-center gap-2 text-[11px] text-[rgba(255,255,255,0.5)] hover:text-[#c4a67d] hover:bg-[rgba(196,166,125,0.04)] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed group/fix"
+                    >
+                      {autoFixIndex === i ? (
+                        <>
+                          <div className="w-3 h-3 border border-[rgba(196,166,125,0.3)] border-t-[#c4a67d] rounded-full animate-spin" />
+                          <span className="font-medium tracking-wide">Improving your picture…</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-60 group-hover/fix:opacity-100 transition-opacity">
+                            <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                          </svg>
+                          <span className="font-medium tracking-wide">Product doesn&apos;t look right? <span className="text-[#c4a67d] underline underline-offset-2">Improve</span></span>
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -2082,13 +2090,6 @@ function JewelryPage() {
             {/* Tweak + regenerate bar */}
             {!isLocked && !anonGeneration && (
               <div className="flex items-center gap-2">
-                <QualityToggle
-                  value={quality}
-                  onChange={setQuality}
-                  standardCost={0}
-                  proCost={0}
-                  compact
-                />
                 <div className="flex-1 relative">
                   <input
                     type="text"
@@ -2216,19 +2217,6 @@ function JewelryPage() {
                     ),
                     onClick: () => (catalogueData ? openListingModal() : generateCatalogue()),
                   },
-                  {
-                    key: "recolor",
-                    title: "Recolor Metal",
-                    tagline: "Gold, rose gold, silver — stones stay",
-                    tone: "from-[#f59e0b] to-[#fbbf24]",
-                    count: recolorResults.length || undefined,
-                    icon: (
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="13.5" cy="6.5" r="2.5" /><circle cx="17.5" cy="10.5" r="2.5" /><circle cx="8.5" cy="7.5" r="2.5" /><circle cx="6.5" cy="12.5" r="2.5" />
-                      </svg>
-                    ),
-                    onClick: () => scrollToId("recolor-workspace"),
-                  },
                 ];
 
                 return (
@@ -2272,11 +2260,11 @@ function JewelryPage() {
             </div>
 
 
-            {/* ===== YOUR OUTPUTS — detailed workspaces for branding/listing/recolor ===== */}
+            {/* ===== YOUR OUTPUTS — detailed workspaces for branding/listing ===== */}
             <div className={`pt-6 border-t ${isLight ? "border-[#e5e2dc]" : "border-[rgba(255,255,255,0.08)]"}`}>
               <h3 className={`text-lg font-bold tracking-tight mb-1.5 ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>Your workspace</h3>
               <p className={`text-[14px] mb-5 leading-relaxed ${isLight ? "text-[#6b6b6b]" : "text-[rgba(255,255,255,0.6)]"}`}>
-                Branding · listing · recolor controls, with all outputs in one place.
+                Branding · listing controls, with all outputs in one place.
               </p>
 
               <div className="space-y-4">
@@ -2472,137 +2460,6 @@ function JewelryPage() {
                   </div>
                 </div>
 
-                {/* ── Recolor Card ── */}
-                <div id="recolor-workspace" className={`rounded-2xl p-5 md:p-6 transition-shadow duration-300 ${isLight ? "border border-[#e5e2dc] bg-white" : "border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)]"}`}>
-                  {/* Header + controls row */}
-                  <div className="flex items-center gap-2.5 mb-4">
-                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${isLight ? "bg-[#8b7355]/10" : "bg-[rgba(196,166,125,0.12)]"}`}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={isLight ? "#8b7355" : "#c4a67d"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="13.5" cy="6.5" r="2.5" /><circle cx="17.5" cy="10.5" r="2.5" /><circle cx="8.5" cy="7.5" r="2.5" />
-                        <circle cx="6.5" cy="12.5" r="2.5" /><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 011.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h4 className={`text-[15px] font-bold tracking-tight ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>Recolor Metal</h4>
-                      <p className={`text-[13px] ${isLight ? "text-[#6b6b6b]" : "text-[rgba(255,255,255,0.55)]"}`}>Only metal changes — stones &amp; gems stay intact</p>
-                    </div>
-                  </div>
-
-                  {/* Controls in a responsive row */}
-                  <div className="flex flex-col md:flex-row gap-4 md:gap-6 md:items-end">
-                    {/* Source image selector */}
-                    {resultImages.length > 1 && (
-                      <div className="flex-shrink-0">
-                        <p className={`text-[12px] mb-2 font-semibold ${isLight ? "text-[#4a4a4a]" : "text-[rgba(255,255,255,0.65)]"}`}>Source photo</p>
-                        <div className="flex gap-2">
-                          {resultImages.map((img, i) => (
-                            <button
-                              key={i}
-                              onClick={() => setRecolorImageIdx(i)}
-                              className={`relative flex-shrink-0 w-14 h-14 rounded-xl overflow-hidden border-2 transition-all ${recolorImageIdx === i ? "border-[#c4a67d] ring-1 ring-[#c4a67d]/30" : "border-[rgba(255,255,255,0.06)] opacity-60 hover:opacity-90"}`}
-                            >
-                              <img src={imgSrc(img)} alt={img.label} className="w-full h-full object-cover" />
-                              {recolorImageIdx === i && (
-                                <div className="absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-[#c4a67d] flex items-center justify-center">
-                                  <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="4" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
-                                </div>
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Metal presets */}
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-[12px] mb-2 font-semibold ${isLight ? "text-[#4a4a4a]" : "text-[rgba(255,255,255,0.65)]"}`}>Target metal</p>
-                      <div className="flex flex-wrap gap-2">
-                        {METAL_PRESETS.map((m) => (
-                          <button
-                            key={m.id}
-                            onClick={() => { setRecolorMetal(m.id); if (m.id !== "custom") setRecolorCustom(""); }}
-                            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-[12px] font-semibold transition-all ${
-                              recolorMetal === m.id
-                                ? isLight ? "border-[#8b7355] bg-[#8b7355]/10 text-[#0a0a0a]" : "border-[#c4a67d] bg-[rgba(196,166,125,0.12)] text-white"
-                                : isLight ? "border-[#e5e2dc] text-[#4a4a4a] hover:border-[#8b7355]/30 hover:text-[#0a0a0a]" : "border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.7)] hover:border-[rgba(255,255,255,0.15)] hover:text-white"
-                            }`}
-                          >
-                            <span className={`w-4 h-4 rounded-full flex-shrink-0 border ${isLight ? "border-[#e5e2dc]" : "border-[rgba(255,255,255,0.12)]"}`} style={{ background: m.swatch }} />
-                            {m.label}
-                          </button>
-                        ))}
-                      </div>
-                      {recolorMetal === "custom" && (
-                        <div className="mt-2">
-                          <input
-                            type="text"
-                            value={recolorCustom}
-                            onChange={(e) => setRecolorCustom(e.target.value)}
-                            placeholder="e.g. brushed brass, #FF69B4"
-                            className={`w-full max-w-xs px-3 py-2 rounded-lg text-[13px] focus:outline-none focus:border-[rgba(196,166,125,0.3)] transition-all ${
-                              isLight ? "bg-white border border-[#e5e2dc] text-[#0a0a0a] placeholder:text-[#b5b5b5]" : "bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-white placeholder:text-[rgba(255,255,255,0.3)]"
-                            }`}
-                          />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Quality + generate */}
-                    <div className="flex items-center gap-3 flex-shrink-0">
-                      <QualityToggle
-                        value={recolorQuality}
-                        onChange={setRecolorQuality}
-                        standardCost={0}
-                        proCost={0}
-                        lt={isLight}
-                        compact
-                      />
-                      <button
-                        onClick={recolorImage}
-                        disabled={!recolorMetal || recolorLoading || (recolorMetal === "custom" && !recolorCustom.trim())}
-                        className={`px-5 py-2.5 rounded-xl text-[13px] font-bold border active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap ${
-                          isLight
-                            ? "bg-[#8b7355]/10 text-[#8b7355] border-[#8b7355]/20 hover:bg-[#8b7355]/15 hover:border-[#8b7355]/35"
-                            : "bg-[rgba(196,166,125,0.1)] text-[#c4a67d] border-[rgba(196,166,125,0.2)] hover:bg-[rgba(196,166,125,0.18)] hover:border-[rgba(196,166,125,0.35)]"
-                        }`}
-                      >
-                        {recolorLoading ? (
-                          <span className="flex items-center justify-center gap-2">
-                            <div className={`w-3.5 h-3.5 border-2 rounded-full animate-spin ${isLight ? "border-[#8b7355]/30 border-t-[#8b7355]" : "border-[rgba(196,166,125,0.3)] border-t-[#c4a67d]"}`} />
-                            Recoloring...
-                          </span>
-                        ) : (
-                          `Recolor (${recolorQuality === "pro" ? JEWELRY_PRICING.pro.recolorSingle : JEWELRY_PRICING.standard.recolorSingle} tokens)`
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Results — full-width horizontal scroll below */}
-                  {recolorResults.length > 0 && (
-                    <div className={`mt-4 pt-4 border-t ${isLight ? "border-[#e5e2dc]" : "border-[rgba(255,255,255,0.08)]"}`}>
-                      <div className="flex items-center gap-2 mb-3">
-                        <p className={`text-[13px] font-semibold ${isLight ? "text-[#4a4a4a]" : "text-[rgba(255,255,255,0.65)]"}`}>Results</p>
-                        <span className={`text-[12px] font-bold px-2 py-0.5 rounded-full ${isLight ? "text-[#6b6b6b] bg-[#0a0a0a]/5" : "text-[rgba(255,255,255,0.5)] bg-[rgba(255,255,255,0.06)]"}`}>{recolorResults.length}</span>
-                      </div>
-                      <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
-                        {recolorResults.map((img, i) => (
-                          <div key={i} className="flex-shrink-0 w-[150px] rounded-xl overflow-hidden border border-[rgba(255,255,255,0.08)] relative group/rc cursor-pointer" onClick={() => setRecolorLightbox(i)}>
-                            <img src={imgSrc(img)} alt={img.label} className="w-full aspect-square object-cover" />
-                            <div className="absolute inset-0 bg-black/0 group-hover/rc:bg-black/30 transition-colors flex items-center justify-center">
-                              <svg className="w-5 h-5 text-white opacity-0 group-hover/rc:opacity-80 transition-opacity" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-                              </svg>
-                            </div>
-                            <div className="absolute bottom-0 left-0 right-0 px-2 py-1.5 bg-gradient-to-t from-black/70 to-transparent">
-                              <p className="text-[10px] text-white/80 font-medium truncate">{img.label}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
           </div>
@@ -3004,18 +2861,7 @@ function JewelryPage() {
                 </div>
               </div>
 
-              {/* Quality Toggle */}
-              <div>
-                <label className="block text-[10px] font-semibold text-[rgba(255,255,255,0.45)] uppercase tracking-[0.1em] mb-2.5">Quality</label>
-                <QualityToggle
-                  value={ugcQuality}
-                  onChange={setUgcQuality}
-                  standardCost={JEWELRY_PRICING.standard.ugcPerPose}
-                  proCost={JEWELRY_PRICING.pro.ugcPerPose}
-                  ultraCost={JEWELRY_PRICING.ultra.ugcPerPose}
-                  costUnit="/ pose"
-                />
-              </div>
+              {/* Quality fixed to Pro */}
             </div>
 
             {/* Generate Button - sticky footer */}
@@ -3076,7 +2922,6 @@ function JewelryPage() {
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                 {getAllBrandableImages().map((img, i) => {
                   const isSelected = brandingSelectedIdxs.includes(i);
-                  const isRecolor = i >= resultImages.length;
                   return (
                     <button
                       key={i}
@@ -3096,9 +2941,6 @@ function JewelryPage() {
                         <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-[#c4a67d] flex items-center justify-center">
                           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="4" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
                         </div>
-                      )}
-                      {isRecolor && (
-                        <span className="absolute bottom-1 left-1 text-[8px] bg-black/70 text-[#c4a67d] px-1 py-0.5 rounded font-bold uppercase">Recolored</span>
                       )}
                       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-1.5 py-1">
                         <p className="text-[9px] text-white/80 font-medium truncate">{img.label}</p>
@@ -3301,33 +3143,6 @@ function JewelryPage() {
                 Generate Video · {videoQuality === "pro" ? 50 : 25} tokens
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* ===== RECOLOR LIGHTBOX ===== */}
-      {recolorLightbox !== null && recolorResults[recolorLightbox] && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/85 backdrop-blur-sm animate-fade-in" onClick={() => setRecolorLightbox(null)}>
-          <div className="relative max-w-lg w-full mx-4 animate-scale-in" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-semibold text-white">{recolorResults[recolorLightbox].label}</span>
-              <div className="flex items-center gap-3">
-                <button onClick={() => downloadImage(recolorResults[recolorLightbox])} className="px-3.5 py-1.5 text-xs font-semibold text-[#c4a67d] bg-[rgba(196,166,125,0.1)] border border-[rgba(196,166,125,0.2)] rounded-full hover:bg-[rgba(196,166,125,0.2)] transition-colors">Download</button>
-                <button onClick={() => setRecolorLightbox(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                </button>
-              </div>
-            </div>
-            <div className="rounded-2xl overflow-hidden border border-[rgba(255,255,255,0.1)] shadow-2xl">
-              <img src={imgSrc(recolorResults[recolorLightbox])} alt={recolorResults[recolorLightbox].label} className="w-full object-contain max-h-[80vh] bg-black" />
-            </div>
-            {recolorResults.length > 1 && (
-              <div className="flex items-center justify-center gap-3 mt-4">
-                {recolorResults.map((_, i) => (
-                  <button key={i} onClick={() => setRecolorLightbox(i)} className={`w-8 h-8 rounded-full text-[11px] font-bold transition-all duration-200 ${recolorLightbox === i ? "bg-[rgba(196,166,125,0.2)] text-[#c4a67d] border border-[rgba(196,166,125,0.3)]" : "bg-white/5 text-white/40 border border-white/10 hover:text-white/70"}`}>{i + 1}</button>
-                ))}
-              </div>
-            )}
           </div>
         </div>
       )}

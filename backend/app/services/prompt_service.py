@@ -4,6 +4,8 @@ from __future__ import annotations
 Matches Flyr's feature set: backgrounds and model interaction change per user category.
 """
 
+from app.services.detection_service import build_product_description
+
 PRODUCT_ISOLATION_PROMPT = (
     "CRITICAL PRODUCT PRESERVATION RULES — these override any other instruction:\n"
     "1. The product must be the EXACT same product from the input image. Preserve every visual attribute pixel-perfectly:\n"
@@ -1081,189 +1083,67 @@ def build_jewelry_prompt(
     ratio_id: str | None = None,
     detection: dict | None = None,
 ) -> str:
-    """Master hero prompt — structured sections for Gemini image models.
-    When `detection` dict is provided (from detect_jewelry_input), uses real
-    item counts and injects conditional defense layers for reflections/quality/cropping.
+    """Concise hero prompt — descriptive, not defensive.
+
+    Research shows image gen models work best with 30-80 word prompts focused
+    on WHAT to produce, not lists of DON'Ts. The input image already shows the
+    product; the detection data tells the model what to preserve.
     """
     bg_prompt = JEWELRY_BACKGROUND_PROMPTS.get(background_id, JEWELRY_BACKGROUND_PROMPTS["black-velvet"])
-    type_rules = JEWELRY_TYPE_RULES.get(jewelry_type, JEWELRY_TYPE_RULES.get("ring", ""))
     shape_hint = RATIO_SHAPE_HINTS.get(ratio_id or "square", RATIO_SHAPE_HINTS["square"])
-
-    # Use detection results for object count, fall back to static defaults.
-    # Note: for is_set=True the detection service reports item_count=1 for visible
-    # stacks (e.g. a bangle stack), so we defer to visual ground-truth language.
     count_str = _jewelry_count_str(detection, jewelry_type)
 
-    sections = []
-
-    # SECTION 1: Role
-    sections.append(
-        "You are a professional high-end jewelry product photographer and retouching expert."
-    )
-
-    # SECTION 2: Object preservation — the most critical block
-    sections.append(
-        "OBJECT PRESERVATION — CRITICAL\n"
-        "- The jewelry design MUST remain 100% IDENTICAL to the input image.\n"
-        "- Do NOT redesign, enhance, beautify, or modify stones.\n"
-        "- Do NOT change stone shape, count, size, setting, metal color, engraving, or proportions.\n"
-        "- Do NOT add or remove parts.\n"
-        "- If multiple items are present, preserve ALL items.\n"
-        "- Maintain exact geometry and symmetry.\n"
-        "- Preserve the EXACT color palette — every metal tone, gemstone hue, and surface finish.\n"
-        "- This is a background replacement and professional cleanup task ONLY."
-    )
-
-    # SECTION 3: Object count — uses real detection when available
-    sections.append(
-        f"OBJECT COUNT — MANDATORY\n"
-        f"- The output MUST contain {count_str}.\n"
-        f"- Do NOT merge, duplicate, remove, or hide items.\n"
-        f"- If it is a pair (like earrings), both pieces MUST be visible."
-    )
-
-    # SECTION 3b: Reference description — helps reduce hallucinations
-    if detection and detection.get("primary_description"):
-        sections.append(
-            "REFERENCE DESCRIPTION (from input analysis)\n"
-            f"- {str(detection.get('primary_description')).strip()}"
-        )
-
-    # SECTION 4: Category-specific geometry rules
-    sections.append(
-        f"CATEGORY RULES — {jewelry_type.upper()}\n"
-        f"{type_rules}"
-    )
-
-    # SECTION 5: Category consistency — prevents AI from reinterpreting
-    sections.append(
-        "CATEGORY CONSISTENCY RULE\n"
-        f"- This is a {jewelry_type}. Do NOT reinterpret as another category.\n"
-        "- Do NOT convert between ring, bracelet, bangle, chain, necklace, or pendant."
-    )
-
-    # SECTION 6: Background
-    sections.append(
-        f"BACKGROUND\n"
-        f"- Replace the background with: {bg_prompt}.\n"
-        f"- Keep realistic natural contact shadows under the jewelry.\n"
-        f"- Lighting must look like a real studio photograph (soft diffusion, controlled highlights).\n"
-        f"- Do NOT introduce harsh directional shadows, blown highlights, or mirror-like chrome reflections."
-    )
-
-    # SECTION 7: Cleanup — handle messy user uploads
-    cleanup_lines = [
-        "CLEANUP RULES",
-        "- Remove all hands, stands, boxes, tags, and props — show ONLY the jewelry.",
-        "- Remove dust, scratches, and fingerprints from surfaces.",
-        "- Do NOT oversharpen.",
-        "- Do NOT smooth fine details.",
-        "- No text, logos, watermarks, frames, or borders.",
-        "",
-        "REFLECTION CLEANUP — CRITICAL",
-        "- Remove camera reflections, photographer reflections, and environmental glare.",
-        "- Eliminate mirror-like artifacts on metal surfaces.",
-        "- Preserve original metal color and finish.",
-        "- Do NOT blur surface details.",
-        "- Do NOT alter engraving or stone edges.",
-        "- Use soft diffused studio lighting.",
-        "- Avoid harsh specular hotspots.",
-        "- Maintain natural metal sheen without mirror reflections.",
-        "",
-        "MATERIAL REALISM — CRITICAL",
-        "- Metal must look like real jewelry metal (gold/silver/platinum) — not plastic, not painted, not chrome.",
-        "- Gemstones must keep their true cut and color; no neon glow, no color shifts, no shape changes.",
-    ]
-    sections.append("\n".join(cleanup_lines))
-
-    # SECTION 8: Color fidelity — prevents AI from recoloring or filling open areas
-    sections.append(
-        "COLOR FIDELITY — CRITICAL\n"
-        "- Preserve the EXACT color palette from the input image.\n"
-        "- Metal tone must match precisely: if input shows antique gold, output must be the same antique gold — not brighter, not rosier, not shinier.\n"
-        "- Gemstone and stone colors must be pixel-accurate — do NOT shift hues.\n"
-        "- Do NOT reinterpret transparent, open, or see-through areas as solid colored surfaces.\n"
-        "- If the jewelry has filigree, jali work, cutout patterns, or openwork mesh, those openings MUST remain open/transparent — do NOT fill them with solid enamel or color.\n"
-        "- If the input shows bare metal behind openwork, reproduce bare metal — do NOT add enamel, paint, or colored fill.\n"
-        "- Enamel areas must retain their exact original color — do NOT intensify, brighten, or change the hue.\n"
-        "- Pearl, kundan, polki, and meenakari elements must retain their original appearance without color shifts."
-    )
-
-    # SECTION 9: Conditional defense layers — injected from detection
+    # Build rich product description from detection
+    product_desc = ""
     if detection:
-        defenses = []
+        from app.services.detection_service import JewelryDetection
+        if isinstance(detection, dict):
+            try:
+                det_obj = JewelryDetection(**{k: v for k, v in detection.items() if k in JewelryDetection.__dataclass_fields__})
+            except Exception:
+                det_obj = JewelryDetection(primary_description=str(detection.get("primary_description", "")))
+        else:
+            det_obj = detection
+        product_desc = build_product_description(det_obj)
 
-        if detection.get("is_set"):
-            defenses.append(STACKED_SET_DEFENSE)
+    parts = []
 
-        if detection.get("has_reflections"):
-            defenses.append(
-                "⚠️ REFLECTION DETECTED — HIGH PRIORITY\n"
-                "- The input contains visible camera or environment reflections on metal surfaces.\n"
-                "- Remove these reflections COMPLETELY while preserving surface geometry.\n"
-                "- Do NOT modify design or metal tone.\n"
-                "- Normalize metal reflections to clean studio finish.\n"
-                "- Maintain realistic metallic shine without mirror artifacts.\n"
-                "- If reflection overlaps a stone or engraving, carefully separate and preserve the detail underneath."
-            )
+    # 1. What to shoot
+    parts.append(f"Professional product photography of this {jewelry_type} on {bg_prompt}.")
 
+    # 2. Product identity (from detection)
+    if product_desc:
+        parts.append(f"THE PRODUCT: {product_desc}")
+
+    # 3. Core task — one clear instruction
+    parts.append(
+        f"TASK: Replace background only. Keep the jewelry identical to input — "
+        f"same metal, stones, design, proportions. Output must contain {count_str}."
+    )
+
+    # 4. Conditional one-liners from detection
+    if detection:
+        flags = []
         if detection.get("has_props"):
             props = detection.get("props_list", [])
-            props_str = ", ".join(props) if props else "hands/stands/props"
-            defenses.append(
-                f"PROPS DETECTED\n"
-                f"- The input contains: {props_str}.\n"
-                f"- Remove ALL props completely.\n"
-                f"- Reconstruct any jewelry geometry hidden behind props.\n"
-                f"- Show ONLY the jewelry on the background."
-            )
-
-        if detection.get("is_low_quality"):
-            defenses.append(
-                "LOW QUALITY INPUT\n"
-                "- The input image is low resolution or blurry.\n"
-                "- Preserve all EXISTING fine details — do NOT hallucinate new ones.\n"
-                "- Do NOT invent stone shapes, engravings, or patterns not visible in the input.\n"
-                "- Enhance clarity only where details are already visible."
-            )
-
+            flags.append(f"Remove {', '.join(props) if props else 'all props'}")
+        if detection.get("has_reflections"):
+            flags.append("Remove camera reflections from metal surfaces")
         if detection.get("is_cropped"):
-            defenses.append(
-                "CROPPED INPUT\n"
-                "- Parts of the jewelry may be cut off at the image edges.\n"
-                "- Do NOT crop further. Preserve full geometry as visible.\n"
-                "- If reconstructing cropped edges, match the existing design exactly."
-            )
+            flags.append("Product is partially cropped — preserve as-is, do not crop further")
+        if detection.get("is_low_quality"):
+            flags.append("Low quality input — preserve existing details, do not invent new ones")
+        if flags:
+            parts.append(". ".join(flags) + ".")
 
-        for d in defenses:
-            sections.append(d)
-
-    # SECTION 10: Framing
-    sections.append(
-        "FRAMING\n"
-        "- Entire jewelry MUST be fully visible — nothing cropped or cut off at any edge.\n"
-        "- Even padding on all sides.\n"
-        "- Center composition.\n"
-        "- Keep exact original perspective and angle."
-    )
-
-    # SECTION 11: Output spec
-    sections.append(
-        f"OUTPUT\n"
-        f"- Generate {shape_hint}.\n"
-        f"- Professional studio product photo.\n"
-        f"- Ultra clean, commercial catalog ready.\n"
-        f"- Background MUST be uniform and consistent edge-to-edge — no vignette or dark borders."
-    )
-
-    # SECTION 12: Special instructions (optional)
+    # 5. Special instructions
     if special_instructions and special_instructions.strip():
-        sections.append(
-            f"ADDITIONAL REQUEST\n"
-            f"- {special_instructions.strip()}"
-        )
+        parts.append(special_instructions.strip())
 
-    return "\n\n".join(sections)
+    # 6. Output format
+    parts.append(f"Output: {shape_hint}, clean studio lighting, catalog-ready, no watermarks.")
+
+    return " ".join(parts)
 
 
 def build_jewelry_regen_prompt(
@@ -1478,11 +1358,7 @@ def build_jewelry_theme_prompt(
     ratio_id: str | None = None,
     detection: dict | None = None,
 ) -> str:
-    """Build a jewelry prompt using the theme system instead of simple background IDs.
-
-    This wraps build_jewelry_prompt but replaces the background with a full
-    theme scene prompt + shot-specific instructions.
-    """
+    """Concise theme prompt — scene description + product identity."""
     from app.services.theme_service import build_theme_prompt, get_theme_by_id
 
     theme = get_theme_by_id(theme_id)
@@ -1490,146 +1366,63 @@ def build_jewelry_theme_prompt(
         return build_jewelry_prompt(jewelry_type, "black-velvet", "hero", special_instructions, ratio_id, detection)
 
     scene_prompt = build_theme_prompt(theme_id, shot_id, additional_details, theme_color_override)
-    type_rules = JEWELRY_TYPE_RULES.get(jewelry_type, JEWELRY_TYPE_RULES.get("ring", ""))
     shape_hint = RATIO_SHAPE_HINTS.get(ratio_id or "square", RATIO_SHAPE_HINTS["square"])
-
     count_str = _jewelry_count_str(detection, jewelry_type)
 
-    sections = []
-
-    sections.append(
-        "You are a professional high-end jewelry product photographer and retouching expert."
-    )
-
-    sections.append(
-        "OBJECT PRESERVATION — CRITICAL\n"
-        "- The jewelry design MUST remain 100% IDENTICAL to the input image.\n"
-        "- Do NOT redesign, enhance, beautify, or modify stones.\n"
-        "- Do NOT change stone shape, count, size, setting, metal color, engraving, or proportions.\n"
-        "- Do NOT add or remove parts.\n"
-        "- Preserve the EXACT color palette — every metal tone, gemstone hue, and surface finish.\n"
-        "- This is a background replacement and professional cleanup task ONLY."
-    )
-
-    sections.append(
-        f"OBJECT COUNT — MANDATORY\n"
-        f"- The output MUST contain {count_str}.\n"
-        f"- Do NOT merge, duplicate, remove, or hide items.\n"
-        f"- If it is a pair (like earrings), both pieces MUST be visible."
-    )
-
-    if detection and detection.get("primary_description"):
-        sections.append(
-            "REFERENCE DESCRIPTION (from input analysis)\n"
-            f"- {str(detection.get('primary_description')).strip()}"
-        )
-
-    sections.append(
-        f"CATEGORY RULES — {jewelry_type.upper()}\n"
-        f"{type_rules}"
-    )
-
-    sections.append(
-        f"SCENE & COMPOSITION\n"
-        f"- {scene_prompt}"
-    )
-
-    if shot_id in {"angle_3_4", "angle_side", "top_down"}:
-        sections.append(
-            "ANGLE VARIANT SAFETY RULES\n"
-            "- Preserve exact design, proportions, and item count.\n"
-            "- Do NOT warp, stretch, melt, or change thickness.\n"
-            "- If the requested angle would require guessing hidden geometry, keep the variation subtle rather than inventing details."
-        )
-
-    cleanup_lines = [
-        "CLEANUP RULES",
-        "- Remove all hands, stands, boxes, tags, and props — show ONLY the jewelry.",
-        "- Remove dust, scratches, and fingerprints from surfaces.",
-        "",
-        "REFLECTION CLEANUP — CRITICAL",
-        "- Remove camera reflections, photographer reflections, and environmental glare.",
-        "- Eliminate mirror-like artifacts on metal surfaces.",
-        "- Preserve original metal color and finish.",
-        "- Do NOT blur surface details.",
-        "- Do NOT alter engraving or stone edges.",
-        "- Use soft diffused studio lighting.",
-        "- Avoid harsh specular hotspots.",
-        "- Maintain natural metal sheen without mirror reflections.",
-        "- No text, logos, watermarks, frames, or borders.",
-        "",
-        "MATERIAL REALISM — CRITICAL",
-        "- Metal must look like real jewelry metal — not plastic, not painted, not chrome.",
-        "- Gemstones must keep their true cut and color; no glow effects or hue shifts.",
-    ]
-    sections.append("\n".join(cleanup_lines))
-
-    sections.append(
-        "COLOR FIDELITY — CRITICAL\n"
-        "- Preserve the EXACT color palette from the input image.\n"
-        "- Metal tone must match precisely.\n"
-        "- Gemstone and stone colors must be pixel-accurate — do NOT shift hues.\n"
-        "- Do NOT reinterpret transparent or open areas as solid colored surfaces.\n"
-        "- If the jewelry has filigree or openwork, those openings MUST remain open."
-    )
-
+    # Build rich product description from detection
+    product_desc = ""
     if detection:
-        defenses = []
-        if detection.get("is_set"):
-            defenses.append(STACKED_SET_DEFENSE)
-        if detection.get("has_reflections"):
-            defenses.append(
-                "⚠️ REFLECTION DETECTED — HIGH PRIORITY\n"
-                "- The input contains visible camera or environment reflections on metal surfaces.\n"
-                "- Remove these reflections COMPLETELY while preserving surface geometry.\n"
-                "- Do NOT modify design or metal tone.\n"
-                "- Normalize metal reflections to clean studio finish.\n"
-                "- Maintain realistic metallic shine without mirror artifacts.\n"
-                "- If reflection overlaps a stone or engraving, carefully separate and preserve the detail underneath."
-            )
+        from app.services.detection_service import JewelryDetection
+        if isinstance(detection, dict):
+            try:
+                det_obj = JewelryDetection(**{k: v for k, v in detection.items() if k in JewelryDetection.__dataclass_fields__})
+            except Exception:
+                det_obj = JewelryDetection(primary_description=str(detection.get("primary_description", "")))
+        else:
+            det_obj = detection
+        product_desc = build_product_description(det_obj)
+
+    parts = []
+
+    # 1. What to shoot
+    parts.append(f"Professional product photography of this {jewelry_type}.")
+
+    # 2. Product identity
+    if product_desc:
+        parts.append(f"THE PRODUCT: {product_desc}")
+
+    # 3. Scene
+    parts.append(f"SCENE: {scene_prompt}")
+
+    # 4. Core task
+    parts.append(
+        f"TASK: Place jewelry in this scene. Keep it identical to input — "
+        f"same metal, stones, design, proportions. Output must contain {count_str}."
+    )
+
+    # 5. Conditional flags
+    if detection:
+        flags = []
         if detection.get("has_props"):
             props = detection.get("props_list", [])
-            props_str = ", ".join(props) if props else "hands/stands/props"
-            defenses.append(
-                f"PROPS DETECTED\n"
-                f"- Remove ALL props ({props_str}). Show ONLY the jewelry on the background."
-            )
-        if detection.get("is_low_quality"):
-            defenses.append(
-                "LOW QUALITY INPUT\n"
-                "- Preserve all EXISTING fine details — do NOT hallucinate new ones."
-            )
+            flags.append(f"Remove {', '.join(props) if props else 'all props'}")
+        if detection.get("has_reflections"):
+            flags.append("Remove camera reflections from metal surfaces")
         if detection.get("is_cropped"):
-            defenses.append(
-                "CROPPED INPUT\n"
-                "- Parts of the jewelry may be cut off at the image edges.\n"
-                "- Do NOT crop further. Preserve full geometry as visible.\n"
-                "- If reconstructing cropped edges, match the existing design exactly."
-            )
-        for d in defenses:
-            sections.append(d)
+            flags.append("Product is partially cropped — preserve as-is")
+        if detection.get("is_low_quality"):
+            flags.append("Low quality input — preserve existing details only")
+        if flags:
+            parts.append(". ".join(flags) + ".")
 
-    sections.append(
-        "FRAMING\n"
-        "- Entire jewelry MUST be fully visible — nothing cropped.\n"
-        "- Even padding on all sides.\n"
-        "- Center composition."
-    )
-
-    sections.append(
-        f"OUTPUT\n"
-        f"- Generate {shape_hint}.\n"
-        f"- Professional studio product photo.\n"
-        f"- Ultra clean, commercial catalog ready."
-    )
-
+    # 6. Special instructions
     if special_instructions and special_instructions.strip():
-        sections.append(
-            f"ADDITIONAL REQUEST\n"
-            f"- {special_instructions.strip()}"
-        )
+        parts.append(special_instructions.strip())
 
-    return "\n\n".join(sections)
+    # 7. Output format
+    parts.append(f"Output: {shape_hint}, natural lighting matching the scene, catalog-ready, no watermarks.")
+
+    return " ".join(parts)
 
 
 JEWELRY_TRYON_PROMPTS = {

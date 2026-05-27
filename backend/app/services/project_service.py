@@ -79,6 +79,16 @@ def save_project(
     try:
         project_meta = metadata or {}
         project_meta["images"] = saved_images
+        if not project_meta.get("original_image_path"):
+            original = next(
+                (
+                    img for img in saved_images
+                    if str(img.get("label", "")).strip().lower() in {"original", "original upload", "input", "input image"}
+                ),
+                None,
+            )
+            if original and original.get("storage_path"):
+                project_meta["original_image_path"] = original["storage_path"]
 
         result = sb.table("projects").insert({
             "client_id": client_id,
@@ -88,7 +98,20 @@ def save_project(
         }).execute()
 
         if result.data:
-            return result.data[0]
+            project = result.data[0]
+            for img in saved_images:
+                try:
+                    sb.table("images").insert({
+                        "id": str(uuid.uuid4()),
+                        "generation_id": None,
+                        "client_id": client_id,
+                        "label": img.get("label", "image"),
+                        "storage_path": img.get("storage_path"),
+                        "file_size_bytes": img.get("size", 0),
+                    }).execute()
+                except Exception as image_err:
+                    logger.warning(f"save_project image index insert failed: {image_err}")
+            return project
     except Exception as e:
         logger.error(f"save_project DB insert error: {e}")
 

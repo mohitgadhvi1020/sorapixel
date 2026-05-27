@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 MODEL_FLASH_IMAGE = "gemini-2.5-flash-image"
 MODEL_PRO_IMAGE = "gemini-3-pro-image-preview"
 MODEL_TEXT = "gemini-2.5-flash"
+MODEL_TEXT_PRO = "gemini-2.5-pro"
 MODEL_PRO_VERTEX_LOCATION = "global"
 
 TEXT_TIMEOUT_MS = 30_000
@@ -139,15 +140,25 @@ RATIO_ID_TO_API = {
 MAX_IMAGE_DIMENSION = 1024
 JPEG_QUALITY = 85
 
+GENERATION_TEMPERATURE = 0.5
 
-def _prepare_image_b64(raw_b64: str, mime_type: str = "image/png") -> tuple[str, str]:
+# Tiered max dimensions by quality level — higher tiers preserve more detail
+MAX_DIM_BY_QUALITY = {
+    "standard": 1024,
+    "pro": 1536,
+    "ultra": 2048,
+}
+
+
+def _prepare_image_b64(raw_b64: str, mime_type: str = "image/png", quality_tier: str = "standard") -> tuple[str, str]:
     """Resize & compress a base64 image so Gemini gets a lightweight payload.
 
-    Returns (clean_b64, output_mime_type).  Images larger than
-    MAX_IMAGE_DIMENSION on either side are down-scaled proportionally.
-    The result is always JPEG (smaller wire size) unless the source is PNG
-    with transparency that matters — but for product photos JPEG is fine.
+    Returns (clean_b64, output_mime_type).  Images larger than the max dimension
+    for the quality tier are down-scaled proportionally. Higher tiers preserve
+    more resolution for better product fidelity.
     """
+    max_dim = MAX_DIM_BY_QUALITY.get(quality_tier, MAX_IMAGE_DIMENSION)
+
     clean = re.sub(r"^data:image/\w+;base64,", "", raw_b64)
     raw_bytes = base64.b64decode(clean)
     original_kb = len(raw_bytes) / 1024
@@ -159,13 +170,13 @@ def _prepare_image_b64(raw_b64: str, mime_type: str = "image/png") -> tuple[str,
         return clean, mime_type
 
     w, h = img.size
-    needs_resize = max(w, h) > MAX_IMAGE_DIMENSION
+    needs_resize = max(w, h) > max_dim
 
     if not needs_resize and original_kb < 500:
         return clean, mime_type
 
     if needs_resize:
-        scale = MAX_IMAGE_DIMENSION / max(w, h)
+        scale = max_dim / max(w, h)
         new_w, new_h = int(w * scale), int(h * scale)
         img = img.resize((new_w, new_h), PILImage.LANCZOS)
 
@@ -178,34 +189,34 @@ def _prepare_image_b64(raw_b64: str, mime_type: str = "image/png") -> tuple[str,
     out_b64 = base64.b64encode(compressed).decode("utf-8")
 
     logger.info(
-        "Image prep: %dx%d (%.0fKB) -> %dx%d (%.0fKB) — %.0f%% smaller",
-        w, h, original_kb,
+        "Image prep [%s]: %dx%d (%.0fKB) -> %dx%d (%.0fKB) — %.0f%% smaller",
+        quality_tier, w, h, original_kb,
         img.size[0], img.size[1], len(compressed) / 1024,
         (1 - len(compressed) / len(raw_bytes)) * 100,
     )
     return out_b64, "image/jpeg"
 
 
-def generate_image(prompt: str, image_b64: str, mime_type: str = "image/png", aspect_ratio_id: str | None = None) -> dict:
+def generate_image(prompt: str, image_b64: str, mime_type: str = "image/png", aspect_ratio_id: str | None = None, *, quality_tier: str = "standard", seed: int | None = None) -> dict:
     """Generate an image using Flash. Retries once at app level on transient failure."""
     client = get_image_client()
     try:
-        return _generate_image_with_client(client, MODEL_FLASH_IMAGE, prompt, image_b64, mime_type, aspect_ratio_id)
+        return _generate_image_with_client(client, MODEL_FLASH_IMAGE, prompt, image_b64, mime_type, aspect_ratio_id, seed=seed)
     except Exception as e:
         if _is_transient_error(e):
             logger.warning("Flash gen failed (%s), retrying once after 3s...", str(e)[:80])
             time.sleep(3)
-            return _generate_image_with_client(client, MODEL_FLASH_IMAGE, prompt, image_b64, mime_type, aspect_ratio_id)
+            return _generate_image_with_client(client, MODEL_FLASH_IMAGE, prompt, image_b64, mime_type, aspect_ratio_id, seed=seed)
         raise
 
 
-def generate_image_pro(prompt: str, image_b64: str, mime_type: str = "image/png", aspect_ratio_id: str | None = None) -> dict:
+def generate_image_pro(prompt: str, image_b64: str, mime_type: str = "image/png", aspect_ratio_id: str | None = None, *, quality_tier: str = "pro", seed: int | None = None) -> dict:
     """Generate using Pro model. If Pro is overloaded/unavailable/not-published, falls back to
     Ultra (gpt-image-2) for product fidelity. We eat the higher vendor cost rather than ship
     Flash output to a user who paid Pro tokens. If Ultra is also unavailable, fall back to Flash."""
     try:
         client = get_pro_client()
-        return _generate_image_with_client(client, MODEL_PRO_IMAGE, prompt, image_b64, mime_type, aspect_ratio_id)
+        return _generate_image_with_client(client, MODEL_PRO_IMAGE, prompt, image_b64, mime_type, aspect_ratio_id, seed=seed)
     except Exception as e:
         if _is_transient_error(e) or _is_pro_unavailable(e):
             logger.warning("Pro model unavailable (%s: %s), falling back to Ultra (gpt-image-2)", type(e).__name__, str(e)[:120])
@@ -218,21 +229,23 @@ def generate_image_pro(prompt: str, image_b64: str, mime_type: str = "image/png"
             except Exception as ue:
                 logger.warning("Ultra fallback also failed (%s), final fallback to Flash", str(ue)[:120])
                 client = get_image_client()
-                result = _generate_image_with_client(client, MODEL_FLASH_IMAGE, prompt, image_b64, mime_type, aspect_ratio_id)
+                result = _generate_image_with_client(client, MODEL_FLASH_IMAGE, prompt, image_b64, mime_type, aspect_ratio_id, seed=seed)
                 result["model"] = f"{MODEL_FLASH_IMAGE} (fallback from pro)"
                 result["fallback"] = True
                 return result
         raise
 
 
-def _generate_image_with_client(client: genai.Client, model: str, prompt: str, image_b64: str, mime_type: str = "image/png", aspect_ratio_id: str | None = None) -> dict:
+def _generate_image_with_client(client: genai.Client, model: str, prompt: str, image_b64: str, mime_type: str = "image/png", aspect_ratio_id: str | None = None, *, seed: int | None = None) -> dict:
     """Internal: generate image with a pre-configured client."""
     clean_b64, mime_type = _prepare_image_b64(image_b64, mime_type)
 
-    config_kwargs: dict = {"response_modalities": ["IMAGE"]}
+    config_kwargs: dict = {"response_modalities": ["IMAGE"], "temperature": GENERATION_TEMPERATURE}
     api_ratio = RATIO_ID_TO_API.get(aspect_ratio_id or "")
     if api_ratio:
         config_kwargs["image_config"] = ImageConfig(aspect_ratio=api_ratio)
+    if seed is not None:
+        config_kwargs["seed"] = seed
 
     t0 = time.time()
     response = client.models.generate_content(
@@ -274,7 +287,10 @@ def _generate_image_with_client(client: genai.Client, model: str, prompt: str, i
             "total_tokens": getattr(um, "total_token_count", 0) or 0,
         }
 
-    return {"base64": result_b64, "mime_type": result_mime, "usage": usage, "model": model}
+    result = {"base64": result_b64, "mime_type": result_mime, "usage": usage, "model": model}
+    if seed is not None:
+        result["seed"] = seed
+    return result
 
 
 def generate_image_multi(prompt: str, images: list[dict], aspect_ratio_id: str | None = None) -> dict:
@@ -306,17 +322,19 @@ def generate_image_pro_multi(prompt: str, images: list[dict], aspect_ratio_id: s
         raise
 
 
-def _generate_image_multi_with_client(client: genai.Client, model: str, prompt: str, images: list[dict], aspect_ratio_id: str | None = None) -> dict:
+def _generate_image_multi_with_client(client: genai.Client, model: str, prompt: str, images: list[dict], aspect_ratio_id: str | None = None, *, seed: int | None = None) -> dict:
     """Internal: multi-image generation with a pre-configured client."""
     contents = [{"text": prompt}]
     for img in images:
         clean_b64, out_mime = _prepare_image_b64(img["base64"], img.get("mime_type", "image/png"))
         contents.append({"inline_data": {"mime_type": out_mime, "data": clean_b64}})
 
-    config_kwargs: dict = {"response_modalities": ["IMAGE"]}
+    config_kwargs: dict = {"response_modalities": ["IMAGE"], "temperature": GENERATION_TEMPERATURE}
     api_ratio = RATIO_ID_TO_API.get(aspect_ratio_id or "")
     if api_ratio:
         config_kwargs["image_config"] = ImageConfig(aspect_ratio=api_ratio)
+    if seed is not None:
+        config_kwargs["seed"] = seed
 
     t0 = time.time()
     response = client.models.generate_content(
@@ -384,6 +402,53 @@ def generate_text(prompt: str, image_b64: str | None = None, mime_type: str = "i
             time.sleep(2)
             response = client.models.generate_content(
                 model=MODEL_TEXT,
+                contents=contents,
+                **({"config": GenerateContentConfig(**config_kwargs)} if config_kwargs else {}),
+            )
+        else:
+            raise
+
+    parts = response.candidates[0].content.parts if response.candidates else []
+    text = " ".join(p.text for p in parts if hasattr(p, "text") and p.text)
+
+    usage = {}
+    if hasattr(response, "usage_metadata") and response.usage_metadata:
+        um = response.usage_metadata
+        usage = {
+            "input_tokens": getattr(um, "prompt_token_count", 0) or 0,
+            "output_tokens": getattr(um, "candidates_token_count", 0) or 0,
+            "total_tokens": getattr(um, "total_token_count", 0) or 0,
+        }
+
+    return {"text": text, "usage": usage}
+
+
+def generate_text_pro(prompt: str, image_b64: str | None = None, mime_type: str = "image/png", *, json_mode: bool = False) -> dict:
+    """Generate text using Gemini 2.5 Pro — higher accuracy for detailed analysis.
+    Same interface as generate_text but uses the Pro model.
+    """
+    client = get_text_client()
+    contents = [{"text": prompt}]
+    if image_b64:
+        clean, out_mime = _prepare_image_b64(image_b64, mime_type)
+        contents.append({"inline_data": {"mime_type": out_mime, "data": clean}})
+
+    config_kwargs: dict = {}
+    if json_mode:
+        config_kwargs["response_mime_type"] = "application/json"
+
+    try:
+        response = client.models.generate_content(
+            model=MODEL_TEXT_PRO,
+            contents=contents,
+            **({"config": GenerateContentConfig(**config_kwargs)} if config_kwargs else {}),
+        )
+    except Exception as e:
+        if _is_transient_error(e):
+            logger.warning("Pro text gen failed (%s), retrying once after 2s...", str(e)[:80])
+            time.sleep(2)
+            response = client.models.generate_content(
+                model=MODEL_TEXT_PRO,
                 contents=contents,
                 **({"config": GenerateContentConfig(**config_kwargs)} if config_kwargs else {}),
             )

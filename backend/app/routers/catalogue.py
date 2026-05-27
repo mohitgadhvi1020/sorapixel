@@ -236,11 +236,12 @@ async def generate_catalogue(req: GenerateCatalogueRequest, user: dict = Depends
     if valid_images:
         try:
             ptype = "branding" if is_branding else "catalogue"
+            save_images = [{"base64": req.image_base64, "label": "Original Upload"}] + valid_images
             save_project(
                 client_id=user["id"],
                 project_type=ptype,
                 title=f"Catalogue – {req.model_type.replace('_', ' ').title()}",
-                images=valid_images,
+                images=save_images,
                 metadata={"model_type": req.model_type, "poses": poses_to_gen, "category": category_slug},
                 generation_ids=generation_ids,
             )

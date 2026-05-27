@@ -172,27 +172,158 @@ async def list_client_images(
             .select("id, generation_id, label, storage_path, file_size_bytes, created_at")
             .eq("client_id", client_id)
             .order("created_at", desc=True)
-            .range(offset, offset + limit - 1)
             .execute()
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch images: {e}")
 
-    rows = result.data or []
     base_url = f"{sb.supabase_url}/storage/v1/object/public/{BUCKET}"
-    images = [
-        {
+    images = []
+    seen_paths: set[str] = set()
+    project_images_by_path: dict[str, dict] = {}
+
+    try:
+        projects = (
+            sb.table("projects")
+            .select("id, title, project_type, metadata, created_at")
+            .eq("client_id", client_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+    except Exception as e:
+        logger.warning("Failed to fetch project metadata images for client %s: %s", client_id, e)
+        projects = None
+
+    project_ids = [p.get("id") for p in (projects.data or []) if p.get("id")] if projects else []
+    jewelry_session_ids = [
+        (p.get("metadata") or {}).get("session_id")
+        for p in (projects.data or []) if (p.get("metadata") or {}).get("session_id")
+    ] if projects else []
+    studio_sessions_by_project: dict[str, dict] = {}
+    jewelry_sessions_by_id: dict[str, dict] = {}
+    if project_ids:
+        try:
+            sessions = (
+                sb.table("studio_sessions")
+                .select("result_project_id, original_image_path, background_id, quality, aspect_ratio_id, special_instructions")
+                .eq("client_id", client_id)
+                .in_("result_project_id", project_ids)
+                .execute()
+            )
+            for session in sessions.data or []:
+                project_id = session.get("result_project_id")
+                if project_id:
+                    studio_sessions_by_project[project_id] = session
+        except Exception as e:
+            logger.warning("Failed to fetch studio sessions for project image metadata: %s", e)
+
+    if jewelry_session_ids:
+        try:
+            jewelry_sessions = (
+                sb.table("sessions")
+                .select("id, original_image_path, background, quality, aspect_ratio_id, jewelry_type")
+                .eq("client_id", client_id)
+                .in_("id", jewelry_session_ids)
+                .execute()
+            )
+            for session in jewelry_sessions.data or []:
+                if session.get("id"):
+                    jewelry_sessions_by_id[session["id"]] = session
+        except Exception as e:
+            logger.warning("Failed to fetch jewelry sessions for project image metadata: %s", e)
+
+    for project in (projects.data or []) if projects else []:
+        meta = project.get("metadata") or {}
+        session = studio_sessions_by_project.get(project.get("id")) or {}
+        jewelry_session = jewelry_sessions_by_id.get(meta.get("session_id")) or {}
+        project_image_list = meta.get("images") or []
+        original_project_image = next(
+            (
+                img for img in project_image_list
+                if str(img.get("label", "")).strip().lower() in {"original", "original upload", "input", "input image"}
+            ),
+            None,
+        )
+        original_path = (
+            meta.get("original_image_path")
+            or session.get("original_image_path")
+            or jewelry_session.get("original_image_path")
+            or (original_project_image or {}).get("storage_path")
+        )
+        original_url = ""
+        if original_path:
+            try:
+                signed = sb.storage.from_(BUCKET).create_signed_url(original_path, 3600)
+                original_url = signed.get("signedURL") or signed.get("signedUrl") or ""
+            except Exception:
+                original_url = ""
+
+        details = {
+            "project_id": project.get("id"),
+            "project_title": project.get("title"),
+            "project_type": project.get("project_type"),
+            "metadata": meta,
+            "studio_session_id": meta.get("studio_session_id"),
+            "session_id": meta.get("session_id"),
+            "background": meta.get("background") or session.get("background_id") or jewelry_session.get("background"),
+            "category": meta.get("category") or meta.get("jewelry_type") or jewelry_session.get("jewelry_type"),
+            "quality": meta.get("quality") or session.get("quality") or jewelry_session.get("quality"),
+            "aspect_ratio": meta.get("aspect_ratio") or session.get("aspect_ratio_id") or jewelry_session.get("aspect_ratio_id"),
+            "special_instructions": meta.get("special_instructions") or session.get("special_instructions"),
+            "original_image_url": original_url,
+            "original_image_path": original_path,
+        }
+
+        for idx, img in enumerate(meta.get("images") or []):
+            storage_path = img.get("storage_path")
+            if not storage_path:
+                continue
+            project_images_by_path[storage_path] = {
+                **details,
+                "project_image_id": f"project:{project.get('id')}:{idx}",
+                "project_image_created_at": project.get("created_at"),
+                "project_image_label": img.get("label"),
+                "project_image_size": img.get("size", 0),
+            }
+
+    for r in result.data or []:
+        storage_path = r.get("storage_path")
+        if storage_path:
+            seen_paths.add(storage_path)
+        project_details = project_images_by_path.get(storage_path or "", {})
+        images.append({
             "id": r["id"],
             "generation_id": r.get("generation_id"),
             "label": r.get("label"),
-            "url": f"{base_url}/{r['storage_path']}" if r.get("storage_path") else None,
-            "storage_path": r.get("storage_path"),
+            "url": f"{base_url}/{storage_path}" if storage_path else None,
+            "storage_path": storage_path,
             "file_size_bytes": r.get("file_size_bytes", 0),
             "created_at": r.get("created_at"),
-        }
-        for r in rows
-    ]
-    return {"client_id": client_id, "count": len(images), "images": images}
+            "source": "images",
+            **project_details,
+        })
+
+    for storage_path, details in project_images_by_path.items():
+        if storage_path in seen_paths:
+            continue
+        seen_paths.add(storage_path)
+        images.append({
+            "id": details.get("project_image_id"),
+            "generation_id": None,
+            "project_id": details.get("project_id"),
+            "project_type": details.get("project_type"),
+            "label": details.get("project_image_label") or details.get("project_title") or "Project image",
+            "url": f"{base_url}/{storage_path}",
+            "storage_path": storage_path,
+            "file_size_bytes": details.get("project_image_size", 0),
+            "created_at": details.get("project_image_created_at"),
+            "source": "projects",
+            **details,
+        })
+
+    images.sort(key=lambda img: img.get("created_at") or "", reverse=True)
+    paged = images[offset: offset + limit]
+    return {"client_id": client_id, "count": len(paged), "total": len(images), "images": paged}
 
 
 @router.get("/generation-images/{generation_id}")

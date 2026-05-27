@@ -275,18 +275,7 @@ export default function ShotConfigurator({
         )}
       </div>
 
-      {/* Quality Toggle */}
-      <div className="flex items-center gap-3">
-        <span className="text-xs font-semibold text-[rgba(255,255,255,0.5)]">Quality</span>
-        <QualityToggle
-          value={quality}
-          onChange={onQualityChange}
-          standardCost={0}
-          proCost={0}
-          ultraCost={0}
-          compact
-        />
-      </div>
+      {/* Quality is now fixed to Pro — no user toggle */}
 
       {/* Generate CTA — sticky bottom */}
       <div className="sticky bottom-0 pt-4 pb-2 bg-gradient-to-t from-[var(--bg-primary)] via-[var(--bg-primary)] to-transparent -mx-4 px-4 md:mx-0 md:px-0">

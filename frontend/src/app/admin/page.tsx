@@ -231,12 +231,23 @@ export default function AdminPage() {
     label?: string | null;
     url: string | null;
     created_at?: string;
+    source?: string;
+    project_id?: string | null;
+    project_title?: string | null;
+    project_type?: string | null;
+    background?: string | null;
+    category?: string | null;
+    quality?: string | null;
+    aspect_ratio?: string | null;
+    special_instructions?: string | null;
+    original_image_url?: string | null;
   }
   const [imagesModalOpen, setImagesModalOpen] = useState(false);
   const [imagesModalTitle, setImagesModalTitle] = useState("");
   const [imagesModalLoading, setImagesModalLoading] = useState(false);
   const [imagesModalList, setImagesModalList] = useState<ClientImage[]>([]);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [selectedImageDetail, setSelectedImageDetail] = useState<ClientImage | null>(null);
 
   const openClientImages = async (clientId: string, label: string) => {
     setImagesModalOpen(true);
@@ -3398,7 +3409,7 @@ export default function AdminPage() {
       </Modal>
 
       {/* Client / Generation Images Viewer */}
-      <Modal open={imagesModalOpen} onClose={() => { setImagesModalOpen(false); setLightboxUrl(null); }} title={imagesModalTitle} size="lg">
+      <Modal open={imagesModalOpen} onClose={() => { setImagesModalOpen(false); setLightboxUrl(null); setSelectedImageDetail(null); }} title={imagesModalTitle} size="lg">
         {imagesModalLoading ? (
           <div className="flex justify-center py-10">
             <div className="w-6 h-6 border-2 border-[rgba(196,166,125,0.2)] border-t-[#c4a67d] rounded-full animate-spin" />
@@ -3423,12 +3434,11 @@ export default function AdminPage() {
                 <div className="px-2 py-1.5 flex items-center justify-between gap-2">
                   <span className="text-[10px] text-text-secondary truncate">{img.label || "—"}</span>
                   {img.url && (
-                    <a
-                      href={img.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      type="button"
+                      onClick={() => setSelectedImageDetail(img)}
                       className="text-[10px] font-semibold text-accent hover:underline shrink-0"
-                    >Open</a>
+                    >Open</button>
                   )}
                 </div>
               </div>
@@ -3436,6 +3446,94 @@ export default function AdminPage() {
           </div>
         )}
       </Modal>
+
+      {/* Image Details */}
+      {selectedImageDetail && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setSelectedImageDetail(null)}
+        >
+          <div
+            className="w-full max-w-5xl max-h-[88vh] overflow-y-auto rounded-2xl border border-border bg-surface shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-border px-5 py-4">
+              <div>
+                <h3 className="text-base font-semibold text-text-primary">{selectedImageDetail.label || "Image"}</h3>
+                <p className="text-xs text-text-secondary">{selectedImageDetail.project_title || selectedImageDetail.project_type || selectedImageDetail.source || "Generated image"}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedImageDetail(null)}
+                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 text-text-secondary"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="grid gap-4 p-5 lg:grid-cols-2">
+              <div>
+                <div className="mb-2 text-xs font-bold uppercase tracking-wider text-text-secondary">Input Image</div>
+                <div className="flex min-h-[320px] items-center justify-center rounded-xl border border-border bg-[#f7f3eb] p-3">
+                  {selectedImageDetail.original_image_url ? (
+                    <img src={selectedImageDetail.original_image_url} alt="Input image" className="max-h-[520px] max-w-full object-contain rounded-lg" />
+                  ) : (
+                    <p className="text-sm text-text-secondary">Input image not available for this item.</p>
+                  )}
+                </div>
+              </div>
+              <div>
+                <div className="mb-2 text-xs font-bold uppercase tracking-wider text-text-secondary">Generated Image</div>
+                <div className="flex min-h-[320px] items-center justify-center rounded-xl border border-border bg-[#f7f3eb] p-3">
+                  {selectedImageDetail.url ? (
+                    <img src={selectedImageDetail.url} alt={selectedImageDetail.label || "Generated image"} className="max-h-[520px] max-w-full object-contain rounded-lg" />
+                  ) : (
+                    <p className="text-sm text-text-secondary">Generated image URL missing.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-border px-5 py-4">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  ["Background", selectedImageDetail.background],
+                  ["Quality", selectedImageDetail.quality],
+                  ["Aspect", selectedImageDetail.aspect_ratio],
+                  ["Category", selectedImageDetail.category],
+                  ["Project type", selectedImageDetail.project_type],
+                  ["Source", selectedImageDetail.source],
+                  ["Created", selectedImageDetail.created_at ? new Date(selectedImageDetail.created_at).toLocaleString() : ""],
+                  ["Project ID", selectedImageDetail.project_id],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-lg border border-border bg-background/40 p-3">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-text-secondary">{label}</div>
+                    <div className="mt-1 text-xs text-text-primary break-words">{value || "—"}</div>
+                  </div>
+                ))}
+              </div>
+              {selectedImageDetail.special_instructions && (
+                <div className="mt-3 rounded-lg border border-border bg-background/40 p-3">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-text-secondary">Special instructions</div>
+                  <div className="mt-1 text-xs text-text-primary whitespace-pre-wrap">{selectedImageDetail.special_instructions}</div>
+                </div>
+              )}
+              {selectedImageDetail.url && (
+                <div className="mt-4 flex justify-end">
+                  <a
+                    href={selectedImageDetail.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-semibold text-accent hover:underline"
+                  >
+                    Open image in new tab
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Lightbox */}
       {lightboxUrl && (

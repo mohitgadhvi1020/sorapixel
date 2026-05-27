@@ -37,6 +37,31 @@ class RewriteListingRequest(BaseModel):
     session_id: str | None = None
 
 
+class AutoFixRequest(BaseModel):
+    """User-triggered 'Auto-fix' — re-analyzes and repairs product fidelity."""
+    image_base64: str          # original input image
+    output_base64: str         # the generated image the user is unhappy with
+    jewelry_type: str = "necklace"
+    background: str = "black_velvet"
+    aspect_ratio_id: str | None = None
+    special_instructions: str | None = None
+    quality: Literal["standard", "pro", "ultra"] = "standard"
+    session_id: str | None = None
+    theme_id: str | None = None
+    shot_id: str | None = None
+
+
+class InpaintRequest(BaseModel):
+    """FLUX Fill inpainting — mask-based background replacement."""
+    image_base64: str
+    mask_base64: str | None = None  # auto-generated if not provided
+    prompt: str = ""
+    jewelry_type: str = "necklace"
+    background: str = "black_velvet"
+    aspect_ratio_id: str | None = None
+    session_id: str | None = None
+
+
 class BrandingRequest(BaseModel):
     image_base64: str
     business_name: str = ""

@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from PIL import Image as PILImage
 from app.middleware.auth import get_current_user
 from app.schemas.studio import GenerateStudioRequest, GenerateResponse, ImageResult
+from app.database import get_supabase
 from app.services.gemini_service import analyze_product_structure
 from app.services.image_dispatch import generate_with_fidelity
 from app.services.image_service import crop_to_ratio
@@ -159,12 +160,39 @@ async def generate_studio_image(req: GenerateStudioRequest, user: dict = Depends
 
         saved_project_id: str | None = None
         try:
+            studio_original_image_path = None
+            if req.studio_session_id:
+                try:
+                    session_result = (
+                        get_supabase()
+                        .table("studio_sessions")
+                        .select("original_image_path")
+                        .eq("id", req.studio_session_id)
+                        .eq("client_id", user["id"])
+                        .maybe_single()
+                        .execute()
+                    )
+                    studio_original_image_path = (session_result.data or {}).get("original_image_path")
+                except Exception as session_meta_err:
+                    logger.warning("Studio session metadata lookup failed: %s", str(session_meta_err)[:120])
+
             saved_project = save_project(
                 client_id=user["id"],
                 project_type="photoshoot",
                 title=f"Studio Shot – {req.background_id or 'auto'}",
-                images=[{"base64": image_b64, "label": "Studio Shot"}],
-                metadata={"background": req.background_id, "category": category_slug, "quality": req.quality},
+                images=[
+                    {"base64": req.image_base64, "label": "Original Upload"},
+                    {"base64": image_b64, "label": "Studio Shot"},
+                ],
+                metadata={
+                    "background": req.background_id,
+                    "category": category_slug,
+                    "quality": req.quality,
+                    "aspect_ratio": effective_aspect_ratio_id,
+                    "studio_session_id": req.studio_session_id,
+                    "original_image_path": studio_original_image_path,
+                    "special_instructions": req.special_instructions,
+                },
                 generation_ids=[gen_id] if gen_id else None,
             )
             if saved_project:

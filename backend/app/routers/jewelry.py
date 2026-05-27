@@ -8,10 +8,11 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from app.middleware.auth import get_current_user
 from app.schemas.jewelry import (
     GenerateJewelryRequest, RecolorJewelryRequest, RewriteListingRequest, BrandingRequest,
+    AutoFixRequest, InpaintRequest,
 )
 from app.schemas.studio import GenerateResponse, ImageResult
 from app.services.gemini_service import generate_image, generate_image_pro, generate_text
-from app.services.image_dispatch import generate_with_fidelity
+from app.services.image_dispatch import generate_with_fidelity, auto_fix_image, generate_with_inpaint
 from app.services.image_service import (
     crop_to_ratio, add_branding_bar, generate_low_res_preview,
 )
@@ -36,14 +37,24 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/jewelry", tags=["Jewelry"])
 
 
-def _gen_image(quality: str, prompt: str, image_b64: str, aspect_ratio_id: str | None = None) -> dict:
+def _gen_image(
+    quality: str,
+    prompt: str,
+    image_b64: str,
+    aspect_ratio_id: str | None = None,
+    *,
+    jewelry_type: str | None = None,
+    input_detection: dict | None = None,
+) -> dict:
     """Route to Ultra (gpt-image-2), Pro (gemini-3-pro), or Standard (gemini-flash).
 
-    Standard tier is wrapped by the fidelity dispatcher — if the generated
-    product drifts from the input it silently retries and, if needed, escalates
-    to Pro (gated by FIDELITY_CHECK_ENABLED).
+    Includes invisible piece-count guard that catches the most visible failures
+    (e.g. pair of earrings collapsed to single) without adding latency.
     """
-    return generate_with_fidelity(quality, prompt, image_b64, aspect_ratio_id=aspect_ratio_id)
+    return generate_with_fidelity(
+        quality, prompt, image_b64, aspect_ratio_id=aspect_ratio_id,
+        jewelry_type=jewelry_type, input_detection=input_detection,
+    )
 
 
 @router.post("/generate-free")
@@ -218,7 +229,8 @@ async def _generate_all(req: GenerateJewelryRequest, user: dict, ratio: dict):
             shot_label = shot_cfg.get("label", f"Shot {i + 1}")
             logger.info(f"[THEME GEN] theme={req.theme_id}, shot={shot_id}, quality={req.quality}")
             try:
-                result = _gen_image(req.quality, prompt, req.image_base64, aspect_ratio_id=req.aspect_ratio_id)
+                result = _gen_image(req.quality, prompt, req.image_base64, aspect_ratio_id=req.aspect_ratio_id,
+                                    jewelry_type=req.jewelry_type, input_detection=detection_dict)
                 img_b64 = result["base64"]
                 try:
                     img_b64 = crop_to_ratio(img_b64, ratio["width"], ratio["height"])
@@ -248,7 +260,8 @@ async def _generate_all(req: GenerateJewelryRequest, user: dict, ratio: dict):
         )
         logger.info(f"[HERO PROMPT] type={req.jewelry_type}, bg={req.background}, quality={req.quality}")
         try:
-            result = _gen_image(req.quality, hero_prompt, req.image_base64, aspect_ratio_id=req.aspect_ratio_id)
+            result = _gen_image(req.quality, hero_prompt, req.image_base64, aspect_ratio_id=req.aspect_ratio_id,
+                                jewelry_type=req.jewelry_type, input_detection=detection_dict)
             hero_b64 = result["base64"]
             try:
                 hero_b64 = crop_to_ratio(hero_b64, ratio["width"], ratio["height"])
@@ -293,7 +306,8 @@ async def _generate_all(req: GenerateJewelryRequest, user: dict, ratio: dict):
                     ratio_id=req.aspect_ratio_id, detection=detection_dict,
                 )
             try:
-                alt_result = _gen_image(req.quality, alt_prompt, alt_b64, aspect_ratio_id=req.aspect_ratio_id)
+                alt_result = _gen_image(req.quality, alt_prompt, alt_b64, aspect_ratio_id=req.aspect_ratio_id,
+                                        jewelry_type=req.jewelry_type, input_detection=detection_dict)
                 alt_img_b64 = alt_result["base64"]
                 try:
                     alt_img_b64 = crop_to_ratio(alt_img_b64, ratio["width"], ratio["height"])
@@ -394,7 +408,10 @@ async def _regenerate_single(req: GenerateJewelryRequest, user: dict, ratio: dic
                 client_id=user["id"],
                 project_type="jewelry_regen",
                 title=f"Jewelry Regen – {shot_label}",
-                images=[{"base64": img_b64, "label": shot_label}],
+                images=[
+                    {"base64": req.image_base64, "label": "Original Upload"},
+                    {"base64": img_b64, "label": shot_label},
+                ],
                 metadata={"jewelry_type": req.jewelry_type, "background": req.background, "theme_id": req.theme_id, "shot_id": shot_id},
                 generation_ids=[regen_gen_id] if regen_gen_id else None,
             )
@@ -453,7 +470,10 @@ async def recolor_jewelry(req: RecolorJewelryRequest, user: dict = Depends(get_c
                 client_id=user["id"],
                 project_type="jewelry_recolor",
                 title=f"Jewelry Recolor – {req.target_metal.title()}",
-                images=[{"base64": result["base64"], "label": recolor_label}],
+                images=[
+                    {"base64": req.image_base64, "label": "Original Upload"},
+                    {"base64": result["base64"], "label": recolor_label},
+                ],
                 metadata={"jewelry_type": req.jewelry_type, "target_metal": req.target_metal},
                 generation_ids=[recolor_gen_id] if recolor_gen_id else None,
             )
@@ -559,4 +579,197 @@ async def apply_branding(req: BrandingRequest, user: dict = Depends(get_current_
         return {"success": True, "image": {"base64": branded_b64, "label": "Branded"}}
     except Exception as e:
         logger.error(f"Branding error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/auto-fix")
+async def auto_fix(req: AutoFixRequest, user: dict = Depends(get_current_user)):
+    """User-triggered product fidelity repair.
+
+    Analyzes what changed between the input and generated image, then
+    regenerates with a targeted fix prompt addressing the specific differences.
+    Costs the same as a single regeneration.
+    """
+    regen_cost = get_operation_cost("regenSingle", req.quality)
+    credits = get_jewelry_credits(user["id"])
+    if not credits or credits["token_balance"] < regen_cost:
+        raise HTTPException(status_code=403, detail=f"Need {regen_cost} tokens to auto-fix")
+
+    # Rebuild the original prompt so the fix can append to it
+    try:
+        detection = detect_jewelry_input(req.image_base64, req.jewelry_type)
+        detection_dict = detection.to_dict()
+    except Exception:
+        detection_dict = None
+
+    if req.theme_id:
+        prompt = build_jewelry_theme_prompt(
+            jewelry_type=req.jewelry_type,
+            theme_id=req.theme_id,
+            shot_id=req.shot_id or "hero",
+            special_instructions=req.special_instructions,
+            ratio_id=req.aspect_ratio_id,
+            detection=detection_dict,
+        )
+    else:
+        prompt = build_jewelry_prompt(
+            req.jewelry_type, req.background, "hero", req.special_instructions,
+            ratio_id=req.aspect_ratio_id, detection=detection_dict,
+        )
+
+    logger.info(f"[AUTO-FIX] type={req.jewelry_type}, quality={req.quality}")
+
+    try:
+        result = auto_fix_image(
+            quality=req.quality,
+            prompt=prompt,
+            input_b64=req.image_base64,
+            output_b64=req.output_base64,
+            aspect_ratio_id=req.aspect_ratio_id,
+        )
+
+        img_b64 = result["base64"]
+        ratio = get_ratio(req.aspect_ratio_id)
+        try:
+            img_b64 = crop_to_ratio(img_b64, ratio["width"], ratio["height"])
+        except Exception:
+            pass
+
+        # Track and deduct
+        usage = result.get("usage", {})
+        gen_id = track_generation(
+            client_id=user["id"],
+            generation_type="auto_fix",
+            input_tokens=usage.get("input_tokens", 0),
+            output_tokens=usage.get("output_tokens", 0),
+            model_used=result.get("model", "unknown"),
+        )
+        deduct_jewelry_tokens(user["id"], regen_cost, operation="autoFix", quality=req.quality, session_id=req.session_id)
+
+        try:
+            save_project(
+                client_id=user["id"],
+                project_type="jewelry_auto_fix",
+                title=f"Jewelry Auto-Fix – {req.jewelry_type.title()}",
+                images=[
+                    {"base64": req.image_base64, "label": "Original Upload"},
+                    {"base64": img_b64, "label": "Auto-Fixed"},
+                ],
+                metadata={"jewelry_type": req.jewelry_type, "auto_fix": result.get("auto_fix")},
+            )
+        except Exception as save_err:
+            logger.warning(f"Project save failed (non-blocking): {save_err}")
+
+        if req.session_id:
+            try:
+                add_session_action(
+                    session_id=req.session_id,
+                    action_type="auto_fix",
+                    quality=req.quality,
+                    tokens_used=regen_cost,
+                    input_data={"jewelry_type": req.jewelry_type, "auto_fix": result.get("auto_fix")},
+                    output_images_b64=[{"base64": img_b64, "label": "Auto-Fixed"}],
+                )
+            except Exception as e:
+                logger.warning(f"Session action save failed: {e}")
+
+        return {
+            "success": True,
+            "images": [{"base64": img_b64, "label": "Auto-Fixed"}],
+            "generation_ids": [gen_id] if gen_id else [],
+            "auto_fix": result.get("auto_fix", {}),
+        }
+    except Exception as e:
+        logger.error(f"Auto-fix error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/inpaint")
+async def inpaint(req: InpaintRequest, user: dict = Depends(get_current_user)):
+    """FLUX Fill inpainting — mask-based background replacement.
+
+    Product pixels stay physically identical. Only the masked (background)
+    area is modified. If no mask is provided, one is auto-generated.
+    """
+    try:
+        # Cost: same as Pro tier (20 tokens)
+        regen_cost = get_operation_cost("imageGen", "pro")
+        ok = check_and_deduct_jewelry(user["id"], regen_cost)
+        if not ok:
+            raise HTTPException(status_code=403, detail=f"Need {regen_cost} tokens for inpainting")
+
+        # Build background prompt
+        bg_prompt = JEWELRY_BACKGROUND_PROMPTS.get(req.background, req.background)
+        prompt = req.prompt or f"Product photography of {req.jewelry_type} on {bg_prompt}. Keep the product exactly as-is, only change the background."
+
+        result = generate_with_inpaint(
+            prompt=prompt,
+            image_b64=req.image_base64,
+            mask_b64=req.mask_base64,
+            aspect_ratio_id=req.aspect_ratio_id,
+        )
+
+        img_b64 = result["base64"]
+
+        # Crop to aspect ratio if specified
+        if req.aspect_ratio_id:
+            ratio = get_ratio(req.aspect_ratio_id)
+            if ratio:
+                img_b64 = crop_to_ratio(img_b64, ratio)
+
+        # Track the generation
+        gen_id = None
+        try:
+            gen_id = track_generation(
+                user_id=user["id"],
+                category="jewelry",
+                generation_type="inpaint",
+                input_image_b64=req.image_base64[:200],
+                output_image_b64=img_b64[:200],
+                quality="pro",
+                effective_quality=result.get("effective_quality", "flux-fill"),
+                tokens_used=regen_cost,
+                metadata={"jewelry_type": req.jewelry_type, "background": req.background},
+            )
+        except Exception as e:
+            logger.warning(f"Generation tracking failed: {e}")
+
+        # Save project with input + output
+        try:
+            save_project(
+                client_id=user["id"],
+                project_type="jewelry_inpaint",
+                title=f"Jewelry Inpaint – {req.jewelry_type.title()}",
+                images=[
+                    {"base64": req.image_base64, "label": "Original Upload"},
+                    {"base64": img_b64, "label": f"Inpaint — {req.background}"},
+                ],
+                metadata={"jewelry_type": req.jewelry_type, "background": req.background},
+            )
+        except Exception as save_err:
+            logger.warning(f"Project save failed (non-blocking): {save_err}")
+
+        # Save to session if session_id provided
+        if req.session_id:
+            try:
+                add_session_action(
+                    session_id=req.session_id,
+                    user_id=user["id"],
+                    action_type="inpaint",
+                    output_images=[{"base64": img_b64, "label": f"Inpaint — {req.background}"}],
+                    input_data={"jewelry_type": req.jewelry_type, "background": req.background},
+                )
+            except Exception as e:
+                logger.warning(f"Session action save failed: {e}")
+
+        return {
+            "success": True,
+            "images": [{"base64": img_b64, "label": f"Inpaint — {req.background}"}],
+            "generation_ids": [gen_id] if gen_id else [],
+            "effective_quality": result.get("effective_quality", "flux-fill"),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Inpaint error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
