@@ -92,7 +92,7 @@ export default function ShopifyJewelryImagesPage() {
               Lifestyle, Hero & Model Shots for Shopify
             </h2>
             <p className="text-[#4a4a4a] text-[15px] leading-relaxed mb-6">
-              SoraiPixel generates the full range of imagery your Shopify store needs. Upload one photo and get hero shots for product pages, lifestyle scenes for collections, and model photos for lookbooks — all in under 30 seconds per image.
+              SoraiPixel generates the full range of imagery your Shopify store needs. Upload one photo and get hero shots for product pages, lifestyle scenes for collections, and model photos for lookbooks — all in under a minute per image.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {[

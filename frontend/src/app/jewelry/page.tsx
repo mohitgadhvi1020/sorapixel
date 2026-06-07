@@ -236,6 +236,9 @@ function JewelryPage() {
   // Toast
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toastIdRef = useRef(0);
+  // Persistent generation error (toasts auto-dismiss; this stays until retry so a
+  // user who stepped away during the multi-minute render still sees what happened)
+  const [genError, setGenError] = useState<string | null>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
   const altInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -503,6 +506,7 @@ function JewelryPage() {
     const totalCount = isAnon ? 1 : selectedShots.length + altImages.length;
     setGenStatus(`Generating ${totalCount} shot${totalCount > 1 ? "s" : ""} with ${selectedTheme.name}...`);
     setResultImages([]);
+    setGenError(null);
     setAnonGeneration(false);
 
     let activeSessionId = sessionId;
@@ -591,7 +595,9 @@ function JewelryPage() {
           setShowCreditsModal(true);
         }
       } else {
-        showToast(err instanceof Error ? err.message : "Generation failed. No tokens were deducted.");
+        const msg = err instanceof Error && err.message ? err.message : "Generation failed. No tokens were deducted.";
+        showToast(msg);
+        setGenError(msg);
       }
     }
   }
@@ -1556,7 +1562,7 @@ function JewelryPage() {
                   </div>
                   <div>
                     <p className={`font-bold text-xl ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>Upload your jewelry photo</p>
-                    <p className={`text-sm mt-1.5 ${isLight ? "text-[#777]" : "text-[rgba(255,255,255,0.6)]"}`}>Tap to upload or drag and drop</p>
+                    <p className={`text-sm mt-1.5 ${isLight ? "text-[#777]" : "text-[rgba(255,255,255,0.6)]"}`}>Drag and drop or click to browse</p>
                   </div>
                   <p className={`text-xs ${isLight ? "text-[#aaa]" : "text-[rgba(255,255,255,0.45)]"}`}>PNG, JPG, JPEG, HEIC, WebP — Max 10MB</p>
                   <button
@@ -1710,6 +1716,20 @@ function JewelryPage() {
         {/* ===== SHOT CONFIGURATION ===== */}
         {step === "shot_config" && selectedTheme && (
           <>
+          {genError && (
+            <div className="mb-4 rounded-xl bg-[rgba(220,38,38,0.1)] border border-[rgba(220,38,38,0.3)] px-4 py-3 flex items-start gap-3">
+              <span className="text-red-400 text-lg leading-none mt-0.5">⚠</span>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-red-300">Generation failed</p>
+                <p className="text-xs text-[rgba(255,255,255,0.6)] mt-0.5">{genError} No tokens were deducted — you can try again.</p>
+              </div>
+              <button
+                onClick={() => setGenError(null)}
+                className="text-[rgba(255,255,255,0.4)] hover:text-white text-sm"
+                aria-label="Dismiss error"
+              >✕</button>
+            </div>
+          )}
           <ShotConfigurator
             theme={selectedTheme}
             shotConfigs={shotConfigs}
@@ -1752,7 +1772,7 @@ function JewelryPage() {
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-white font-medium">{genStatus}</p>
                 <p className="text-[11px] text-[rgba(255,255,255,0.35)] mt-0.5">
-                  This typically takes 15-30 seconds per shot
+                  This usually takes about a minute per shot — hang tight
                 </p>
               </div>
             </div>

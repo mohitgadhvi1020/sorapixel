@@ -60,7 +60,7 @@ const RAZORPAY_KEY = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "";
 
 export default function PricingPage() {
   const { user, isAdmin } = useAuth();
-  const { credits, refreshCredits } = useCredits();
+  const { credits, refreshCredits, loading: creditsLoading } = useCredits();
   const { theme } = useTheme();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -345,7 +345,7 @@ export default function PricingPage() {
                 isLight ? "text-[#999]" : "text-[rgba(255,255,255,0.4)]"
               }`}>Your Balance</p>
               <p className={`text-2xl font-bold mt-0.5 ${isLight ? "text-[#0a0a0a]" : "text-white"}`}>
-                {credits?.token_balance || 0} <span className={`text-sm font-normal ${isLight ? "text-[#999]" : "text-[rgba(255,255,255,0.4)]"}`}>tokens</span>
+                {credits ? credits.token_balance : (creditsLoading ? "—" : 0)} <span className={`text-sm font-normal ${isLight ? "text-[#999]" : "text-[rgba(255,255,255,0.4)]"}`}>tokens</span>
               </p>
             </div>
             <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${

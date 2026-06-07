@@ -6,7 +6,7 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://soraipixel.com";
 export const metadata: Metadata = {
   title: "From CAD Render to Product Photo in 30 Seconds — SoraiPixel",
   description:
-    "Transform CAD renders into photorealistic product photos in 30 seconds. Jewelry CAD rendering to marketing-ready images. 3D jewelry to photo — hero shots, lifestyle scenes, model catalogue. No photoshoot needed.",
+    "Transform CAD renders into photorealistic product photos in under a minute. Jewelry CAD rendering to marketing-ready images. 3D jewelry to photo — hero shots, lifestyle scenes, model catalogue. No photoshoot needed.",
   keywords: [
     "CAD render to product photo",
     "jewelry CAD rendering",
@@ -231,7 +231,7 @@ export default function CadToPhotoPage() {
               <span className="text-[#c4a67d]">Into Product Photos Today</span>
             </h2>
             <p className="text-white/40 text-[15px] max-w-md mx-auto mb-8 leading-relaxed">
-              Upload any jewelry render and get photorealistic marketing images in 30 seconds. Start free — no credit card required.
+              Upload any jewelry render and get photorealistic marketing images in under a minute. Start free — no credit card required.
             </p>
             <div className="flex flex-wrap justify-center gap-4">
               <Link

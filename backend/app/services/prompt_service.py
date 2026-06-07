@@ -223,6 +223,16 @@ MODEL_DESCRIPTIONS = {
     "indian_man": "a well-groomed Indian man in his early 30s",
     "indian_boy": "an Indian boy, around 14-16 years old",
     "indian_girl": "an Indian girl, around 14-16 years old",
+    # Global model diversity — sellers shipping "Jaipur to New York" need models
+    # that match their audience.
+    "western_woman": "a stylish Caucasian woman in her late 20s with natural beauty",
+    "western_man": "a well-groomed Caucasian man in his early 30s",
+    "east_asian_woman": "a stylish East Asian woman in her late 20s with natural beauty",
+    "east_asian_man": "a well-groomed East Asian man in his early 30s",
+    "african_woman": "a stylish Black woman in her late 20s with natural beauty",
+    "african_man": "a well-groomed Black man in his early 30s",
+    "latina_woman": "a stylish Latina woman in her late 20s with natural beauty",
+    "middle_eastern_woman": "a stylish Middle Eastern woman in her late 20s with natural beauty",
 }
 
 GENDER_TEMPLATES = {
@@ -667,8 +677,16 @@ CATALOGUE_POSES = [
 ]
 
 AI_MODEL_FACES = [
-    {"id": "indian_man", "name": "Indian Man", "thumb": "/thumbnails/model_indian_man.png"},
     {"id": "indian_woman", "name": "Indian Woman", "thumb": "/thumbnails/model_indian_woman.png"},
+    {"id": "indian_man", "name": "Indian Man", "thumb": "/thumbnails/model_indian_man.png"},
+    {"id": "western_woman", "name": "Western Woman", "thumb": "/thumbnails/model_western_woman.png"},
+    {"id": "western_man", "name": "Western Man", "thumb": "/thumbnails/model_western_man.png"},
+    {"id": "east_asian_woman", "name": "East Asian Woman", "thumb": "/thumbnails/model_east_asian_woman.png"},
+    {"id": "east_asian_man", "name": "East Asian Man", "thumb": "/thumbnails/model_east_asian_man.png"},
+    {"id": "african_woman", "name": "Black Woman", "thumb": "/thumbnails/model_african_woman.png"},
+    {"id": "african_man", "name": "Black Man", "thumb": "/thumbnails/model_african_man.png"},
+    {"id": "latina_woman", "name": "Latina Woman", "thumb": "/thumbnails/model_latina_woman.png"},
+    {"id": "middle_eastern_woman", "name": "Middle Eastern Woman", "thumb": "/thumbnails/model_middle_eastern_woman.png"},
     {"id": "indian_boy", "name": "Indian Boy", "thumb": "/thumbnails/model_indian_boy.png"},
     {"id": "indian_girl", "name": "Indian Girl", "thumb": "/thumbnails/model_indian_girl.png"},
 ]

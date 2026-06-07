@@ -111,6 +111,33 @@ export default function ProjectsPage() {
     })();
   }, [user?.id]);
 
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  async function deleteItem(
+    e: React.MouseEvent,
+    kind: "session" | "studio" | "project",
+    id: string,
+  ) {
+    e.stopPropagation();
+    if (deletingId) return;
+    if (!window.confirm("Delete this creation? This can't be undone.")) return;
+    const endpoint =
+      kind === "session" ? `/sessions/${id}`
+      : kind === "studio" ? `/studio-sessions/${id}`
+      : `/projects/${id}`;
+    setDeletingId(id);
+    try {
+      await api.delete(endpoint);
+      if (kind === "session") setSessions(prev => prev.filter(s => s.id !== id));
+      else if (kind === "studio") setStudioSessions(prev => prev.filter(s => s.id !== id));
+      else setProjects(prev => prev.filter(p => p.id !== id));
+    } catch {
+      window.alert("Could not delete — please try again.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   async function openSessionPreview(id: string) {
     setPreviewLoading(true);
     try {
@@ -281,6 +308,12 @@ export default function ProjectsPage() {
             {showStudio &&
               studioSessions.map((s) => {
                 const isDone = s.current_step === "done" || !!s.result_project_id;
+                // A real generation finishes in a couple of minutes. If an
+                // incomplete session hasn't moved in 15 min it was abandoned —
+                // label it "Incomplete" (neutral) instead of an active-looking
+                // "In progress" that never resolves.
+                const lastTouch = new Date(s.updated_at || s.created_at).getTime();
+                const isStaleIncomplete = !isDone && (Date.now() - lastTouch > 15 * 60 * 1000);
                 return (
                   <div
                     key={`studio-sess-${s.id}`}
@@ -306,6 +339,17 @@ export default function ProjectsPage() {
                           Studio
                         </span>
                       </div>
+                      <button
+                        onClick={(e) => deleteItem(e, "studio", s.id)}
+                        disabled={deletingId === s.id}
+                        title="Delete"
+                        aria-label="Delete creation"
+                        className="absolute bottom-2 right-2 w-7 h-7 rounded-lg flex items-center justify-center bg-black/55 backdrop-blur-sm text-white/70 opacity-0 group-hover:opacity-100 hover:bg-red-500/90 hover:text-white transition-all disabled:opacity-40"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        </svg>
+                      </button>
                       <div className="absolute top-2 right-2 flex gap-1.5">
                         {s.quality === "pro" && (
                           <span className="text-[8px] font-bold bg-gradient-to-r from-[#c4a67d] to-[#d4b88f] text-white px-2 py-0.5 rounded-full uppercase tracking-wider">
@@ -313,8 +357,12 @@ export default function ProjectsPage() {
                           </span>
                         )}
                         {!isDone && (
-                          <span className="text-[8px] font-bold bg-[rgba(234,179,8,0.9)] text-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-                            In progress
+                          <span className={`text-[8px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                            isStaleIncomplete
+                              ? "bg-[rgba(255,255,255,0.15)] text-[rgba(255,255,255,0.7)]"
+                              : "bg-[rgba(234,179,8,0.9)] text-black"
+                          }`}>
+                            {isStaleIncomplete ? "Incomplete" : "In progress"}
                           </span>
                         )}
                       </div>
@@ -372,6 +420,17 @@ export default function ProjectsPage() {
                         {badgeLabel}
                       </span>
                     </div>
+                    <button
+                      onClick={(e) => deleteItem(e, "project", p.id)}
+                      disabled={deletingId === p.id}
+                      title="Delete"
+                      aria-label="Delete creation"
+                      className="absolute bottom-2 right-2 w-7 h-7 rounded-lg flex items-center justify-center bg-black/55 backdrop-blur-sm text-white/70 opacity-0 group-hover:opacity-100 hover:bg-red-500/90 hover:text-white transition-all disabled:opacity-40"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      </svg>
+                    </button>
                     <div className="absolute top-2 right-2 flex gap-1.5">
                       {p.metadata?.quality === "pro" && (
                         <span className="text-[8px] font-bold bg-gradient-to-r from-[#c4a67d] to-[#d4b88f] text-white px-2 py-0.5 rounded-full uppercase tracking-wider">
@@ -439,6 +498,17 @@ export default function ProjectsPage() {
                         Jewelry
                       </span>
                     </div>
+                    <button
+                      onClick={(e) => deleteItem(e, "session", s.id)}
+                      disabled={deletingId === s.id}
+                      title="Delete"
+                      aria-label="Delete creation"
+                      className="absolute bottom-2 right-2 w-7 h-7 rounded-lg flex items-center justify-center bg-black/55 backdrop-blur-sm text-white/70 opacity-0 group-hover:opacity-100 hover:bg-red-500/90 hover:text-white transition-all disabled:opacity-40"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      </svg>
+                    </button>
                     <div className="absolute top-2 right-2 flex gap-1.5">
                       {s.quality === "pro" && (
                         <span className="text-[8px] font-bold bg-gradient-to-r from-[#c4a67d] to-[#d4b88f] text-white px-2 py-0.5 rounded-full uppercase tracking-wider">

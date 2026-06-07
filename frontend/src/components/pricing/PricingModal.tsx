@@ -18,11 +18,13 @@ interface Plan {
   recommended?: boolean;
 }
 
-const MODAL_SHOWN_KEY = "pricing_modal_shown";
+const MODAL_SHOWN_KEY = "pricing_modal_shown_at";
 const SHOW_DELAY_MS = 3500;
+// Don't re-show on every session — once a week is plenty.
+const SHOW_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 
 export default function PricingModal() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { currency } = useGeoCountry();
   const [open, setOpen] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -30,16 +32,19 @@ export default function PricingModal() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const alreadyShown = sessionStorage.getItem(MODAL_SHOWN_KEY);
-    if (alreadyShown) return;
+    // Never interrupt the owner/admin with a sales modal.
+    if (isAdmin) return;
+
+    const shownAt = Number(localStorage.getItem(MODAL_SHOWN_KEY) || 0);
+    if (Date.now() - shownAt < SHOW_COOLDOWN_MS) return;
 
     const timer = setTimeout(() => {
       setOpen(true);
-      sessionStorage.setItem(MODAL_SHOWN_KEY, "true");
+      localStorage.setItem(MODAL_SHOWN_KEY, String(Date.now()));
     }, SHOW_DELAY_MS);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
     if (!open) return;

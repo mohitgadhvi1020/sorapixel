@@ -46,7 +46,7 @@ export default function AboutPage() {
 
           <section>
             <h2 className="font-display font-bold text-[#0a0a0a] text-[1.25rem] mb-3">Our Solution</h2>
-            <p>SoraiPixel uses AI specifically trained for jewelry to transform any product photo — even a phone snap or CAD render — into studio-quality imagery in under 30 seconds. Hero shots, lifestyle scenes, model photos, close-ups — all from a single upload.</p>
+            <p>SoraiPixel uses AI specifically trained for jewelry to transform any product photo — even a phone snap or CAD render — into studio-quality imagery in under a minute. Hero shots, lifestyle scenes, model photos, close-ups — all from a single upload.</p>
             <p className="mt-3">The key difference from generic AI tools: we never alter your jewelry design. Every stone, prong, and engraving stays exactly as you crafted it. Only the background, lighting, and presentation change.</p>
           </section>
 

@@ -20,7 +20,11 @@ function getNudgeMessages(isIndia: boolean) {
 }
 
 const LOW_TOKEN_THRESHOLD = 20;
-const DISMISS_KEY = "upgrade_banner_dismissed";
+const DISMISS_KEY = "upgrade_banner_dismissed_at";
+// Once dismissed, stay quiet for a day instead of re-nagging every session.
+const DISMISS_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+// Routes where an upsell is inappropriate (owner/admin tooling, checkout, etc.)
+const HIDDEN_PREFIXES = ["/admin", "/pricing", "/onboarding"];
 
 export default function UpgradeBanner() {
   const { user } = useAuth();
@@ -32,23 +36,31 @@ export default function UpgradeBanner() {
   const [messageIdx, setMessageIdx] = useState(0);
 
   const isLight = theme === "light";
-  const isPricingPage = pathname === "/pricing";
+  const isHiddenRoute = HIDDEN_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
   const NUDGE_MESSAGES = getNudgeMessages(isIndia);
 
   useEffect(() => {
-    const stored = sessionStorage.getItem(DISMISS_KEY);
-    setDismissed(stored === "true");
+    const at = Number(localStorage.getItem(DISMISS_KEY) || 0);
+    setDismissed(Date.now() - at < DISMISS_COOLDOWN_MS);
   }, []);
 
+  // Pick a stable message per mount (not per navigation) so it doesn't feel like
+  // a fresh nag on every page change.
   useEffect(() => {
     setMessageIdx(Math.floor(Math.random() * NUDGE_MESSAGES.length));
-  }, [pathname, NUDGE_MESSAGES.length]);
-
-  if (loading || !user || isPricingPage || dismissed) return null;
+  }, [NUDGE_MESSAGES.length]);
 
   const balance = credits?.token_balance ?? 0;
   const isLow = balance <= LOW_TOKEN_THRESHOLD;
   const isCritical = balance <= 5;
+  const isFreeTier = credits?.is_free_tier ?? false;
+
+  // Only nudge when it's actually relevant: low balance (a useful warning) or a
+  // free-tier user (a reasonable upgrade prompt). Paid users with a healthy
+  // balance are never spammed.
+  const shouldNudge = isLow || isFreeTier;
+
+  if (loading || !user || isHiddenRoute || dismissed || !shouldNudge) return null;
 
   const message = isLow
     ? {
@@ -59,7 +71,7 @@ export default function UpgradeBanner() {
 
   function handleDismiss() {
     setDismissed(true);
-    sessionStorage.setItem(DISMISS_KEY, "true");
+    localStorage.setItem(DISMISS_KEY, String(Date.now()));
   }
 
   return (

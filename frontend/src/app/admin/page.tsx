@@ -2993,7 +2993,7 @@ export default function AdminPage() {
               const igUrl = meta.instagram_url;
               const storeName = selectedLead.store_name;
 
-              const dmTemplate = `Hi! I came across ${storeName} and love your jewelry collection 💎\n\nI work at SoraPixel — we use AI to transform product photos into studio-quality shots. I actually ran one of your products through our tool and the result is amazing.\n\nWould love to show you the before/after — can I send it over?\n\nCheck us out: soraipixel.com`;
+              const dmTemplate = `Hi! I came across ${storeName} and love your jewelry collection 💎\n\nI work at SoraiPixel — we use AI to transform product photos into studio-quality shots. I actually ran one of your products through our tool and the result is amazing.\n\nWould love to show you the before/after — can I send it over?\n\nCheck us out: soraipixel.com`;
 
               return (
                 <div className="border border-border rounded-lg p-3">

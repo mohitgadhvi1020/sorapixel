@@ -283,7 +283,7 @@ export default function AIJewelryPhotographyPage() {
                 How AI Jewelry Photography Works
               </h2>
               <p className="text-text-secondary max-w-2xl mx-auto">
-                Three steps. Under 30 seconds. From raw photo to marketplace-ready imagery.
+                Three steps. Under a minute. From raw photo to marketplace-ready imagery.
               </p>
             </div>
             <div className="grid sm:grid-cols-3 gap-8">

@@ -24,7 +24,7 @@ const NAV_LINKS = [
 
 export default function Header({ onMenuToggle, showMenu = false }: HeaderProps) {
   const { user, isAdmin } = useAuth();
-  const { credits } = useCredits();
+  const { credits, loading: creditsLoading } = useCredits();
   const { theme, toggleTheme } = useTheme();
   const pathname = usePathname();
 
@@ -125,7 +125,9 @@ export default function Header({ onMenuToggle, showMenu = false }: HeaderProps) 
               </svg>
             )}
           </button>
-          {credits && (
+          {/* Token pill — stays put whenever a user is signed in; shows a subtle
+              placeholder while the balance is still loading so it never pops in. */}
+          {user && (credits || creditsLoading) && (
             <Link
               href="/pricing"
               prefetch={false}
@@ -133,7 +135,7 @@ export default function Header({ onMenuToggle, showMenu = false }: HeaderProps) 
             >
               <TokenIcon size={16} />
               <span className="text-xs font-bold text-[#c4a67d]">
-                {credits.token_balance}
+                {credits ? credits.token_balance : <span className="inline-block w-5 h-3 rounded bg-[rgba(196,166,125,0.25)] animate-pulse align-middle" />}
               </span>
               <span className="text-[11px] text-[rgba(196,166,125,0.6)] hidden sm:inline">tokens</span>
             </Link>

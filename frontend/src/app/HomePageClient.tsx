@@ -148,17 +148,36 @@ export default function HomePageClient() {
                 Transform any jewelry photo into professional product imagery in seconds. No studio, no photographer, no design changes. Ever.
               </p>
               <div className="mt-7 md:mt-8 flex flex-wrap items-center gap-3 animate-slide-up" style={{ animationDelay: "240ms" }}>
-                <Link href="/jewelry" className="px-7 py-3.5 bg-white text-[#0a0a0a] text-[14px] font-semibold rounded-full hover:bg-white/90 transition-all active:scale-[0.97] shadow-[0_4px_24px_rgba(255,255,255,0.1)]">
-                  Try with YOUR Jewelry — Free
-                </Link>
-                <Link href="/pricing" prefetch={false} className="px-6 py-3.5 text-white/40 text-[14px] font-medium hover:text-white/70 transition-colors">
-                  View Pricing
-                </Link>
+                {isAuthenticated ? (
+                  <>
+                    <Link href="/create" className="px-7 py-3.5 bg-white text-[#0a0a0a] text-[14px] font-semibold rounded-full hover:bg-white/90 transition-all active:scale-[0.97] shadow-[0_4px_24px_rgba(255,255,255,0.1)]">
+                      Open Studio
+                    </Link>
+                    <Link href="/projects" className="px-6 py-3.5 text-white/40 text-[14px] font-medium hover:text-white/70 transition-colors">
+                      My Creations
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <Link href="/jewelry" className="px-7 py-3.5 bg-white text-[#0a0a0a] text-[14px] font-semibold rounded-full hover:bg-white/90 transition-all active:scale-[0.97] shadow-[0_4px_24px_rgba(255,255,255,0.1)]">
+                      Try with YOUR Jewelry — Free
+                    </Link>
+                    <Link href="/pricing" prefetch={false} className="px-6 py-3.5 text-white/40 text-[14px] font-medium hover:text-white/70 transition-colors">
+                      View Pricing
+                    </Link>
+                  </>
+                )}
               </div>
               <div className="mt-8 flex items-center gap-6 text-white/25 text-[12px] animate-slide-up" style={{ animationDelay: "320ms" }}>
-                <span className="flex items-center gap-1.5"><svg className="w-3.5 h-3.5 text-[#c4a67d]" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg> Free daily tokens</span>
-                <span className="flex items-center gap-1.5"><svg className="w-3.5 h-3.5 text-[#c4a67d]" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg> No credit card</span>
-                <span className="flex items-center gap-1.5"><svg className="w-3.5 h-3.5 text-[#c4a67d]" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg> 30s delivery</span>
+                {isAuthenticated ? (
+                  <span className="flex items-center gap-1.5"><svg className="w-3.5 h-3.5 text-[#c4a67d]" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg> Welcome back{user?.contact_name ? `, ${user.contact_name.split(" ")[0]}` : ""} — your studio is ready</span>
+                ) : (
+                  <>
+                    <span className="flex items-center gap-1.5"><svg className="w-3.5 h-3.5 text-[#c4a67d]" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg> Free daily tokens</span>
+                    <span className="flex items-center gap-1.5"><svg className="w-3.5 h-3.5 text-[#c4a67d]" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg> No credit card</span>
+                    <span className="flex items-center gap-1.5"><svg className="w-3.5 h-3.5 text-[#c4a67d]" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg> ~1 min delivery</span>
+                  </>
+                )}
               </div>
             </div>
 
@@ -189,7 +208,7 @@ export default function HomePageClient() {
             <span className="hidden sm:inline text-[#e8e5df]">|</span>
             <span>Preserves every stone, prong &amp; engraving</span>
             <span className="hidden sm:inline text-[#e8e5df]">|</span>
-            <span>Under 30 seconds per image</span>
+            <span>Under a minute per image</span>
             <span className="hidden sm:inline text-[#e8e5df]">|</span>
             <span>Zero design changes guaranteed</span>
           </div>

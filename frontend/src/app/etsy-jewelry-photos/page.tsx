@@ -92,7 +92,7 @@ export default function EtsyJewelryPhotosPage() {
               How SoraiPixel Helps Etsy Sellers
             </h2>
             <p className="text-[#4a4a4a] text-[15px] leading-relaxed mb-6">
-              Upload any photo of your jewelry — even a quick phone shot — and get studio-quality images in under 30 seconds. Our AI preserves every detail of your design while transforming backgrounds, lighting, and presentation. Perfect for rings, necklaces, earrings, bracelets, and more.
+              Upload any photo of your jewelry — even a quick phone shot — and get studio-quality images in under a minute. Our AI preserves every detail of your design while transforming backgrounds, lighting, and presentation. Perfect for rings, necklaces, earrings, bracelets, and more.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {[

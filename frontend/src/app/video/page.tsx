@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api-client";
+import UploadDropzone from "@/components/shared/UploadDropzone";
 import { useAuth, useCredits } from "@/providers/AppProvider";
 import { useTheme } from "@/hooks/useTheme";
 import { VIDEO_PRICING, FLOW_VIDEO_PRICING } from "@/lib/token-pricing";
@@ -125,7 +126,6 @@ function VideoPageInner() {
   const [imageB64, setImageB64] = useState("");
   const [imagePreview, setImagePreview] = useState("");
   const [error, setError] = useState("");
-  const [dragOver, setDragOver] = useState(false);
 
   /* ── Quick Video state ── */
   const [videoMode, setVideoMode] = useState("360_spin");
@@ -153,7 +153,6 @@ function VideoPageInner() {
   const [flowProgressStep, setFlowProgressStep] = useState(0);
   const [flowResult, setFlowResult] = useState<FlowResult | null>(null);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const initRef = useRef(false);
   const progressRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -235,17 +234,6 @@ function VideoPageInner() {
     reader.readAsDataURL(file);
   }
 
-  function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) handleFileSelect(file);
-  }
-
-  function handleDrop(e: React.DragEvent) {
-    e.preventDefault();
-    setDragOver(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) handleFileSelect(file);
-  }
 
   function resetFull() {
     setImageB64(""); setImagePreview("");
@@ -405,28 +393,13 @@ function VideoPageInner() {
         {/* ── UPLOAD AREA (shared) ── */}
         {/* ═══════════════════════════════════════════════════ */}
         {!imageB64 && !isGenerating && !hasResult && (
-          <div onDragOver={(e) => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={handleDrop}>
-            <label
-              className={`block p-12 md:p-20 text-center cursor-pointer rounded-2xl border-2 border-dashed transition-all duration-300 group ${
-                dragOver
-                  ? "border-[#c4a67d] bg-[rgba(196,166,125,0.06)]"
-                  : lt
-                    ? "border-[rgba(0,0,0,0.12)] hover:border-[rgba(196,166,125,0.4)] hover:bg-[rgba(196,166,125,0.02)]"
-                    : "border-[rgba(196,166,125,0.2)] hover:border-[rgba(196,166,125,0.5)] hover:bg-[rgba(196,166,125,0.03)]"
-              }`}
-              style={{ boxShadow: lt ? "0 2px 16px rgba(0,0,0,0.04)" : "0 2px 16px rgba(0,0,0,0.1)" }}
-            >
-              <div className="w-16 h-16 mx-auto mb-5 bg-[rgba(196,166,125,0.1)] rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#c4a67d" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
-                </svg>
-              </div>
-              <p className={`text-sm font-semibold ${lt ? "text-[#0a0a0a]" : "text-white"}`}>Upload your jewelry image</p>
-              <p className={`text-xs mt-1.5 ${lt ? "text-[#0a0a0a]/40" : "text-white/40"}`}>Drag and drop or click to browse</p>
-              <p className={`text-[10px] mt-3 ${lt ? "text-[#0a0a0a]/25" : "text-white/25"}`}>PNG, JPG up to 10MB</p>
-              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleUpload} className="hidden" />
-            </label>
-          </div>
+          <UploadDropzone
+            onFile={handleFileSelect}
+            onError={setError}
+            title="Upload your jewelry image"
+            hint="PNG, JPG, WebP — up to 10MB"
+            light={lt}
+          />
         )}
 
         {/* ═══════════════════════════════════════════════════ */}

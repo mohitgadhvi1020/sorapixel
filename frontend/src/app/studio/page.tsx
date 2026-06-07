@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { api } from "@/lib/api-client";
+import UploadDropzone from "@/components/shared/UploadDropzone";
 import { useAuth } from "@/providers/AppProvider";
 import { useTheme } from "@/hooks/useTheme";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -68,6 +69,9 @@ function StudioPageInner() {
   const [sessionRestoring, setSessionRestoring] = useState(!!searchParams.get("studio_session"));
 
   const [backgrounds, setBackgrounds] = useState<Background[]>([]);
+  // Track thumbnails whose image failed to load so we can fall back to a label
+  // chip instead of showing an empty white square.
+  const [failedThumbs, setFailedThumbs] = useState<Set<string>>(new Set());
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [selectedBg, setSelectedBg] = useState("white");
   const quality = "pro" as const;
@@ -86,7 +90,6 @@ function StudioPageInner() {
 
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toastIdRef = useRef(0);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const showToast = useCallback((message: string, type: Toast["type"] = "error") => {
     const id = ++toastIdRef.current;
@@ -374,36 +377,18 @@ function StudioPageInner() {
                     </button>
                   </div>
                 ) : (
-                  <label className="block p-12 md:p-16 text-center cursor-pointer rounded-[20px] border-2 border-dashed border-[rgba(196,166,125,0.2)] hover:border-[rgba(196,166,125,0.5)] hover:bg-[rgba(196,166,125,0.03)] transition-all duration-300 group shadow-[0_2px_16px_rgba(0,0,0,0.06),0_8px_40px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_24px_rgba(0,0,0,0.1),0_12px_48px_rgba(0,0,0,0.06)]">
-                    <div className="w-16 h-16 mx-auto mb-5 bg-[rgba(196,166,125,0.1)] rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#c4a67d" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
-                      </svg>
-                    </div>
-                    <p className="text-sm font-semibold text-white">Upload your product image</p>
-                    <p className="text-xs text-[rgba(255,255,255,0.4)] mt-1.5">Drag and drop or click to browse</p>
-                    <p className="text-[10px] text-[rgba(255,255,255,0.25)] mt-3">PNG, JPG up to 10MB</p>
-                    <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-                    <input
-                      ref={cameraInputRef}
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      onChange={handleImageUpload}
-                      className="hidden"
-                    />
-                    <button
-                      type="button"
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); cameraInputRef.current?.click(); }}
-                      className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#c4a67d] bg-[rgba(196,166,125,0.1)] hover:bg-[rgba(196,166,125,0.2)] transition-all md:hidden"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                        <circle cx="12" cy="13" r="4" />
-                      </svg>
-                      Take Photo
-                    </button>
-                  </label>
+                  <UploadDropzone
+                    onFile={(file) => {
+                      const reader = new FileReader();
+                      reader.onload = () => setImagePreview(reader.result as string);
+                      reader.readAsDataURL(file);
+                    }}
+                    onError={showToast}
+                    title="Upload your product image"
+                    hint="PNG, JPG, WebP — up to 10MB"
+                    showCamera
+                    light={lt}
+                  />
                 )}
               </Card>
             </div>
@@ -464,10 +449,16 @@ function StudioPageInner() {
                                   : "0 2px 8px rgba(0,0,0,0.3), 0 6px 16px rgba(0,0,0,0.2)",
                             }}
                           >
-                            {bg.thumb ? (
-                              <img src={bg.thumb} alt={bg.label} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" loading="lazy" />
+                            {bg.thumb && !failedThumbs.has(bg.id) ? (
+                              <img
+                                src={bg.thumb}
+                                alt={bg.label}
+                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                                loading="lazy"
+                                onError={() => setFailedThumbs(prev => new Set(prev).add(bg.id))}
+                              />
                             ) : (
-                              <div className="w-full h-full flex items-center justify-center" style={{ background: lt ? "rgba(0,0,0,0.03)" : "rgba(255,255,255,0.04)", color: lt ? "rgba(0,0,0,0.35)" : "rgba(255,255,255,0.3)", fontSize: "10px" }}>
+                              <div className="w-full h-full flex items-center justify-center capitalize" style={{ background: lt ? "rgba(0,0,0,0.03)" : "rgba(255,255,255,0.04)", color: lt ? "rgba(0,0,0,0.45)" : "rgba(255,255,255,0.45)", fontSize: "11px", fontWeight: 600 }}>
                                 {bg.label.slice(0, 3)}
                               </div>
                             )}
@@ -612,7 +603,7 @@ function StudioPageInner() {
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-white font-medium">{PROGRESS_STEPS[progressStep]?.label || "Creating your photo…"}</p>
                 <p className="text-[11px] text-[rgba(255,255,255,0.35)] mt-0.5">
-                  This typically takes 15–30 seconds
+                  This usually takes about a minute — hang tight
                 </p>
               </div>
             </div>

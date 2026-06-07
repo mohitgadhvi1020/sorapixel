@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, Suspense } from "react";
 import { api } from "@/lib/api-client";
+import UploadDropzone from "@/components/shared/UploadDropzone";
 import { useAuth } from "@/providers/AppProvider";
 import { useRouter, useSearchParams } from "next/navigation";
 import { shareToWhatsApp, downloadImage } from "@/lib/share";
@@ -49,6 +50,7 @@ function CatalogueContent() {
   const paramPoses = searchParams.get("poses");
 
   const [models, setModels] = useState<ModelOption[]>([]);
+  const [failedThumbs, setFailedThumbs] = useState<Set<string>>(new Set());
   const [poses, setPoses] = useState<PoseOption[]>([]);
   const [backgrounds, setBackgrounds] = useState<BackgroundOption[]>([]);
 
@@ -75,7 +77,6 @@ function CatalogueContent() {
   const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const stepTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loaded = useRef(false);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -96,13 +97,6 @@ function CatalogueContent() {
     } catch { /* silent */ }
   }
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setImagePreview(reader.result as string);
-    reader.readAsDataURL(file);
-  };
 
   const togglePose = (poseId: string) => {
     setSelectedPoses(prev => {
@@ -178,7 +172,7 @@ function CatalogueContent() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
-              Create UGC
+              Model Shots
             </h2>
             <p className="text-[rgba(255,255,255,0.5)] text-sm mt-1">
               Place your product on an AI model for catalogue-style photos.
@@ -244,36 +238,17 @@ function CatalogueContent() {
                   </button>
                 </div>
               ) : (
-                <label className="block p-12 md:p-16 text-center cursor-pointer rounded-[20px] border-2 border-dashed border-[rgba(196,166,125,0.2)] hover:border-[rgba(196,166,125,0.5)] hover:bg-[rgba(196,166,125,0.03)] transition-all duration-300 group">
-                  <div className="w-16 h-16 mx-auto mb-5 bg-[rgba(196,166,125,0.1)] rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#c4a67d" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-                    </svg>
-                  </div>
-                  <p className="text-sm font-semibold text-white">Upload an Image</p>
-                  <p className="text-xs text-[rgba(255,255,255,0.4)] mt-1.5">Drag and drop or click to browse</p>
-                  <p className="text-[10px] text-[rgba(255,255,255,0.25)] mt-3">PNG, JPG up to 10MB</p>
-                  <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-                  <input
-                    ref={cameraInputRef}
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                  />
-                  <button
-                    type="button"
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); cameraInputRef.current?.click(); }}
-                    className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#c4a67d] bg-[rgba(196,166,125,0.1)] hover:bg-[rgba(196,166,125,0.2)] transition-all md:hidden"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                      <circle cx="12" cy="13" r="4" />
-                    </svg>
-                    Take Photo
-                  </button>
-                </label>
+                <UploadDropzone
+                  onFile={(file) => {
+                    const reader = new FileReader();
+                    reader.onload = () => setImagePreview(reader.result as string);
+                    reader.readAsDataURL(file);
+                  }}
+                  onError={(msg) => setError(msg)}
+                  title="Upload your jewelry photo"
+                  hint="PNG, JPG, WebP — up to 10MB"
+                  showCamera
+                />
               )}
             </Card>
 
@@ -299,7 +274,13 @@ function CatalogueContent() {
                       <button key={m.id} onClick={() => setSelectedModel(m.id)} className="flex-shrink-0 text-center group">
                         <div className={`w-20 h-20 rounded-xl overflow-hidden border-2 transition-all duration-250 ${selectedModel === m.id ? "border-[#c4a67d] shadow-[0_0_16px_rgba(196,166,125,0.25)] ring-2 ring-[rgba(196,166,125,0.15)]" : "border-[rgba(255,255,255,0.08)] group-hover:border-[rgba(255,255,255,0.14)]"
                           }`}>
-                          <img src={m.thumb} alt={m.name} className="w-full h-full object-cover" loading="lazy" />
+                          {m.thumb && !failedThumbs.has(m.id) ? (
+                            <img src={m.thumb} alt={m.name} className="w-full h-full object-cover" loading="lazy" onError={() => setFailedThumbs(prev => new Set(prev).add(m.id))} />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-[rgba(196,166,125,0.12)] text-[#c4a67d] text-lg font-bold">
+                              {m.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
+                            </div>
+                          )}
                         </div>
                         <p className={`text-xs mt-1.5 w-20 truncate ${selectedModel === m.id ? "text-[#d4b88f] font-medium" : "text-[rgba(255,255,255,0.4)]"
                           }`}>{m.name}</p>
