@@ -1,0 +1,11 @@
+# Keep the Cloud Build upload small & fast. These are rebuilt inside the
+# Dockerfile (npm ci + next build), so they must NOT be uploaded.
+node_modules/
+.next/
+.git/
+.env*
+env.yaml
+npm-debug.log*
+*.md
+.DS_Store
+tsconfig.tsbuildinfo
